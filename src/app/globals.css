@@ -101,8 +101,8 @@ body::before {
 .chess-wrapper {
   position: relative;
   z-index: 1;
-  max-width: 1680px;
-  width: 100%;
+  max-width: 1580px;
+  width: min(94%, 1580px);
   box-sizing: border-box;
   overflow-x: hidden;
   margin: 0 auto;
@@ -1499,7 +1499,10 @@ body::before {
 }
 
 @media (max-width: 900px) {
-  .chess-wrapper { padding: 1rem 0.75rem 3.5rem 0.75rem; }
+  .chess-wrapper {
+    width: 100%;
+    padding: 1rem 0.75rem 3.5rem 0.75rem;
+  }
 
   .top-nav-bar {
     flex-direction: column;
