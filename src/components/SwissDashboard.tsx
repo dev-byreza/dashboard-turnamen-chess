@@ -76,6 +76,35 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     }
   }, [currentMaxRound, selectedRoundTab]);
 
+  // Suppress document.title during print so browser top margin only shows the date
+  useEffect(() => {
+    let originalTitle = document.title;
+    const handleBeforePrint = () => {
+      originalTitle = document.title;
+      document.title = '';
+    };
+    const handleAfterPrint = () => {
+      document.title = originalTitle;
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
+
+  const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = '';
+    window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 600);
+  };
+
   const activeRoundMatches = matches.filter((m) => m.round === selectedRoundTab);
   const isCurrentRoundFullyScored =
     activeRoundMatches.length > 0 && activeRoundMatches.every((m) => m.result !== null);
@@ -508,7 +537,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             <button
               className="btn-glass-secondary no-print"
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
-              onClick={() => window.print()}
+              onClick={handlePrint}
               title="Cetak / simpan klasemen sebagai PDF"
             >
               <Printer size={13} />
