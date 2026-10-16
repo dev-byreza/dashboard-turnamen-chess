@@ -273,6 +273,7 @@ export default function SwissTournamentPage() {
         {/* Simple White Footer */}
         <footer className="site-footer">
           <span className="footer-title">CHESS POLITEKNIK SOROWAKO</span>
+          <span className="footer-credit">devbyreza</span>
         </footer>
       </div>
 
