@@ -10,16 +10,16 @@ const coinageFont = localFont({
 
 export const metadata: Metadata = {
   title: 'Chess Club Poliwako',
-  description: 'Dashboard Turnamen Catur Sistem Swiss • UKM Catur Politeknik Sorowako.',
+  description: 'Dashboard CHESS POLIWAKO',
   openGraph: {
     title: 'Chess Club Poliwako',
-    description: 'Dashboard Turnamen Catur Sistem Swiss • UKM Catur Politeknik Sorowako.',
+    description: 'Dashboard CHESS POLIWAKO.',
     type: 'website',
   },
   twitter: {
     card: 'summary',
     title: 'Chess Club Poliwako',
-    description: 'Dashboard Turnamen Catur Sistem Swiss • UKM Catur Politeknik Sorowako.',
+    description: 'Dashboard CHESS POLIWAKO.',
   },
 };
 
