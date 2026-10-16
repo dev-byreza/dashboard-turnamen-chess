@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Player, SwissMatch, MatchResult } from '../types/chess';
+import { Player, SwissMatch, MatchResult, SwissPairingOverride } from '../types/chess';
 import {
   calculateSwissStandings,
   generateNextSwissRound,
@@ -35,6 +35,7 @@ interface SwissDashboardProps {
   tournamentName?: string;
   tournamentDate?: string;
   tournamentLocation?: string;
+  pairingOverrides?: Record<number, SwissPairingOverride[]>;
   isAdmin?: boolean;
   onRequestAdminLogin?: () => void;
   onUpdateMatches: (newMatches: SwissMatch[]) => void;
@@ -59,6 +60,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   tournamentName,
   tournamentDate,
   tournamentLocation,
+  pairingOverrides,
   isAdmin = false,
   onRequestAdminLogin,
   onUpdateMatches,
@@ -161,7 +163,12 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const handleGenerateNextRound = () => {
     if (!canGenerateNextRound) return;
     const nextRoundNum = currentMaxRound + 1;
-    const newRoundMatches = generateNextSwissRound(nextRoundNum, players, matches);
+    const newRoundMatches = generateNextSwissRound(
+      nextRoundNum,
+      players,
+      matches,
+      pairingOverrides?.[nextRoundNum] ?? []
+    );
     onUpdateMatches([...matches, ...newRoundMatches]);
     setSelectedRoundTab(nextRoundNum);
 

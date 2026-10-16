@@ -1,4 +1,4 @@
-import { Player, SwissMatch, MatchResult, StandingRow } from '../types/chess';
+import { Player, SwissMatch, MatchResult, StandingRow, SwissPairingOverride } from '../types/chess';
 import { calculateTournamentEloReport, TournamentEloReport } from './eloRating';
 
 export interface SwissStandingsResult {
@@ -172,7 +172,8 @@ function findPairings(candidates: PairCandidate[], allMatches: SwissMatch[]): Pa
 export function generateNextSwissRound(
   roundNumber: number,
   players: Player[],
-  allPreviousMatches: SwissMatch[]
+  allPreviousMatches: SwissMatch[],
+  pairingOverrides: SwissPairingOverride[] = []
 ): SwissMatch[] {
   // 1. Calculate current standings up to now
   const { rows } = calculateSwissStandings(players, allPreviousMatches);
@@ -187,8 +188,40 @@ export function generateNextSwissRound(
   const matches: SwissMatch[] = [];
   let toPair = candidates;
 
+  // Apply explicit admin pairing data first. This is intentionally allowed to
+  // override the normal rematch preference when the tournament data requires it.
+  const candidateIds = new Set(candidates.map((candidate) => candidate.player.id));
+  const forcedIds = new Set<string>();
+  const forcedMatches = pairingOverrides.filter((pairing) => {
+    const valid =
+      pairing.whitePlayerId !== pairing.blackPlayerId &&
+      candidateIds.has(pairing.whitePlayerId) &&
+      candidateIds.has(pairing.blackPlayerId) &&
+      !forcedIds.has(pairing.whitePlayerId) &&
+      !forcedIds.has(pairing.blackPlayerId);
+    if (valid) {
+      forcedIds.add(pairing.whitePlayerId);
+      forcedIds.add(pairing.blackPlayerId);
+    }
+    return valid;
+  });
+
+  if (forcedMatches.length > 0) {
+    toPair = candidates.filter((candidate) => !forcedIds.has(candidate.player.id));
+    forcedMatches.forEach((pairing, index) => {
+      matches.push({
+        id: `swiss_r${roundNumber}_forced_b${index + 1}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+        round: roundNumber,
+        boardNumber: index + 1,
+        whitePlayerId: pairing.whitePlayerId,
+        blackPlayerId: pairing.blackPlayerId,
+        result: null,
+      });
+    });
+  }
+
   if (candidates.length % 2 !== 0) {
-    const byes = candidates.map((candidate) => ({
+    const byes = toPair.map((candidate) => ({
       candidate,
       count: allPreviousMatches.filter(
         (m) => m.isBye && (m.whitePlayerId === candidate.player.id || m.blackPlayerId === candidate.player.id)
@@ -199,7 +232,7 @@ export function generateNextSwissRound(
       .sort((a, b) => b.candidate.rank - a.candidate.rank)[0] ??
       byes.sort((a, b) => a.count - b.count || b.candidate.rank - a.candidate.rank)[0];
 
-    toPair = candidates.filter((candidate) => candidate.player.id !== bye.candidate.player.id);
+    toPair = toPair.filter((candidate) => candidate.player.id !== bye.candidate.player.id);
     matches.push({
       id: `swiss_r${roundNumber}_bye_${Date.now()}`,
       round: roundNumber,
@@ -219,7 +252,7 @@ export function generateNextSwissRound(
     matches.push({
       id: `swiss_r${roundNumber}_b${index + 1}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
       round: roundNumber,
-      boardNumber: index + 1,
+      boardNumber: matches.filter((match) => !match.isBye).length + index + 1,
       ...colors,
       result: null,
     });

@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { Player, Tournament, TournamentStore, SwissMatch } from '../types/chess';
+import { Player, Tournament, TournamentStore, SwissMatch, SwissPairingOverride } from '../types/chess';
 
 export const DEFAULT_ROSTER: Player[] = [
   { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 757, club: 'Politeknik Sorowako' },
@@ -33,6 +33,9 @@ export const DEFAULT_TOURNAMENT: Tournament = {
       result: null,
     },
   ],
+  pairingOverrides: {
+    2: [{ whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' }],
+  },
   createdAt: 1729056000000,
 };
 
@@ -92,6 +95,7 @@ export async function ensureTables(sql: any) {
       player_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
       matches JSONB NOT NULL DEFAULT '[]'::jsonb,
       initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
+      pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at BIGINT DEFAULT 0,
       is_active BOOLEAN DEFAULT FALSE,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -101,6 +105,11 @@ export async function ensureTables(sql: any) {
   await sql`
     ALTER TABLE chess_tournaments
     ADD COLUMN IF NOT EXISTS initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb;
+  `;
+
+  await sql`
+    ALTER TABLE chess_tournaments
+    ADD COLUMN IF NOT EXISTS pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
   `;
 
   await sql`
@@ -153,9 +162,10 @@ export async function initDb(force = false) {
   if (tournCount === 0 || force) {
     const playerIdsJson = JSON.stringify(DEFAULT_TOURNAMENT.playerIds);
     const matchesJson = JSON.stringify(DEFAULT_TOURNAMENT.matches);
+    const pairingOverridesJson = JSON.stringify(DEFAULT_TOURNAMENT.pairingOverrides || {});
 
     await sql`
-      INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, created_at, is_active)
+      INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active)
       VALUES (
         ${DEFAULT_TOURNAMENT.id},
         ${DEFAULT_TOURNAMENT.name},
@@ -164,6 +174,8 @@ export async function initDb(force = false) {
         ${DEFAULT_TOURNAMENT.totalRounds},
         ${playerIdsJson}::jsonb,
         ${matchesJson}::jsonb,
+        '{}'::jsonb,
+        ${pairingOverridesJson}::jsonb,
         ${DEFAULT_TOURNAMENT.createdAt},
         TRUE
       )
@@ -216,7 +228,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
 
     // 2. Fetch tournaments
     const tourneyRows = (await sql`
-      SELECT id, name, date, location, total_rounds, player_ids, matches, initial_ratings, created_at, is_active
+      SELECT id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active
       FROM chess_tournaments
       ORDER BY created_at DESC
     `) as Array<{
@@ -228,6 +240,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       player_ids: string[] | string;
       matches: SwissMatch[] | string;
       initial_ratings: Record<string, number> | string;
+      pairing_overrides: Record<string, SwissPairingOverride[]> | string;
       created_at: number | string;
       is_active: boolean;
     }>;
@@ -275,6 +288,13 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
           ? t.initial_ratings
           : {};
 
+      const pairingOverrides: Record<string, SwissPairingOverride[]> =
+        typeof t.pairing_overrides === 'string'
+          ? JSON.parse(t.pairing_overrides)
+          : t.pairing_overrides && typeof t.pairing_overrides === 'object'
+          ? t.pairing_overrides
+          : {};
+
       return {
         id: t.id,
         name: t.name,
@@ -284,6 +304,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
         playerIds,
         matches,
         initialRatings: Object.keys(initialRatings).length > 0 ? initialRatings : undefined,
+        pairingOverrides: Object.keys(pairingOverrides).length > 0 ? pairingOverrides : undefined,
         createdAt: Number(t.created_at) || 0,
       };
     });
@@ -357,9 +378,10 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       const playerIdsJson = JSON.stringify(t.playerIds);
       const matchesJson = JSON.stringify(t.matches);
       const initialRatingsJson = JSON.stringify(t.initialRatings || {});
+      const pairingOverridesJson = JSON.stringify(t.pairingOverrides || {});
 
       await sql`
-        INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, created_at, is_active)
+        INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active)
         VALUES (
           ${t.id},
           ${t.name},
@@ -369,6 +391,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           ${playerIdsJson}::jsonb,
           ${matchesJson}::jsonb,
           ${initialRatingsJson}::jsonb,
+          ${pairingOverridesJson}::jsonb,
           ${t.createdAt || 0},
           ${isActive}
         )
@@ -380,6 +403,9 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           player_ids = EXCLUDED.player_ids,
           matches = EXCLUDED.matches,
           initial_ratings = EXCLUDED.initial_ratings,
+          pairing_overrides = EXCLUDED.pairing_overrides,
+          initial_ratings = EXCLUDED.initial_ratings,
+          pairing_overrides = EXCLUDED.pairing_overrides,
           is_active = EXCLUDED.is_active,
           updated_at = CURRENT_TIMESTAMP;
       `;

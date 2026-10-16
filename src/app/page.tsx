@@ -541,6 +541,7 @@ export default function SwissTournamentPage() {
             tournamentName={activeTournament.name}
             tournamentDate={activeTournament.date}
             tournamentLocation={activeTournament.location}
+            pairingOverrides={activeTournament.pairingOverrides}
             isAdmin={isAdmin}
             onRequestAdminLogin={() => setIsAdminModalOpen(true)}
             onUpdateMatches={handleUpdateActiveMatches}

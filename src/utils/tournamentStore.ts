@@ -59,6 +59,9 @@ export function createDefaultStore(): TournamentStore {
     totalRounds: 5,
     playerIds: roster.map((p) => p.id),
     matches: generateSwissRound1(roster),
+    pairingOverrides: {
+      2: [{ whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' }],
+    },
     createdAt: 1729056000000,
   };
   return { roster, tournaments: [tournament], activeId: tournament.id };

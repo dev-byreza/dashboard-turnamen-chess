@@ -70,6 +70,7 @@ async function main() {
         player_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
         matches JSONB NOT NULL DEFAULT '[]'::jsonb,
         initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
+        pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at BIGINT DEFAULT 0,
         is_active BOOLEAN DEFAULT FALSE,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -103,15 +104,23 @@ async function main() {
           club = EXCLUDED.club,
           updated_at = CURRENT_TIMESTAMP;
       `;
+    }
 
     await sql`
       ALTER TABLE chess_tournaments
       ADD COLUMN IF NOT EXISTS initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb;
     `;
-    }
+
+    await sql`
+      ALTER TABLE chess_tournaments
+      ADD COLUMN IF NOT EXISTS pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
+    `;
 
     console.log('🏆 Memasukkan turnamen ROOKIE TOUR CHESS (Babak 1 aktif)...');
     const playerIdsJson = JSON.stringify(players.map((p) => p.id));
+    const pairingOverridesJson = JSON.stringify({
+      2: [{ whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' }],
+    });
     const matchesJson = JSON.stringify([
       {
         id: 'swiss_r1_b1_rookie',
@@ -132,7 +141,7 @@ async function main() {
     ]);
 
     await sql`
-      INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, created_at, is_active)
+      INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active)
       VALUES (
         'tn_rookie_tour_chess',
         'ROOKIE TOUR CHESS',
@@ -141,6 +150,8 @@ async function main() {
         5,
         ${playerIdsJson}::jsonb,
         ${matchesJson}::jsonb,
+        '{}'::jsonb,
+        ${pairingOverridesJson}::jsonb,
         1729056000000,
         TRUE
       )
@@ -151,6 +162,8 @@ async function main() {
         total_rounds = EXCLUDED.total_rounds,
         player_ids = EXCLUDED.player_ids,
         matches = EXCLUDED.matches,
+        initial_ratings = EXCLUDED.initial_ratings,
+        pairing_overrides = EXCLUDED.pairing_overrides,
         is_active = TRUE,
         updated_at = CURRENT_TIMESTAMP;
     `;

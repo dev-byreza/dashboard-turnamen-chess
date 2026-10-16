@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS chess_tournaments (
   player_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
   matches JSONB NOT NULL DEFAULT '[]'::jsonb,
   initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at BIGINT DEFAULT 0,
   is_active BOOLEAN DEFAULT FALSE,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -32,6 +33,9 @@ CREATE TABLE IF NOT EXISTS chess_tournaments (
 
 ALTER TABLE chess_tournaments
   ADD COLUMN IF NOT EXISTS initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE chess_tournaments
+  ADD COLUMN IF NOT EXISTS pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- 3. Buat tabel pengaturan turnamen
 CREATE TABLE IF NOT EXISTS chess_settings (
@@ -55,7 +59,7 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = CURRENT_TIMESTAMP;
 
 -- 5. Masukkan data turnamen "ROOKIE TOUR CHESS"
-INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, created_at, is_active)
+INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active)
 VALUES (
   'tn_rookie_tour_chess',
   'ROOKIE TOUR CHESS',
@@ -67,6 +71,8 @@ VALUES (
     {"id": "swiss_r1_b1_rookie", "round": 1, "boardNumber": 1, "whitePlayerId": "p_anxiety99", "blackPlayerId": "p_dewacad", "result": null},
     {"id": "swiss_r1_b2_rookie", "round": 1, "boardNumber": 2, "whitePlayerId": "p_azazeel03", "blackPlayerId": "p_ziiganteng", "result": null}
   ]'::jsonb,
+  '{}'::jsonb,
+  '{"2":[{"whitePlayerId":"p_ziiganteng","blackPlayerId":"p_azazeel03"}]}'::jsonb,
   1729056000000,
   TRUE
 )
@@ -77,6 +83,8 @@ ON CONFLICT (id) DO UPDATE SET
   total_rounds = EXCLUDED.total_rounds,
   player_ids = EXCLUDED.player_ids,
   matches = EXCLUDED.matches,
+  initial_ratings = EXCLUDED.initial_ratings,
+  pairing_overrides = EXCLUDED.pairing_overrides,
   is_active = TRUE,
   updated_at = CURRENT_TIMESTAMP;
 

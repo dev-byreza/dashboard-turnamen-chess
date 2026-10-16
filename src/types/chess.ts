@@ -80,6 +80,11 @@ export interface SwissMatch {
   isBye?: boolean;
 }
 
+export interface SwissPairingOverride {
+  whitePlayerId: string;
+  blackPlayerId: string;
+}
+
 export interface SwissTournamentData {
   id: string;
   title: string;
@@ -102,6 +107,8 @@ export interface Tournament {
   matches: SwissMatch[];
   /** Snapshot of the admin-approved starting Elo, locked once the first result is entered. */
   initialRatings?: Record<string, number>;
+  /** Optional admin-defined pairings for a specific round. */
+  pairingOverrides?: Record<number, SwissPairingOverride[]>;
   createdAt: number;
 }
 
