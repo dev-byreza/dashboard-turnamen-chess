@@ -340,16 +340,11 @@ export function calculateSwissStandings(
   };
 }
 
-// Initial default Swiss data (e.g. 6 or 8 players for grandmaster swiss action)
 // Initial default Swiss data for Chess Club Politeknik Sorowako
 export const initialSwissPlayers: Player[] = [
-  { id: 'sp1', name: 'Reza Fahlevi', seed: 1, rating: 2150, club: 'Politeknik Sorowako (Teknik Mesin)', title: 'FM' },
-  { id: 'sp2', name: 'Fauzi Perkasa', seed: 2, rating: 2080, club: 'Politeknik Sorowako (Otomasi)', title: 'NM' },
-  { id: 'sp3', name: 'Dul Gemilang', seed: 3, rating: 1980, club: 'Politeknik Sorowako (Mekatronika)', title: 'CM' },
-  { id: 'sp4', name: 'Yusril Satria', seed: 4, rating: 1920, club: 'Politeknik Sorowako (Perawatan)' },
-  { id: 'sp5', name: 'Ahmad Rafli', seed: 5, rating: 1860, club: 'Politeknik Sorowako (Alumni)' },
-  { id: 'sp6', name: 'Budi Santoso', seed: 6, rating: 1810, club: 'Politeknik Sorowako (Teknik Mesin)' },
-  { id: 'sp7', name: 'Dimas Wicaksono', seed: 7, rating: 1750, club: 'Politeknik Sorowako (Otomasi)' },
-  { id: 'sp8', name: 'Eko Prasetyo', seed: 8, rating: 1700, club: 'Politeknik Sorowako (Perawatan)' },
+  { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 757, club: 'Politeknik Sorowako' },
+  { id: 'p_ziiganteng', name: 'ZiiGanteng', seed: 2, rating: 706, club: 'Politeknik Sorowako' },
+  { id: 'p_dewacad', name: 'DEWACAD', seed: 3, rating: 590, club: 'Politeknik Sorowako' },
+  { id: 'p_azazeel03', name: 'Azazeel03', seed: 4, rating: 354, club: 'Politeknik Sorowako' },
 ];
 

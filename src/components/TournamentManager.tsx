@@ -27,6 +27,7 @@ interface TournamentManagerProps {
   initialTab?: 'tournaments' | 'roster';
   initialCreate?: boolean;
   initialEditId?: string | null;
+  dbStatus?: 'connected' | 'unconfigured' | 'offline' | 'checking';
   onClose: () => void;
   onSetActive: (tournamentId: string) => void;
   onSaveTournament: (data: TournamentFormData, editId?: string) => void;
@@ -34,6 +35,8 @@ interface TournamentManagerProps {
   onAddRosterPlayer: (player: Omit<Player, 'id' | 'seed'>) => void;
   onUpdateRosterPlayer: (id: string, updates: Partial<Player>) => void;
   onDeleteRosterPlayer: (id: string) => void;
+  onSyncDb?: () => Promise<void> | void;
+  onResetToRookieTour?: () => Promise<void> | void;
 }
 
 const getInitials = (name: string) =>
@@ -51,6 +54,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   initialTab = 'tournaments',
   initialCreate = false,
   initialEditId = null,
+  dbStatus = 'checking',
   onClose,
   onSetActive,
   onSaveTournament,
@@ -58,6 +62,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   onAddRosterPlayer,
   onUpdateRosterPlayer,
   onDeleteRosterPlayer,
+  onSyncDb,
+  onResetToRookieTour,
 }) => {
   const [activeTab, setActiveTab] = useState<'tournaments' | 'roster'>(initialTab);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(initialCreate || Boolean(initialEditId));
@@ -243,6 +249,50 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
           <button type="button" onClick={onClose} className="icon-btn" title="Tutup">
             <X size={18} />
           </button>
+        </div>
+
+        {/* Database Status Ribbon */}
+        <div className="db-status-bar">
+          <div className="db-status-left">
+            <span
+              className={`db-status-dot ${
+                dbStatus === 'connected' ? 'connected' : dbStatus === 'unconfigured' ? 'unconfigured' : 'offline'
+              }`}
+            />
+            <span className="db-status-label">
+              {dbStatus === 'connected'
+                ? 'PostgreSQL Vercel: Terhubung & Tersinkron'
+                : dbStatus === 'unconfigured'
+                ? 'Penyimpanan Lokal Aktif (Tambahkan POSTGRES_URL di Vercel untuk sinkronisasi cloud)'
+                : dbStatus === 'checking'
+                ? 'Memeriksa status PostgreSQL...'
+                : 'Mode Offline (LocalStorage)'}
+            </span>
+          </div>
+          <div className="db-status-actions">
+            {onSyncDb && dbStatus === 'connected' && (
+              <button
+                type="button"
+                onClick={() => onSyncDb()}
+                className="db-sync-btn"
+                title="Tarik pembaruan dari PostgreSQL"
+              >
+                <Database size={13} />
+                <span>Sync DB</span>
+              </button>
+            )}
+            {onResetToRookieTour && (
+              <button
+                type="button"
+                onClick={() => onResetToRookieTour()}
+                className="db-sync-btn reset"
+                title="Reset dan isi data turnamen ke ROOKIE TOUR CHESS & 4 peserta"
+              >
+                <Database size={13} />
+                <span>Seed ROOKIE TOUR</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Modal Navigation Tabs */}

@@ -29,14 +29,14 @@ export function hasStarted(t: Tournament): boolean {
 export function createDefaultStore(): TournamentStore {
   const roster = initialSwissPlayers.map((p) => ({ ...p }));
   const tournament: Tournament = {
-    id: 'tn_default',
-    name: 'Turnamen Catur Sistem Swiss',
-    date: '',
-    location: '',
+    id: 'tn_rookie_tour_chess',
+    name: 'ROOKIE TOUR CHESS',
+    date: '2026-10-16',
+    location: 'C2 Only',
     totalRounds: 5,
     playerIds: roster.map((p) => p.id),
     matches: generateSwissRound1(roster),
-    createdAt: 0,
+    createdAt: 1729056000000,
   };
   return { roster, tournaments: [tournament], activeId: tournament.id };
 }
@@ -57,7 +57,17 @@ export function loadStore(): TournamentStore | null {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (isValidStore(parsed)) return parsed;
+      if (isValidStore(parsed)) {
+        // Auto-upgrade if store only contained the old initial template placeholder
+        if (
+          parsed.tournaments.length === 1 &&
+          parsed.tournaments[0].id === 'tn_default' &&
+          parsed.roster.some((p) => p.id === 'sp1')
+        ) {
+          return createDefaultStore();
+        }
+        return parsed;
+      }
     }
 
     const legacy = localStorage.getItem(LEGACY_KEY);

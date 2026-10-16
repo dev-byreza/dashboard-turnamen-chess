@@ -19,6 +19,7 @@ import { Clock, Settings, Plus, Trophy } from 'lucide-react';
 export default function SwissTournamentPage() {
   const [store, setStore] = useState(createDefaultStore);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'offline'>('checking');
 
   // Modals state
   const [isTimerOpen, setIsTimerOpen] = useState<boolean>(false);
@@ -27,21 +28,91 @@ export default function SwissTournamentPage() {
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
 
-  // Load saved state from LocalStorage on mount
+  // Load saved state from LocalStorage on mount, then sync with PostgreSQL API
   useEffect(() => {
     const loaded = loadStore();
     if (loaded) {
       setStore(loaded);
     }
     setIsHydrated(true);
+
+    // Check & sync from PostgreSQL on Vercel
+    fetch('/api/tournament')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.configured && data.store) {
+          setDbStatus('connected');
+          setStore(data.store);
+          saveStore(data.store);
+        } else if (!data.configured) {
+          setDbStatus('unconfigured');
+        } else {
+          setDbStatus('offline');
+        }
+      })
+      .catch((err) => {
+        console.warn('PostgreSQL fetch warning:', err);
+        setDbStatus('offline');
+      });
   }, []);
 
-  // Persist store to LocalStorage whenever it changes
+  // Persist store to LocalStorage and PostgreSQL whenever it changes
   useEffect(() => {
     if (isHydrated) {
       saveStore(store);
+
+      // Persist to PostgreSQL if configured
+      fetch('/api/tournament', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (res.savedToDb) {
+            setDbStatus('connected');
+          }
+        })
+        .catch(() => {});
     }
   }, [store, isHydrated]);
+
+  // Synchronize or seed data to/from PostgreSQL
+  const handleSyncWithDatabase = async (force = false) => {
+    try {
+      const res = await fetch(`/api/init-db${force ? '?force=true' : ''}`);
+      const data = await res.json();
+      if (data.success) {
+        const tourRes = await fetch('/api/tournament');
+        const tourData = await tourRes.json();
+        if (tourData.success && tourData.store) {
+          setStore(tourData.store);
+          saveStore(tourData.store);
+          setDbStatus('connected');
+        }
+        alert(data.message || 'Sinkronisasi database berhasil!');
+      } else {
+        if (force) {
+          // If DB not connected locally, still reset local state
+          const fresh = createDefaultStore();
+          setStore(fresh);
+          saveStore(fresh);
+          alert('Data lokal berhasil di-reset ke ROOKIE TOUR CHESS dengan 4 peserta. (Koneksi cloud akan aktif setelah POSTGRES_URL disetel di Vercel).');
+        } else {
+          alert(data.error || 'Gagal sinkronisasi database.');
+        }
+      }
+    } catch (err: any) {
+      if (force) {
+        const fresh = createDefaultStore();
+        setStore(fresh);
+        saveStore(fresh);
+        alert('Data lokal berhasil di-reset ke ROOKIE TOUR CHESS dengan 4 peserta.');
+      } else {
+        alert('Terjadi kesalahan koneksi database: ' + (err?.message || err));
+      }
+    }
+  };
 
   // Resolve current active tournament
   const activeTournament =
@@ -295,6 +366,7 @@ export default function SwissTournamentPage() {
           initialTab={managerTab}
           initialCreate={managerCreate}
           initialEditId={managerEditId}
+          dbStatus={dbStatus}
           onClose={() => {
             setIsManagerOpen(false);
             setManagerCreate(false);
@@ -306,6 +378,8 @@ export default function SwissTournamentPage() {
           onAddRosterPlayer={handleAddRosterPlayer}
           onUpdateRosterPlayer={handleUpdateRosterPlayer}
           onDeleteRosterPlayer={handleDeleteRosterPlayer}
+          onSyncDb={() => handleSyncWithDatabase(false)}
+          onResetToRookieTour={() => handleSyncWithDatabase(true)}
         />
       )}
     </main>
