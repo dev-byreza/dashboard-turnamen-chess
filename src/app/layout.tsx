@@ -9,8 +9,18 @@ const coinageFont = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'Turnamen Catur Sistem Swiss | Dashboard Modern & Elegan',
-  description: 'Dashboard Turnamen Catur Sistem Swiss Minimalis, Modern dan Elegan dengan FIDE Swiss Pairing, Buchholz, dan Jam Catur Terintegrasi.',
+  title: 'Chess Club Poliwako',
+  description: 'Dashboard Turnamen Catur Sistem Swiss • UKM Catur Politeknik Sorowako.',
+  openGraph: {
+    title: 'Chess Club Poliwako',
+    description: 'Dashboard Turnamen Catur Sistem Swiss • UKM Catur Politeknik Sorowako.',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Chess Club Poliwako',
+    description: 'Dashboard Turnamen Catur Sistem Swiss • UKM Catur Politeknik Sorowako.',
+  },
 };
 
 export default function RootLayout({
