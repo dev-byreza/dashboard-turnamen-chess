@@ -323,8 +323,8 @@ body::before {
   content: '♞';
   position: absolute;
   right: 2.2rem;
-  bottom: -1.6rem;
-  font-size: 11rem;
+  top: 0.45rem;
+  font-size: 4rem;
   line-height: 1;
   color: rgba(184, 137, 26, 0.13);
   pointer-events: none;
@@ -340,6 +340,7 @@ body::before {
   align-items: center;
   gap: 0.65rem;
   margin-bottom: 0.7rem;
+  padding-right: 4.75rem;
   flex-wrap: wrap;
 }
 
@@ -1849,12 +1850,13 @@ body::before {
     border-radius: 16px;
     overflow: hidden;
   }
-  .hero-banner-card::after { font-size: 6rem; opacity: 0.08; }
+  .hero-banner-card::after { top: 0.45rem; right: 0.75rem; font-size: 3rem; opacity: 0.12; }
   .hero-title { font-size: 1.45rem; }
   .hero-desc { font-size: 0.82rem; }
 
   .hero-header-meta {
     gap: 0.4rem;
+    padding-right: 3.5rem;
   }
 
   .hero-actions-group {
