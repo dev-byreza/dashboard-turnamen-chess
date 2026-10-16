@@ -14,7 +14,7 @@ import { generateSwissRound1 } from '../utils/swissEngine';
 import { SwissDashboard } from '../components/SwissDashboard';
 import { ChessTimerModal } from '../components/ChessTimerModal';
 import { TournamentManager } from '../components/TournamentManager';
-import { Clock, ShieldCheck, Settings, Plus, Trophy } from 'lucide-react';
+import { Clock, Settings, Plus, Trophy } from 'lucide-react';
 
 export default function SwissTournamentPage() {
   const [store, setStore] = useState(createDefaultStore);
@@ -270,19 +270,9 @@ export default function SwissTournamentPage() {
           </div>
         )}
 
-        {/* Footer with Logo */}
+        {/* Simple White Footer */}
         <footer className="site-footer">
-          <div className="footer-left">
-            <img src="/images/logo-chess-club-sorowako.png" alt="Politeknik Sorowako" />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <ShieldCheck size={15} style={{ color: 'var(--green)' }} />
-              <span>Tie-break FIDE: Buchholz (BH) dan Sonneborn-Berger (SB)</span>
-            </div>
-          </div>
-
-          <div>
-            Diselenggarakan oleh <strong>Chess Club Politeknik Sorowako</strong> • Platform DevByReza
-          </div>
+          <span className="footer-title">CHESS POLITEKNIK SOROWAKO</span>
         </footer>
       </div>
 

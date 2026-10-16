@@ -1418,34 +1418,26 @@ body::before {
 
 .timer-clock.active-black .timer-clock-state { color: rgba(255, 255, 255, 0.7); }
 
-/* ===== Footer ===== */
+/* ===== Simple White Footer ===== */
 .site-footer {
   margin-top: 3rem;
-  padding-top: 1.5rem;
-  border-top: 1px dashed var(--border-light);
+  padding: 1.25rem 1.5rem;
+  background: #ffffff;
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  justify-content: center;
+  text-align: center;
 }
 
-.site-footer strong { color: var(--gold); }
-
-.footer-left {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.footer-left img {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  object-fit: cover;
-  border: 1px solid var(--gold-border);
+.footer-title {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  color: var(--navy);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .broadcast-exit {
@@ -1953,11 +1945,12 @@ button, input, select, textarea {
 .hero-title,
 .champion-name,
 .section-title-text,
-.modal-title {
+.modal-title,
+.footer-title {
   font-family: var(--font-heading);
   font-weight: normal;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   line-height: 1.2;
 }
 
@@ -1967,7 +1960,8 @@ button, input, select, textarea {
 }
 
 .section-title-text,
-.modal-title {
+.modal-title,
+.footer-title {
   font-size: var(--fs-h2);
 }
 
@@ -1987,7 +1981,7 @@ button, input, select, textarea {
 .modern-swiss-table th, .modern-swiss-table td, .podium-player-name,
 .podium-points-tag, .btn-gold-action, .btn-glass-secondary, .preset-btn,
 .timer-clock-label, .timer-clock-state, .points-pill, .rank-badge,
-.champion-meta, .champion-eyebrow, .site-footer, .title-tag,
+.champion-meta, .champion-eyebrow, .title-tag,
 .player-cell-club, .board-number-badge, .player-row-elo, .player-row-idx,
 .finished-chip {
   font-family: var(--font-body);
@@ -2010,7 +2004,7 @@ button, input, select, textarea {
 .modern-swiss-table th, .modern-swiss-table td, .podium-player-name,
 .podium-points-tag, .btn-gold-action, .btn-glass-secondary, .preset-btn,
 .timer-clock-label, .points-pill, .rank-badge, .champion-meta,
-.champion-eyebrow, .site-footer, .finished-chip {
+.champion-eyebrow, .finished-chip {
   font-size: var(--fs-small);
 }
 
