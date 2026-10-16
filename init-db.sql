@@ -24,10 +24,14 @@ CREATE TABLE IF NOT EXISTS chess_tournaments (
   total_rounds INT DEFAULT 5,
   player_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
   matches JSONB NOT NULL DEFAULT '[]'::jsonb,
+  initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at BIGINT DEFAULT 0,
   is_active BOOLEAN DEFAULT FALSE,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE chess_tournaments
+  ADD COLUMN IF NOT EXISTS initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- 3. Buat tabel pengaturan turnamen
 CREATE TABLE IF NOT EXISTS chess_settings (
@@ -60,8 +64,8 @@ VALUES (
   5,
   '["p_anxiety99", "p_ziiganteng", "p_dewacad", "p_azazeel03"]'::jsonb,
   '[
-    {"id": "swiss_r1_b1_rookie", "round": 1, "boardNumber": 1, "whitePlayerId": "p_dewacad", "blackPlayerId": "p_ziiganteng", "result": null},
-    {"id": "swiss_r1_b2_rookie", "round": 1, "boardNumber": 2, "whitePlayerId": "p_anxiety99", "blackPlayerId": "p_azazeel03", "result": null}
+    {"id": "swiss_r1_b1_rookie", "round": 1, "boardNumber": 1, "whitePlayerId": "p_anxiety99", "blackPlayerId": "p_dewacad", "result": null},
+    {"id": "swiss_r1_b2_rookie", "round": 1, "boardNumber": 2, "whitePlayerId": "p_azazeel03", "blackPlayerId": "p_ziiganteng", "result": null}
   ]'::jsonb,
   1729056000000,
   TRUE

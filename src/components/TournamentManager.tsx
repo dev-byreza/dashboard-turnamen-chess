@@ -19,6 +19,7 @@ import {
   Award,
   Layers,
 } from 'lucide-react';
+import { hasStarted } from '../utils/tournamentStore';
 
 interface TournamentManagerProps {
   roster: Player[];
@@ -95,6 +96,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [editPlayerClub, setEditPlayerClub] = useState<string>('');
   const [editPlayerTitle, setEditPlayerTitle] = useState<string>('');
 
+  const activeTournament = tournaments.find((t) => t.id === activeId);
+  const activeTournamentStarted = Boolean(activeTournament && hasStarted(activeTournament));
+  const editingTournamentStarted = Boolean(
+    editingTournamentId &&
+      tournaments.find((t) => t.id === editingTournamentId && hasStarted(t))
+  );
+
   // Helper to open create form
   const handleOpenCreateForm = () => {
     setEditingTournamentId(null);
@@ -123,6 +131,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
 
   // Toggle player selection in picker
   const togglePlayerSelection = (id: string) => {
+    if (editingTournamentStarted) return;
     setFormPlayerIds((prev) =>
       prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
     );
@@ -138,6 +147,10 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
 
   const handleQuickAddPlayer = () => {
     if (!quickPlayerName.trim()) return;
+    if (editingTournamentStarted) {
+      alert('Peserta tidak dapat ditambah setelah pertandingan dimulai.');
+      return;
+    }
     const name = quickPlayerName.trim();
     const newId = `pl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     onAddRosterPlayer(
@@ -185,6 +198,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       return;
     }
     const name = rosterName.trim();
+    const shouldAutoEnroll = autoEnrollToActive && !activeTournamentStarted;
     onAddRosterPlayer(
       {
         name,
@@ -192,8 +206,11 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
         club: rosterClub.trim() || undefined,
         title: (rosterTitle as Player['title']) || undefined,
       },
-      autoEnrollToActive
+      shouldAutoEnroll
     );
+    if (autoEnrollToActive && activeTournamentStarted) {
+      alert('Peserta ditambahkan ke database, tetapi tidak didaftarkan ke turnamen yang sudah dimulai.');
+    }
     setRosterName('');
     setRosterRating('500');
     setRosterClub('');
@@ -219,6 +236,9 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     });
     setEditingPlayerId(null);
   };
+
+  const isRatingLocked = (playerId: string) =>
+    tournaments.some((t) => t.playerIds.includes(playerId) && hasStarted(t));
 
   // Player usage count in tournaments
   const getPlayerTournamentCount = (playerId: string) => {
@@ -382,6 +402,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                           value={formTotalRounds}
                           onChange={(e) => setFormTotalRounds(parseInt(e.target.value, 10))}
                           className="form-input-text"
+                          disabled={editingTournamentStarted}
                         >
                           {[3, 4, 5, 6, 7, 8, 9].map((r) => (
                             <option key={r} value={r}>
@@ -409,6 +430,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                             type="button"
                             onClick={handleSelectAllPlayers}
                             className="btn-compact"
+                            disabled={editingTournamentStarted}
                           >
                             Pilih semua
                           </button>
@@ -416,6 +438,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                             type="button"
                             onClick={handleDeselectAllPlayers}
                             className="btn-compact"
+                            disabled={editingTournamentStarted}
                           >
                             Kosongkan
                           </button>
@@ -449,6 +472,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                           onChange={(e) => setQuickPlayerName(e.target.value)}
                           placeholder="+ Tambah nama peserta baru langsung..."
                           className="quick-add-input"
+                          disabled={editingTournamentStarted}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
@@ -459,7 +483,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                         <button
                           type="button"
                           onClick={handleQuickAddPlayer}
-                          disabled={!quickPlayerName.trim()}
+                          disabled={editingTournamentStarted || !quickPlayerName.trim()}
                           className="btn-quick-add"
                         >
                           <Plus size={14} />
@@ -739,8 +763,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                         type="checkbox"
                         checked={autoEnrollToActive}
                         onChange={(e) => setAutoEnrollToActive(e.target.checked)}
+                        disabled={activeTournamentStarted}
                       />
-                      <span>Daftarkan langsung ke turnamen aktif saat ini</span>
+                      <span>
+                        {activeTournamentStarted
+                          ? 'Turnamen aktif sudah dimulai; peserta baru hanya masuk database'
+                          : 'Daftarkan langsung ke turnamen aktif saat ini'}
+                      </span>
                     </label>
 
                     <button
@@ -810,6 +839,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                               onChange={(e) => setEditPlayerRating(e.target.value)}
                               placeholder="Elo"
                               className="form-input-text"
+                              disabled={isRatingLocked(p.id)}
                             />
                             <select
                               value={editPlayerTitle}

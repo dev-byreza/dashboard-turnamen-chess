@@ -9,37 +9,8 @@ export interface SwissStandingsResult {
   eloReport: TournamentEloReport;
 }
 
-// Generate Round 1 pairings (Top half vs Bottom half)
+// Generate Round 1 pairings using the standard Dutch-style top-half vs bottom-half split.
 export function generateSwissRound1(players: Player[]): SwissMatch[] {
-  // Jika 4 pemain turnamen resmi Rookie Tour Sorowako, jadwalkan Babak 1: DEWACAD vs ZiiGanteng dan Anxiety99 vs Azazeel03
-  const hasRookie4 =
-    players.length === 4 &&
-    players.some((p) => p.id === 'p_dewacad') &&
-    players.some((p) => p.id === 'p_ziiganteng') &&
-    players.some((p) => p.id === 'p_anxiety99') &&
-    players.some((p) => p.id === 'p_azazeel03');
-
-  if (hasRookie4) {
-    return [
-      {
-        id: `swiss_r1_b1_rookie`,
-        round: 1,
-        boardNumber: 1,
-        whitePlayerId: 'p_dewacad',
-        blackPlayerId: 'p_ziiganteng',
-        result: null,
-      },
-      {
-        id: `swiss_r1_b2_rookie`,
-        round: 1,
-        boardNumber: 2,
-        whitePlayerId: 'p_anxiety99',
-        blackPlayerId: 'p_azazeel03',
-        result: null,
-      },
-    ];
-  }
-
   const sorted = [...players].sort((a, b) => (b.rating || 0) - (a.rating || 0) || a.seed - b.seed);
   const n = sorted.length;
   const matches: SwissMatch[] = [];
@@ -112,6 +83,91 @@ function getColorStats(playerId: string, allMatches: SwissMatch[]) {
   return { whites, blacks, diff: whites - blacks, lastColor };
 }
 
+type PairCandidate = { player: Player; points: number; rank: number };
+type Pairing = { p1: PairCandidate; p2: PairCandidate };
+
+function colorPenalty(playerId: string, color: 'white' | 'black', allMatches: SwissMatch[]) {
+  const stats = getColorStats(playerId, allMatches);
+  const nextDiff = stats.diff + (color === 'white' ? 1 : -1);
+  const repeatedColor = stats.lastColor === color ? 3 : 0;
+  return Math.abs(nextDiff) * 10 + repeatedColor;
+}
+
+function chooseColors(p1: PairCandidate, p2: PairCandidate, allMatches: SwissMatch[]) {
+  const p1WhitePenalty =
+    colorPenalty(p1.player.id, 'white', allMatches) + colorPenalty(p2.player.id, 'black', allMatches);
+  const p2WhitePenalty =
+    colorPenalty(p1.player.id, 'black', allMatches) + colorPenalty(p2.player.id, 'white', allMatches);
+
+  return p1WhitePenalty <= p2WhitePenalty
+    ? { whitePlayerId: p1.player.id, blackPlayerId: p2.player.id }
+    : { whitePlayerId: p2.player.id, blackPlayerId: p1.player.id };
+}
+
+function pairingCost(p1: PairCandidate, p2: PairCandidate, allMatches: SwissMatch[]) {
+  const rematchPenalty = havePlayedTogether(p1.player.id, p2.player.id, allMatches) ? 100000 : 0;
+  const scoreGapPenalty = Math.abs(p1.points - p2.points) * 1000;
+  const rankGapPenalty = Math.abs(p1.rank - p2.rank);
+  const colors = chooseColors(p1, p2, allMatches);
+  const colorPenaltyTotal =
+    colorPenalty(
+      colors.whitePlayerId,
+      'white',
+      allMatches
+    ) +
+    colorPenalty(colors.blackPlayerId, 'black', allMatches);
+
+  return rematchPenalty + scoreGapPenalty + rankGapPenalty + colorPenaltyTotal;
+}
+
+/**
+ * Find a complete matching while keeping score groups together and avoiding
+ * repeat opponents. The bounded search handles the small constrained fields
+ * common to this dashboard; the greedy fallback still produces a full draw
+ * when a rematch is mathematically unavoidable.
+ */
+function findPairings(candidates: PairCandidate[], allMatches: SwissMatch[]): Pairing[] {
+  let visitedNodes = 0;
+  const maxNodes = 100000;
+
+  const search = (remaining: PairCandidate[]): Pairing[] | null => {
+    if (remaining.length === 0) return [];
+    if (++visitedNodes > maxNodes) return null;
+
+    const p1 = remaining[0];
+    const opponents = remaining
+      .slice(1)
+      .map((p2, index) => ({ p2, index }))
+      .sort((a, b) => pairingCost(p1, a.p2, allMatches) - pairingCost(p1, b.p2, allMatches));
+
+    for (const { p2, index } of opponents) {
+      const next = remaining.filter((_, i) => i !== 0 && i !== index + 1);
+      const tail = search(next);
+      if (tail) return [{ p1, p2 }, ...tail];
+    }
+
+    return null;
+  };
+
+  const result = search(candidates);
+  if (result) return result;
+
+  const fallback: Pairing[] = [];
+  const remaining = [...candidates];
+  while (remaining.length >= 2) {
+    const p1 = remaining.shift()!;
+    let bestIndex = 0;
+    for (let i = 1; i < remaining.length; i++) {
+      if (pairingCost(p1, remaining[i], allMatches) < pairingCost(p1, remaining[bestIndex], allMatches)) {
+        bestIndex = i;
+      }
+    }
+    const [p2] = remaining.splice(bestIndex, 1);
+    fallback.push({ p1, p2 });
+  }
+  return fallback;
+}
+
 // Generate Next Round Pairings (Round 2+)
 export function generateNextSwissRound(
   roundNumber: number,
@@ -121,95 +177,53 @@ export function generateNextSwissRound(
   // 1. Calculate current standings up to now
   const { rows } = calculateSwissStandings(players, allPreviousMatches);
 
-  // 2. Extract player list sorted by score/rank
-  const candidates = rows.map((r) => r.player);
-  const n = candidates.length;
-  const pairedIds = new Set<string>();
+  // 2. Extract players sorted by score/rank and assign the standard lowest
+  // ranked eligible player the bye when the field size is odd.
+  const candidates: PairCandidate[] = rows.map((r) => ({
+    player: r.player,
+    points: r.points,
+    rank: r.rank,
+  }));
   const matches: SwissMatch[] = [];
-  let boardCounter = 1;
+  let toPair = candidates;
 
-  // Handle Bye if odd players: give bye to lowest ranked player who hasn't had a bye yet
-  if (n % 2 !== 0) {
-    for (let i = candidates.length - 1; i >= 0; i--) {
-      const candidate = candidates[i];
-      const hadBye = allPreviousMatches.some(
-        (m) => m.isBye && (m.whitePlayerId === candidate.id || m.blackPlayerId === candidate.id)
-      );
-      if (!hadBye) {
-        pairedIds.add(candidate.id);
-        matches.push({
-          id: `swiss_r${roundNumber}_bye_${Date.now()}`,
-          round: roundNumber,
-          boardNumber: 999, // will re-number later
-          whitePlayerId: candidate.id,
-          blackPlayerId: '__bye__',
-          result: '1-0',
-          isBye: true,
-        });
-        break;
-      }
-    }
+  if (candidates.length % 2 !== 0) {
+    const byes = candidates.map((candidate) => ({
+      candidate,
+      count: allPreviousMatches.filter(
+        (m) => m.isBye && (m.whitePlayerId === candidate.player.id || m.blackPlayerId === candidate.player.id)
+      ).length,
+    }));
+    const bye = byes
+      .filter((entry) => entry.count === 0)
+      .sort((a, b) => b.candidate.rank - a.candidate.rank)[0] ??
+      byes.sort((a, b) => a.count - b.count || b.candidate.rank - a.candidate.rank)[0];
+
+    toPair = candidates.filter((candidate) => candidate.player.id !== bye.candidate.player.id);
+    matches.push({
+      id: `swiss_r${roundNumber}_bye_${Date.now()}`,
+      round: roundNumber,
+      boardNumber: 999,
+      whitePlayerId: bye.candidate.player.id,
+      blackPlayerId: '__bye__',
+      result: '1-0',
+      isBye: true,
+    });
   }
 
-  // 3. Pair remaining players using greedy matching with lookahead
-  const toPair = candidates.filter((p) => !pairedIds.has(p.id));
-
-  for (let i = 0; i < toPair.length; i++) {
-    const p1 = toPair[i];
-    if (pairedIds.has(p1.id)) continue;
-
-    // Find best compatible opponent j > i
-    let bestOpponentIndex = -1;
-
-    for (let j = i + 1; j < toPair.length; j++) {
-      const p2 = toPair[j];
-      if (pairedIds.has(p2.id)) continue;
-
-      if (!havePlayedTogether(p1.id, p2.id, allPreviousMatches)) {
-        bestOpponentIndex = j;
-        break;
-      }
-    }
-
-    // Fallback if everyone in queue played (rare in early rounds): pair with first available
-    if (bestOpponentIndex === -1) {
-      for (let j = i + 1; j < toPair.length; j++) {
-        if (!pairedIds.has(toPair[j].id)) {
-          bestOpponentIndex = j;
-          break;
-        }
-      }
-    }
-
-    if (bestOpponentIndex !== -1) {
-      const p2 = toPair[bestOpponentIndex];
-      pairedIds.add(p1.id);
-      pairedIds.add(p2.id);
-
-      // Determine colors based on color balance
-      const c1 = getColorStats(p1.id, allPreviousMatches);
-      const c2 = getColorStats(p2.id, allPreviousMatches);
-
-      let p1IsWhite = true;
-      if (c1.diff > c2.diff) {
-        p1IsWhite = false; // p1 played more whites, give black
-      } else if (c1.diff < c2.diff) {
-        p1IsWhite = true;
-      } else {
-        // Equal diff: alternate from p1's last game
-        p1IsWhite = c1.lastColor !== 'white';
-      }
-
-      matches.push({
-        id: `swiss_r${roundNumber}_b${boardCounter}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-        round: roundNumber,
-        boardNumber: boardCounter++,
-        whitePlayerId: p1IsWhite ? p1.id : p2.id,
-        blackPlayerId: p1IsWhite ? p2.id : p1.id,
-        result: null,
-      });
-    }
-  }
+  // 3. Pair by score group first, avoid rematches, then use a rematch only
+  // when the field has no legal alternative (e.g. four players over five rounds).
+  const pairings = findPairings(toPair, allPreviousMatches);
+  pairings.forEach(({ p1, p2 }, index) => {
+    const colors = chooseColors(p1, p2, allPreviousMatches);
+    matches.push({
+      id: `swiss_r${roundNumber}_b${index + 1}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      round: roundNumber,
+      boardNumber: index + 1,
+      ...colors,
+      result: null,
+    });
+  });
 
   // Re-order boards so bye is at the bottom
   const regularMatches = matches.filter((m) => !m.isBye);

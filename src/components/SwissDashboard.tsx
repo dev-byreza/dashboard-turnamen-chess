@@ -112,8 +112,9 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   };
 
   const activeRoundMatches = matches.filter((m) => m.round === selectedRoundTab);
+  const currentRoundMatches = matches.filter((m) => m.round === currentMaxRound);
   const isCurrentRoundFullyScored =
-    activeRoundMatches.length > 0 && activeRoundMatches.every((m) => m.result !== null);
+    currentRoundMatches.length > 0 && currentRoundMatches.every((m) => m.result !== null);
 
   const canGenerateNextRound = isCurrentRoundFullyScored && currentMaxRound < totalRounds;
   const isTournamentFinished = currentMaxRound === totalRounds && isCurrentRoundFullyScored;
@@ -151,6 +152,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   }, [isTournamentFinished]);
 
   const handleScoreChange = (matchId: string, result: MatchResult) => {
+    const match = matches.find((m) => m.id === matchId);
+    if (!isAdmin || !match || match.round !== currentMaxRound) return;
     const updated = matches.map((m) => (m.id === matchId ? { ...m, result } : m));
     onUpdateMatches(updated);
   };
@@ -168,19 +171,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
       origin: { y: 0.7 },
       colors: ['#e0a82e', '#4d7c3a', '#14213d', '#ffffff'],
     });
-  };
-
-  const handleApplyEloToRoster = () => {
-    if (!onUpdatePlayers) return;
-    const updated = players.map((p) => {
-      const summary = standings.eloReport?.playerSummaries.get(p.id);
-      return {
-        ...p,
-        rating: summary?.currentRating ?? p.rating ?? 500,
-      };
-    });
-    onUpdatePlayers(updated);
-    alert('Rating Elo peserta turnamen berhasil disimpan ke profil database!');
   };
 
   const handleAddPlayer = () => {
@@ -518,7 +508,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       <div className="score-control-cell">
                         {isBye ? (
                           <span className="score-bye-badge">1 - 0 (Bye)</span>
-                        ) : isAdmin ? (
+                        ) : isAdmin && match.round === currentMaxRound ? (
                           <div className="score-pill-container">
                             <button
                               onClick={() => handleScoreChange(match.id, '1-0')}
@@ -648,18 +638,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 >
                   <BookOpen size={13} style={{ color: 'var(--gold)' }} />
                   <span>Aturan & Elo</span>
-                </button>
-              )}
-              {isAdmin && onUpdatePlayers && (
-                <button
-                  type="button"
-                  className="btn-glass-secondary"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', gap: '0.35rem' }}
-                  onClick={handleApplyEloToRoster}
-                  title="Simpan rating Elo terbaru hasil pertandingan ke profil peserta di database"
-                >
-                  <TrendingUp size={13} style={{ color: 'var(--emerald)' }} />
-                  <span>Simpan Elo</span>
                 </button>
               )}
               <button

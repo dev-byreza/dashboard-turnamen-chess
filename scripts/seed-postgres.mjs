@@ -69,6 +69,7 @@ async function main() {
         total_rounds INT DEFAULT 5,
         player_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
         matches JSONB NOT NULL DEFAULT '[]'::jsonb,
+        initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at BIGINT DEFAULT 0,
         is_active BOOLEAN DEFAULT FALSE,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -102,6 +103,11 @@ async function main() {
           club = EXCLUDED.club,
           updated_at = CURRENT_TIMESTAMP;
       `;
+
+    await sql`
+      ALTER TABLE chess_tournaments
+      ADD COLUMN IF NOT EXISTS initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb;
+    `;
     }
 
     console.log('🏆 Memasukkan turnamen ROOKIE TOUR CHESS (Babak 1 aktif)...');

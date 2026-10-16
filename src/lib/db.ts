@@ -20,16 +20,16 @@ export const DEFAULT_TOURNAMENT: Tournament = {
       id: 'swiss_r1_b1_rookie',
       round: 1,
       boardNumber: 1,
-      whitePlayerId: 'p_dewacad',
-      blackPlayerId: 'p_ziiganteng',
+      whitePlayerId: 'p_anxiety99',
+      blackPlayerId: 'p_dewacad',
       result: null,
     },
     {
       id: 'swiss_r1_b2_rookie',
       round: 1,
       boardNumber: 2,
-      whitePlayerId: 'p_anxiety99',
-      blackPlayerId: 'p_azazeel03',
+      whitePlayerId: 'p_azazeel03',
+      blackPlayerId: 'p_ziiganteng',
       result: null,
     },
   ],
@@ -91,10 +91,16 @@ export async function ensureTables(sql: any) {
       total_rounds INT DEFAULT 5,
       player_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
       matches JSONB NOT NULL DEFAULT '[]'::jsonb,
+      initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at BIGINT DEFAULT 0,
       is_active BOOLEAN DEFAULT FALSE,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `;
+
+  await sql`
+    ALTER TABLE chess_tournaments
+    ADD COLUMN IF NOT EXISTS initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb;
   `;
 
   await sql`
@@ -210,7 +216,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
 
     // 2. Fetch tournaments
     const tourneyRows = (await sql`
-      SELECT id, name, date, location, total_rounds, player_ids, matches, created_at, is_active
+      SELECT id, name, date, location, total_rounds, player_ids, matches, initial_ratings, created_at, is_active
       FROM chess_tournaments
       ORDER BY created_at DESC
     `) as Array<{
@@ -221,6 +227,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       total_rounds: number;
       player_ids: string[] | string;
       matches: SwissMatch[] | string;
+      initial_ratings: Record<string, number> | string;
       created_at: number | string;
       is_active: boolean;
     }>;
@@ -261,6 +268,13 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
           ? t.matches
           : [];
 
+      const initialRatings: Record<string, number> =
+        typeof t.initial_ratings === 'string'
+          ? JSON.parse(t.initial_ratings)
+          : t.initial_ratings && typeof t.initial_ratings === 'object'
+          ? t.initial_ratings
+          : {};
+
       return {
         id: t.id,
         name: t.name,
@@ -269,6 +283,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
         totalRounds: Number(t.total_rounds) || 5,
         playerIds,
         matches,
+        initialRatings: Object.keys(initialRatings).length > 0 ? initialRatings : undefined,
         createdAt: Number(t.created_at) || 0,
       };
     });
@@ -341,9 +356,10 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       const isActive = t.id === store.activeId;
       const playerIdsJson = JSON.stringify(t.playerIds);
       const matchesJson = JSON.stringify(t.matches);
+      const initialRatingsJson = JSON.stringify(t.initialRatings || {});
 
       await sql`
-        INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, created_at, is_active)
+        INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, created_at, is_active)
         VALUES (
           ${t.id},
           ${t.name},
@@ -352,6 +368,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           ${t.totalRounds || 5},
           ${playerIdsJson}::jsonb,
           ${matchesJson}::jsonb,
+          ${initialRatingsJson}::jsonb,
           ${t.createdAt || 0},
           ${isActive}
         )
@@ -362,6 +379,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           total_rounds = EXCLUDED.total_rounds,
           player_ids = EXCLUDED.player_ids,
           matches = EXCLUDED.matches,
+          initial_ratings = EXCLUDED.initial_ratings,
           is_active = EXCLUDED.is_active,
           updated_at = CURRENT_TIMESTAMP;
       `;

@@ -100,6 +100,8 @@ export interface Tournament {
   totalRounds: number;
   playerIds: string[]; // references into the roster
   matches: SwissMatch[];
+  /** Snapshot of the admin-approved starting Elo, locked once the first result is entered. */
+  initialRatings?: Record<string, number>;
   createdAt: number;
 }
 

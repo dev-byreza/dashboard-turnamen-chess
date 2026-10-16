@@ -12,7 +12,11 @@ export function playersForTournament(roster: Player[], t: Tournament): Player[] 
   return t.playerIds
     .map((id) => roster.find((p) => p.id === id))
     .filter((p): p is Player => Boolean(p))
-    .map((p, i) => ({ ...p, seed: i + 1 }));
+    .map((p, i) => ({
+      ...p,
+      seed: i + 1,
+      rating: t.initialRatings?.[p.id] ?? p.rating ?? 500,
+    }));
 }
 
 export function sameIds(a: string[], b: string[]): boolean {
@@ -24,6 +28,25 @@ export function sameIds(a: string[], b: string[]): boolean {
 export function hasStarted(t: Tournament): boolean {
   const maxRound = t.matches.reduce((m, x) => Math.max(m, x.round), 1);
   return maxRound > 1 || t.matches.some((m) => !m.isBye && m.result !== null);
+}
+
+/**
+ * Preserve the approved starting Elo for tournaments that were already running
+ * before the snapshot field was introduced.
+ */
+export function ensureInitialRatings(store: TournamentStore): TournamentStore {
+  let changed = false;
+  const tournaments = store.tournaments.map((t) => {
+    if (!hasStarted(t) || t.initialRatings) return t;
+
+    changed = true;
+    const initialRatings = Object.fromEntries(
+      t.playerIds.map((id) => [id, store.roster.find((p) => p.id === id)?.rating ?? 500])
+    );
+    return { ...t, initialRatings };
+  });
+
+  return changed ? { ...store, tournaments } : store;
 }
 
 export function createDefaultStore(): TournamentStore {

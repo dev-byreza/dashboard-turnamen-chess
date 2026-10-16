@@ -10,6 +10,7 @@ import {
   uid,
   sameIds,
   hasStarted,
+  ensureInitialRatings,
 } from '../utils/tournamentStore';
 import { generateSwissRound1 } from '../utils/swissEngine';
 import { SwissDashboard } from '../components/SwissDashboard';
@@ -45,42 +46,7 @@ export default function SwissTournamentPage() {
     setIsAdmin(checkIsAdmin());
     const loaded = loadStore();
     if (loaded) {
-      // Migrasikan jadwal Babak 1 ke: DEWACAD vs ZiiGanteng (Papan 1) dan Anxiety99 vs Azazeel03 (Papan 2)
-      const migratedTournaments = loaded.tournaments.map((t) => {
-        if (t.id === 'tn_rookie_tour_chess') {
-          const hasOldR1 = t.matches.some(
-            (m) =>
-              m.round === 1 &&
-              ((m.whitePlayerId === 'p_anxiety99' && m.blackPlayerId === 'p_dewacad') ||
-                (m.whitePlayerId === 'p_dewacad' && m.blackPlayerId === 'p_anxiety99'))
-          );
-          if (hasOldR1) {
-            const updatedMatches = t.matches.map((m) => {
-              if (m.round === 1 && m.boardNumber === 1) {
-                return {
-                  ...m,
-                  whitePlayerId: 'p_dewacad',
-                  blackPlayerId: 'p_ziiganteng',
-                  result: null,
-                };
-              }
-              if (m.round === 1 && m.boardNumber === 2) {
-                return {
-                  ...m,
-                  whitePlayerId: 'p_anxiety99',
-                  blackPlayerId: 'p_azazeel03',
-                  result: null,
-                };
-              }
-              return m;
-            });
-            return { ...t, matches: updatedMatches };
-          }
-        }
-        return t;
-      });
-
-      const migratedStore = { ...loaded, tournaments: migratedTournaments };
+      const migratedStore = ensureInitialRatings(loaded);
       setStore(migratedStore);
       saveStore(migratedStore);
     }
@@ -92,8 +58,9 @@ export default function SwissTournamentPage() {
       .then((data) => {
         if (data.success && data.configured && data.store) {
           setDbStatus('connected');
-          setStore(data.store);
-          saveStore(data.store);
+          const syncedStore = ensureInitialRatings(data.store);
+          setStore(syncedStore);
+          saveStore(syncedStore);
         } else if (!data.configured) {
           setDbStatus('unconfigured');
         } else {
@@ -150,8 +117,9 @@ export default function SwissTournamentPage() {
         const tourRes = await fetch('/api/tournament');
         const tourData = await tourRes.json();
         if (tourData.success && tourData.store) {
-          setStore(tourData.store);
-          saveStore(tourData.store);
+          const syncedStore = ensureInitialRatings(tourData.store);
+          setStore(syncedStore);
+          saveStore(syncedStore);
           setDbStatus('connected');
         }
         alert(data.message || 'Sinkronisasi database berhasil!');
@@ -198,7 +166,19 @@ export default function SwissTournamentPage() {
     setStore((prev) => ({
       ...prev,
       tournaments: prev.tournaments.map((t) =>
-        t.id === activeTournament.id ? { ...t, matches: newMatches } : t
+        t.id === activeTournament.id
+          ? {
+              ...t,
+              matches: newMatches,
+              initialRatings:
+                t.initialRatings ||
+                (hasStarted({ ...t, matches: newMatches })
+                  ? Object.fromEntries(
+                      t.playerIds.map((id) => [id, prev.roster.find((p) => p.id === id)?.rating ?? 500])
+                    )
+                  : undefined),
+            }
+          : t
       ),
     }));
   };
@@ -226,6 +206,16 @@ export default function SwissTournamentPage() {
       return;
     }
     if (editId) {
+      const current = store.tournaments.find((t) => t.id === editId);
+      if (
+        current &&
+        hasStarted(current) &&
+        (!sameIds(current.playerIds, data.playerIds) || current.totalRounds !== data.totalRounds)
+      ) {
+        alert('Peserta dan jumlah babak tidak dapat diubah setelah pertandingan dimulai.');
+        return;
+      }
+
       // Update existing
       setStore((prev) => {
         const existing = prev.tournaments.find((t) => t.id === editId);
@@ -235,7 +225,7 @@ export default function SwissTournamentPage() {
         let updatedMatches = existing.matches;
 
         // If player list changed, regenerate round 1 pairing
-        if (playerListChanged) {
+        if (playerListChanged && !hasStarted(existing)) {
           const resolvedPlayers = data.playerIds
             .map((id) => prev.roster.find((p) => p.id === id))
             .filter((p): p is Player => Boolean(p))
@@ -336,7 +326,7 @@ export default function SwissTournamentPage() {
 
             return {
               ...t,
-              playerIds: newPlayerIds,
+              playerIds: started ? t.playerIds : newPlayerIds,
               matches,
             };
           }
@@ -353,6 +343,14 @@ export default function SwissTournamentPage() {
   };
 
   const handleUpdateRosterPlayer = (id: string, updates: Partial<Player>) => {
+    const ratingLocked = store.tournaments.some(
+      (t) => t.playerIds.includes(id) && hasStarted(t)
+    );
+    if (ratingLocked && updates.rating !== undefined) {
+      alert('Rating Elo peserta sudah terkunci karena turnamen telah dimulai.');
+      return;
+    }
+
     setStore((prev) => ({
       ...prev,
       roster: prev.roster.map((p) => (p.id === id ? { ...p, ...updates } : p)),
@@ -368,7 +366,10 @@ export default function SwissTournamentPage() {
       const idMap = new Map(updatedPlayers.map((p) => [p.id, p]));
       const newRoster = prev.roster.map((p) => {
         const u = idMap.get(p.id);
-        return u ? { ...p, rating: u.rating } : p;
+        const ratingLocked = prev.tournaments.some(
+          (t) => t.playerIds.includes(p.id) && hasStarted(t)
+        );
+        return u && !ratingLocked ? { ...p, rating: u.rating } : p;
       });
       return { ...prev, roster: newRoster };
     });
