@@ -76,12 +76,12 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     }
   }, [currentMaxRound, selectedRoundTab]);
 
-  // Suppress document.title during print so browser top margin only shows the date
+  // Suppress document.title during print so browser top margin only shows the date without falling back to URL
   useEffect(() => {
     let originalTitle = document.title;
     const handleBeforePrint = () => {
       originalTitle = document.title;
-      document.title = '';
+      document.title = '\u00A0';
     };
     const handleAfterPrint = () => {
       document.title = originalTitle;
@@ -98,7 +98,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
 
   const handlePrint = () => {
     const originalTitle = document.title;
-    document.title = '';
+    document.title = '\u00A0';
     window.print();
     setTimeout(() => {
       document.title = originalTitle;
