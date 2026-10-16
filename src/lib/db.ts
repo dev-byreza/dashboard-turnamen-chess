@@ -66,18 +66,9 @@ export function getDb() {
 }
 
 /**
- * Initialize PostgreSQL schema and seed the initial data if empty or forced.
+ * Ensure all required tables exist in PostgreSQL.
  */
-export async function initDb(force = false) {
-  const sql = getDb();
-  if (!sql) {
-    return {
-      success: false,
-      error: 'Variabel POSTGRES_URL atau DATABASE_URL belum dikonfigurasi.',
-    };
-  }
-
-  // 1. Create tables
+export async function ensureTables(sql: any) {
   await sql`
     CREATE TABLE IF NOT EXISTS chess_roster (
       id VARCHAR(64) PRIMARY KEY,
@@ -113,6 +104,22 @@ export async function initDb(force = false) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
+}
+
+/**
+ * Initialize PostgreSQL schema and seed the initial data if empty or forced.
+ */
+export async function initDb(force = false) {
+  const sql = getDb();
+  if (!sql) {
+    return {
+      success: false,
+      error: 'Variabel POSTGRES_URL atau DATABASE_URL belum dikonfigurasi.',
+    };
+  }
+
+  // 1. Ensure tables exist
+  await ensureTables(sql);
 
   // 2. Check existing roster count
   const rosterCountRes = await sql`SELECT COUNT(*)::int as count FROM chess_roster`;
@@ -183,6 +190,9 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
   if (!sql) return null;
 
   try {
+    // 0. Ensure tables exist
+    await ensureTables(sql);
+
     // 1. Fetch roster
     const rosterRows = (await sql`
       SELECT id, name, seed, rating, club, title, avatar
@@ -290,6 +300,9 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
   }
 
   try {
+    // 0. Ensure tables exist before inserting
+    await ensureTables(sql);
+
     // 1. Save roster players
     for (const p of store.roster) {
       await sql`
@@ -314,12 +327,12 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       `;
     }
 
-    // Optionally remove players deleted from roster
+    // Safely delete removed players from roster
     if (store.roster.length > 0) {
-      const activeIds = store.roster.map((p) => p.id);
+      const activeIdsJson = JSON.stringify(store.roster.map((p) => p.id));
       await sql`
         DELETE FROM chess_roster
-        WHERE NOT (id = ANY(${activeIds}));
+        WHERE id NOT IN (SELECT jsonb_array_elements_text(${activeIdsJson}::jsonb));
       `;
     }
 
@@ -354,12 +367,12 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       `;
     }
 
-    // Optionally remove tournaments deleted
+    // Safely delete removed tournaments
     if (store.tournaments.length > 0) {
-      const activeTourneyIds = store.tournaments.map((t) => t.id);
+      const activeTourneyIdsJson = JSON.stringify(store.tournaments.map((t) => t.id));
       await sql`
         DELETE FROM chess_tournaments
-        WHERE NOT (id = ANY(${activeTourneyIds}));
+        WHERE id NOT IN (SELECT jsonb_array_elements_text(${activeTourneyIdsJson}::jsonb));
       `;
     }
 

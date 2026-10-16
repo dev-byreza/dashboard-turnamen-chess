@@ -32,7 +32,7 @@ interface TournamentManagerProps {
   onSetActive: (tournamentId: string) => void;
   onSaveTournament: (data: TournamentFormData, editId?: string) => void;
   onDeleteTournament: (tournamentId: string) => void;
-  onAddRosterPlayer: (player: Omit<Player, 'id' | 'seed'>) => void;
+  onAddRosterPlayer: (player: Omit<Player, 'id' | 'seed'> & { id?: string }, addToActiveTournament?: boolean) => void;
   onUpdateRosterPlayer: (id: string, updates: Partial<Player>) => void;
   onDeleteRosterPlayer: (id: string) => void;
   onSyncDb?: () => Promise<void> | void;
@@ -68,6 +68,10 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [activeTab, setActiveTab] = useState<'tournaments' | 'roster'>(initialTab);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(initialCreate || Boolean(initialEditId));
   const [editingTournamentId, setEditingTournamentId] = useState<string | null>(initialEditId);
+
+  // Quick add inside tournament form
+  const [quickPlayerName, setQuickPlayerName] = useState<string>('');
+  const [autoEnrollToActive, setAutoEnrollToActive] = useState<boolean>(true);
 
   // Tournament form state
   const [formName, setFormName] = useState<string>('');
@@ -132,6 +136,23 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setFormPlayerIds([]);
   };
 
+  const handleQuickAddPlayer = () => {
+    if (!quickPlayerName.trim()) return;
+    const name = quickPlayerName.trim();
+    const newId = `pl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    onAddRosterPlayer(
+      {
+        id: newId,
+        name,
+        rating: 1500,
+        club: 'Politeknik Sorowako',
+      },
+      true
+    );
+    setFormPlayerIds((prev) => (prev.includes(newId) ? prev : [...prev, newId]));
+    setQuickPlayerName('');
+  };
+
   const handleSaveTournamentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) {
@@ -163,12 +184,16 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       alert('Silakan masukkan nama peserta.');
       return;
     }
-    onAddRosterPlayer({
-      name: rosterName.trim(),
-      rating: parseInt(rosterRating, 10) || 1800,
-      club: rosterClub.trim() || undefined,
-      title: (rosterTitle as Player['title']) || undefined,
-    });
+    const name = rosterName.trim();
+    onAddRosterPlayer(
+      {
+        name,
+        rating: parseInt(rosterRating, 10) || 1800,
+        club: rosterClub.trim() || undefined,
+        title: (rosterTitle as Player['title']) || undefined,
+      },
+      autoEnrollToActive
+    );
     setRosterName('');
     setRosterRating('1800');
     setRosterClub('');
@@ -441,6 +466,31 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                         )}
                       </div>
 
+                      <div className="picker-quick-add">
+                        <input
+                          type="text"
+                          value={quickPlayerName}
+                          onChange={(e) => setQuickPlayerName(e.target.value)}
+                          placeholder="+ Tambah nama peserta baru langsung..."
+                          className="quick-add-input"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleQuickAddPlayer();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleQuickAddPlayer}
+                          disabled={!quickPlayerName.trim()}
+                          className="btn-quick-add"
+                        >
+                          <Plus size={14} />
+                          <span>Tambah</span>
+                        </button>
+                      </div>
+
                       <div className="picker-list">
                         {filteredPickerRoster.length === 0 ? (
                           <div className="picker-empty">
@@ -708,6 +758,15 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                   </div>
 
                   <div className="roster-add-actions">
+                    <label className="checkbox-auto-enroll">
+                      <input
+                        type="checkbox"
+                        checked={autoEnrollToActive}
+                        onChange={(e) => setAutoEnrollToActive(e.target.checked)}
+                      />
+                      <span>Daftarkan langsung ke turnamen aktif saat ini</span>
+                    </label>
+
                     <button
                       type="submit"
                       disabled={!rosterName.trim()}

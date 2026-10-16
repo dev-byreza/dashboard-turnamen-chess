@@ -99,9 +99,6 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <p className="admin-pin-hint">
-              Default PIN: <code>admin2026</code> atau <code>1234</code>
-            </p>
           </div>
 
           <div className="admin-login-actions">

@@ -3225,4 +3225,74 @@ button, input, select, textarea {
   margin-top: 0.5rem;
 }
 
+/* Picker quick add & auto enroll */
+.picker-quick-add {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.quick-add-input {
+  flex: 1;
+  padding: 0.55rem 0.85rem;
+  background: #ffffff;
+  border: 1.5px dashed var(--border-card);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.quick-add-input:focus {
+  border-color: var(--gold);
+  border-style: solid;
+  background: #fffdf8;
+}
+
+.btn-quick-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--navy);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-quick-add:hover:not(:disabled) {
+  background: var(--navy-light);
+}
+
+.btn-quick-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-auto-enroll {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--text-sub);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-auto-enroll input {
+  accent-color: var(--gold);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+
 

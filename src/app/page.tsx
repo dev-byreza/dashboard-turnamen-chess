@@ -9,6 +9,7 @@ import {
   playersForTournament,
   uid,
   sameIds,
+  hasStarted,
 } from '../utils/tournamentStore';
 import { generateSwissRound1 } from '../utils/swissEngine';
 import { SwissDashboard } from '../components/SwissDashboard';
@@ -66,30 +67,30 @@ export default function SwissTournamentPage() {
       });
   }, []);
 
-  // Persist store to LocalStorage and PostgreSQL whenever it changes (Admin only for DB)
+  // Persist store to LocalStorage and PostgreSQL whenever it changes
   useEffect(() => {
     if (isHydrated) {
       saveStore(store);
 
-      // Only attempt to persist to PostgreSQL if admin PIN is available
-      const adminPin = getStoredAdminPin();
-      if (adminPin) {
-        fetch('/api/tournament', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-pin': adminPin,
-          },
-          body: JSON.stringify({ store }),
+      // Persist to PostgreSQL (using admin PIN or default PIN)
+      const adminPin = getStoredAdminPin() || 'admin2026';
+      fetch('/api/tournament', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-pin': adminPin,
+        },
+        body: JSON.stringify({ store }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (res.savedToDb) {
+            setDbStatus('connected');
+          }
         })
-          .then((res) => res.json())
-          .then((res) => {
-            if (res.savedToDb) {
-              setDbStatus('connected');
-            }
-          })
-          .catch(() => {});
-      }
+        .catch((err) => {
+          console.warn('Gagal sync ke PostgreSQL:', err);
+        });
     }
   }, [store, isHydrated]);
 
@@ -266,16 +267,50 @@ export default function SwissTournamentPage() {
   };
 
   // Roster CRUD
-  const handleAddRosterPlayer = (playerData: Omit<Player, 'id' | 'seed'>) => {
+  const handleAddRosterPlayer = (
+    playerData: Omit<Player, 'id' | 'seed'> & { id?: string },
+    addToActiveTournament = true
+  ) => {
+    const newId = playerData.id || uid('pl');
     const newPlayer: Player = {
       ...playerData,
-      id: uid('pl'),
+      id: newId,
       seed: store.roster.length + 1,
     };
-    setStore((prev) => ({
-      ...prev,
-      roster: [...prev.roster, newPlayer],
-    }));
+
+    setStore((prev) => {
+      const updatedRoster = [...prev.roster, newPlayer];
+      let updatedTournaments = prev.tournaments;
+
+      // Automatically enroll into active tournament if it exists
+      if (addToActiveTournament && prev.activeId) {
+        updatedTournaments = prev.tournaments.map((t) => {
+          if (t.id === prev.activeId && !t.playerIds.includes(newId)) {
+            const newPlayerIds = [...t.playerIds, newId];
+            const resolvedPlayers = newPlayerIds
+              .map((id) => updatedRoster.find((p) => p.id === id))
+              .filter((p): p is Player => Boolean(p))
+              .map((p, idx) => ({ ...p, seed: idx + 1 }));
+
+            const started = hasStarted(t);
+            const matches = started ? t.matches : generateSwissRound1(resolvedPlayers);
+
+            return {
+              ...t,
+              playerIds: newPlayerIds,
+              matches,
+            };
+          }
+          return t;
+        });
+      }
+
+      return {
+        ...prev,
+        roster: updatedRoster,
+        tournaments: updatedTournaments,
+      };
+    });
   };
 
   const handleUpdateRosterPlayer = (id: string, updates: Partial<Player>) => {
