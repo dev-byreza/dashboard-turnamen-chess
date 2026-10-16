@@ -88,12 +88,12 @@ export default function SwissTournamentPage() {
   return (
     <main
       data-font={fontStyle === 'montserrat' ? undefined : fontStyle}
-      style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-main)' }}
+      style={{ minHeight: '100vh', background: 'var(--bg-page)', color: 'var(--text-main)' }}
     >
       <div className="chess-wrapper">
         {/* Floating Broadcast Mode Exit Button */}
         {isBroadcastMode && (
-          <div style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 9999 }}>
+          <div className="broadcast-exit">
             <button
               onClick={() => setIsBroadcastMode(false)}
               className="btn-gold-action"
@@ -133,7 +133,7 @@ export default function SwissTournamentPage() {
                 className="btn-glass-secondary"
                 title="Ganti Gaya Huruf Teks (Modern, Athletic, Tech, Klasik)"
               >
-                <Type size={15} style={{ color: '#ffd700' }} />
+                <Type size={15} style={{ color: '#f6d77a' }} />
                 <span>Font: <strong>{fontLabels[fontStyle]}</strong></span>
               </button>
 
@@ -142,7 +142,7 @@ export default function SwissTournamentPage() {
                 className="btn-glass-secondary"
                 title="Buka Jam Catur Digital"
               >
-                <Clock size={15} style={{ color: '#38bdf8' }} />
+                <Clock size={15} style={{ color: '#7dd3fc' }} />
                 <span>Jam Catur</span>
               </button>
 
@@ -151,7 +151,7 @@ export default function SwissTournamentPage() {
                 className="btn-glass-secondary"
                 title="Tampilkan Mode Layar TV / Proyektor"
               >
-                <Tv size={15} style={{ color: '#ffd700' }} />
+                <Tv size={15} style={{ color: '#f6d77a' }} />
                 <span>Mode TV</span>
               </button>
 
@@ -181,35 +181,18 @@ export default function SwissTournamentPage() {
           }}
         />
 
-        {/* Minimalist Footer with Logo */}
-        <footer
-          style={{
-            marginTop: '3.5rem',
-            paddingTop: '1.75rem',
-            borderTop: '1px solid var(--border-subtle)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            fontSize: '0.8rem',
-            color: '#64748b',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <img
-              src="/images/logo-chess-club-sorowako.png"
-              alt="Politeknik Sorowako"
-              style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }}
-            />
+        {/* Footer with Logo */}
+        <footer className="site-footer">
+          <div className="footer-left">
+            <img src="/images/logo-chess-club-sorowako.png" alt="Politeknik Sorowako" />
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <ShieldCheck size={15} style={{ color: '#38bdf8' }} />
-              <span>Kalkulasi Tie-Break FIDE: Buchholz (BH) & Sonneborn-Berger (SB)</span>
+              <ShieldCheck size={15} style={{ color: 'var(--green)' }} />
+              <span>Tie-Break FIDE: Buchholz (BH) & Sonneborn-Berger (SB)</span>
             </div>
           </div>
 
           <div>
-            Diselenggarakan oleh <strong style={{ color: '#ffd700' }}>Chess Club Politeknik Sorowako</strong> • Platform DevByReza
+            Diselenggarakan oleh <strong>Chess Club Politeknik Sorowako</strong> • Platform DevByReza
           </div>
         </footer>
       </div>
