@@ -378,6 +378,39 @@ export default function SwissTournamentPage() {
           </div>
 
           <div className="header-actions-row">
+            {/* Database Cloud / Local Sync Badge */}
+            <div
+              className={`db-nav-badge ${dbStatus === 'connected' ? 'connected' : dbStatus === 'unconfigured' ? 'unconfigured' : 'offline'}`}
+              title={
+                dbStatus === 'connected'
+                  ? 'Database Cloud PostgreSQL (Neon/Vercel) Terhubung & Aktif'
+                  : dbStatus === 'unconfigured'
+                  ? 'Penyimpanan Lokal Aktif (Tambahkan POSTGRES_URL di Vercel untuk sinkronisasi cloud)'
+                  : dbStatus === 'checking'
+                  ? 'Memeriksa status database...'
+                  : 'Mode Offline (LocalStorage)'
+              }
+            >
+              <span
+                className={`db-status-dot ${
+                  dbStatus === 'connected'
+                    ? 'connected'
+                    : dbStatus === 'unconfigured'
+                    ? 'unconfigured'
+                    : 'offline'
+                }`}
+              />
+              <span className="db-nav-text">
+                {dbStatus === 'connected'
+                  ? 'PostgreSQL'
+                  : dbStatus === 'unconfigured'
+                  ? 'Local Storage'
+                  : dbStatus === 'checking'
+                  ? 'Cek DB...'
+                  : 'Offline'}
+              </span>
+            </div>
+
             {isAdmin ? (
               <>
                 <div className="admin-status-badge" title="Anda login sebagai Admin Turnamen">

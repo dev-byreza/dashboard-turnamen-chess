@@ -2482,6 +2482,38 @@ button, input, select, textarea {
   gap: 0.4rem;
 }
 
+.db-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: default;
+  transition: all 0.2s ease;
+}
+
+.db-nav-badge.connected {
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #059669;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.db-nav-badge.unconfigured {
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.db-nav-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .db-sync-btn {
   display: inline-flex;
   align-items: center;
