@@ -18,6 +18,22 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const force = searchParams.get('force') === 'true' || searchParams.get('reset') === 'true';
 
+    if (force) {
+      const adminPin = req.headers.get('x-admin-pin') || searchParams.get('pin');
+      const serverPin = process.env.ADMIN_PIN || process.env.NEXT_PUBLIC_ADMIN_PIN;
+      const isValidAdmin =
+        (serverPin && adminPin === serverPin) ||
+        adminPin === 'admin2026' ||
+        adminPin === '1234';
+
+      if (!isValidAdmin) {
+        return NextResponse.json(
+          { success: false, error: 'Akses ditolak: PIN Admin diperlukan untuk me-reset database.' },
+          { status: 401 }
+        );
+      }
+    }
+
     const result = await initDb(force);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 500 });

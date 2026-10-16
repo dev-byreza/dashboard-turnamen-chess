@@ -930,6 +930,51 @@ body::before {
   border: 1px solid var(--gold-border);
 }
 
+.score-view-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-view-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 1.1rem;
+  border-radius: 10px;
+  font-family: var(--font-code);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.score-view-badge.win-white,
+.score-view-badge.win-black {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+  box-shadow: 0 2px 6px rgba(22, 101, 52, 0.08);
+}
+
+.score-view-badge.draw {
+  background: #fefce8;
+  color: #854d0e;
+  border-color: #fef08a;
+  box-shadow: 0 2px 6px rgba(133, 77, 14, 0.08);
+}
+
+.score-view-badge.ongoing {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
 /* ===== Podium stage ===== */
 .podium-stage {
   display: grid;
@@ -2958,4 +3003,226 @@ button, input, select, textarea {
     justify-content: flex-end;
   }
 }
+
+/* ===== Spectator Mode & Admin Status Chips ===== */
+.admin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.admin-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+.btn-logout {
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+  background: #fff5f5 !important;
+}
+
+.btn-logout:hover {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.spectator-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.spectator-mode-box {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.spectator-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-sub);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.btn-login-hint {
+  font-size: 0.78rem !important;
+  padding: 0.42rem 0.85rem !important;
+}
+
+/* ===== Admin Login Modal ===== */
+.admin-login-box {
+  max-width: 440px;
+  width: 92%;
+}
+
+.admin-login-body {
+  padding: 1.5rem 1.5rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-login-icon-wrap {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-shield-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: #fef3c7;
+  color: #b45309;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.admin-login-heading {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  color: var(--navy);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-login-desc {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-sub);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.admin-login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.admin-pin-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-pin-label {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.admin-pin-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.admin-pin-icon {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-sub);
+  pointer-events: none;
+}
+
+.admin-pin-input {
+  width: 100%;
+  padding: 0.65rem 2.5rem 0.65rem 2.35rem;
+  border-radius: 9px;
+  border: 1.5px solid var(--border-soft);
+  background: #ffffff;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.admin-pin-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(224, 168, 46, 0.15);
+}
+
+.admin-pin-toggle-btn {
+  position: absolute;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.2rem;
+}
+
+.admin-pin-toggle-btn:hover {
+  color: var(--navy);
+}
+
+.admin-pin-hint {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  color: var(--text-sub);
+  margin: 0.2rem 0 0;
+}
+
+.admin-pin-hint code {
+  background: #f1f5f9;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.admin-login-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
 

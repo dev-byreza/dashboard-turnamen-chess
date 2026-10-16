@@ -14,12 +14,21 @@ import { generateSwissRound1 } from '../utils/swissEngine';
 import { SwissDashboard } from '../components/SwissDashboard';
 import { ChessTimerModal } from '../components/ChessTimerModal';
 import { TournamentManager } from '../components/TournamentManager';
-import { Clock, Settings, Plus, Trophy } from 'lucide-react';
+import { AdminLoginModal } from '../components/AdminLoginModal';
+import {
+  checkIsAdmin,
+  saveAdminSession,
+  clearAdminSession,
+  getStoredAdminPin,
+} from '../utils/adminAuth';
+import { Clock, Settings, Plus, Trophy, Lock, LogOut, Eye } from 'lucide-react';
 
 export default function SwissTournamentPage() {
   const [store, setStore] = useState(createDefaultStore);
   const [isHydrated, setIsHydrated] = useState(false);
   const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'offline'>('checking');
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
 
   // Modals state
   const [isTimerOpen, setIsTimerOpen] = useState<boolean>(false);
@@ -28,8 +37,9 @@ export default function SwissTournamentPage() {
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
 
-  // Load saved state from LocalStorage on mount, then sync with PostgreSQL API
+  // Load saved state from LocalStorage on mount, check admin session, then sync with PostgreSQL API
   useEffect(() => {
+    setIsAdmin(checkIsAdmin());
     const loaded = loadStore();
     if (loaded) {
       setStore(loaded);
@@ -56,31 +66,45 @@ export default function SwissTournamentPage() {
       });
   }, []);
 
-  // Persist store to LocalStorage and PostgreSQL whenever it changes
+  // Persist store to LocalStorage and PostgreSQL whenever it changes (Admin only for DB)
   useEffect(() => {
     if (isHydrated) {
       saveStore(store);
 
-      // Persist to PostgreSQL if configured
-      fetch('/api/tournament', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store }),
-      })
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.savedToDb) {
-            setDbStatus('connected');
-          }
+      // Only attempt to persist to PostgreSQL if admin PIN is available
+      const adminPin = getStoredAdminPin();
+      if (adminPin) {
+        fetch('/api/tournament', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-pin': adminPin,
+          },
+          body: JSON.stringify({ store }),
         })
-        .catch(() => {});
+          .then((res) => res.json())
+          .then((res) => {
+            if (res.savedToDb) {
+              setDbStatus('connected');
+            }
+          })
+          .catch(() => {});
+      }
     }
   }, [store, isHydrated]);
 
+  const handleLogout = () => {
+    clearAdminSession();
+    setIsAdmin(false);
+  };
+
   // Synchronize or seed data to/from PostgreSQL
   const handleSyncWithDatabase = async (force = false) => {
+    const adminPin = getStoredAdminPin() || '';
     try {
-      const res = await fetch(`/api/init-db${force ? '?force=true' : ''}`);
+      const res = await fetch(`/api/init-db${force ? '?force=true' : ''}`, {
+        headers: { 'x-admin-pin': adminPin },
+      });
       const data = await res.json();
       if (data.success) {
         const tourRes = await fetch('/api/tournament');
@@ -126,6 +150,10 @@ export default function SwissTournamentPage() {
 
   // Update matches for active tournament
   const handleUpdateActiveMatches = (newMatches: SwissMatch[]) => {
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return;
+    }
     if (!activeTournament) return;
     setStore((prev) => ({
       ...prev,
@@ -137,6 +165,10 @@ export default function SwissTournamentPage() {
 
   // Reset active tournament back to round 1
   const handleResetActive = () => {
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return;
+    }
     if (!activeTournament) return;
     const freshRound1 = generateSwissRound1(activePlayers);
     setStore((prev) => ({
@@ -149,6 +181,10 @@ export default function SwissTournamentPage() {
 
   // Save (create or update) tournament
   const handleSaveTournament = (data: TournamentFormData, editId?: string) => {
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return;
+    }
     if (editId) {
       // Update existing
       setStore((prev) => {
@@ -261,6 +297,10 @@ export default function SwissTournamentPage() {
     create: boolean = false,
     editId: string | null = null
   ) => {
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return;
+    }
     setManagerTab(tab);
     setManagerCreate(create);
     setManagerEditId(editId);
@@ -288,23 +328,68 @@ export default function SwissTournamentPage() {
           </div>
 
           <div className="header-actions-row">
-            <button
-              onClick={() => openManagerWithTab('tournaments')}
-              className="btn-gold-action"
-              title="Kelola daftar turnamen dan database peserta"
-            >
-              <Settings size={15} />
-              <span>Kelola turnamen</span>
-            </button>
+            {isAdmin ? (
+              <>
+                <div className="admin-status-badge" title="Anda login sebagai Admin Turnamen">
+                  <span className="admin-status-dot" />
+                  <span>Admin</span>
+                </div>
 
-            <button
-              onClick={() => setIsTimerOpen(true)}
-              className="btn-glass-secondary"
-              title="Buka jam catur digital"
-            >
-              <Clock size={15} style={{ color: '#7dd3fc' }} />
-              <span>Jam catur</span>
-            </button>
+                <button
+                  onClick={() => openManagerWithTab('tournaments')}
+                  className="btn-gold-action"
+                  title="Kelola daftar turnamen dan database peserta"
+                >
+                  <Settings size={15} />
+                  <span>Kelola turnamen</span>
+                </button>
+
+                <button
+                  onClick={() => setIsTimerOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Buka jam catur digital"
+                >
+                  <Clock size={15} style={{ color: '#7dd3fc' }} />
+                  <span>Jam catur</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="btn-glass-secondary btn-logout"
+                  title="Keluar dari sesi Admin"
+                >
+                  <LogOut size={14} />
+                  <span>Keluar</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="spectator-status-badge" title="Mode Penonton (Hanya dapat melihat progres turnamen)">
+                  <Eye size={13} />
+                  <span>Mode Penonton</span>
+                </div>
+
+                <button
+                  onClick={() => setIsTimerOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Buka jam catur digital"
+                >
+                  <Clock size={15} style={{ color: '#7dd3fc' }} />
+                  <span>Jam catur</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAdminModalOpen(true)}
+                  className="btn-gold-action"
+                  title="Masuk sebagai Administrator untuk mengubah skor & mengelola turnamen"
+                >
+                  <Lock size={14} />
+                  <span>Login Admin</span>
+                </button>
+              </>
+            )}
           </div>
         </header>
 
@@ -318,6 +403,8 @@ export default function SwissTournamentPage() {
             tournamentName={activeTournament.name}
             tournamentDate={activeTournament.date}
             tournamentLocation={activeTournament.location}
+            isAdmin={isAdmin}
+            onRequestAdminLogin={() => setIsAdminModalOpen(true)}
             onUpdateMatches={handleUpdateActiveMatches}
             onResetSwiss={handleResetActive}
             onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
@@ -382,6 +469,16 @@ export default function SwissTournamentPage() {
           onResetToRookieTour={() => handleSyncWithDatabase(true)}
         />
       )}
+
+      {/* Admin PIN Login Modal */}
+      <AdminLoginModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        onLoginSuccess={(pin) => {
+          saveAdminSession(pin);
+          setIsAdmin(true);
+        }}
+      />
     </main>
   );
 }

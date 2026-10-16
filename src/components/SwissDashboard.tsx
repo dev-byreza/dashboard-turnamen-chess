@@ -24,6 +24,8 @@ import {
   X,
   Calendar,
   MapPin,
+  Lock,
+  Eye,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -34,6 +36,8 @@ interface SwissDashboardProps {
   tournamentName?: string;
   tournamentDate?: string;
   tournamentLocation?: string;
+  isAdmin?: boolean;
+  onRequestAdminLogin?: () => void;
   onUpdateMatches: (newMatches: SwissMatch[]) => void;
   onUpdatePlayers?: (newPlayers: Player[]) => void;
   onResetSwiss: () => void;
@@ -55,6 +59,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   tournamentName,
   tournamentDate,
   tournamentLocation,
+  isAdmin = false,
+  onRequestAdminLogin,
   onUpdateMatches,
   onUpdatePlayers,
   onResetSwiss,
@@ -249,47 +255,69 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           </div>
 
           <div className="hero-actions-group">
-            <button
-              onClick={() => {
-                if (onEditParticipants) {
-                  onEditParticipants();
-                } else {
-                  setIsPlayerModalOpen(true);
-                }
-              }}
-              className="btn-glass-secondary"
-            >
-              <Users size={15} style={{ color: 'var(--sky)' }} />
-              <span>Kelola peserta ({players.length})</span>
-            </button>
+            {isAdmin ? (
+              <>
+                <button
+                  onClick={() => {
+                    if (onEditParticipants) {
+                      onEditParticipants();
+                    } else {
+                      setIsPlayerModalOpen(true);
+                    }
+                  }}
+                  className="btn-glass-secondary"
+                >
+                  <Users size={15} style={{ color: 'var(--sky)' }} />
+                  <span>Kelola peserta ({players.length})</span>
+                </button>
 
-            <button
-              onClick={handleGenerateNextRound}
-              disabled={!canGenerateNextRound}
-              className="btn-gold-action"
-              title={
-                canGenerateNextRound
-                  ? 'Pasangkan babak berikutnya berdasarkan poin & Buchholz'
-                  : 'Selesaikan semua skor babak ini untuk membuka babak berikutnya'
-              }
-            >
-              <span>Pairing babak {Math.min(currentMaxRound + 1, totalRounds)}</span>
-              <ArrowRight size={15} />
-            </button>
+                <button
+                  onClick={handleGenerateNextRound}
+                  disabled={!canGenerateNextRound}
+                  className="btn-gold-action"
+                  title={
+                    canGenerateNextRound
+                      ? 'Pasangkan babak berikutnya berdasarkan poin & Buchholz'
+                      : 'Selesaikan semua skor babak ini untuk membuka babak berikutnya'
+                  }
+                >
+                  <span>Pairing babak {Math.min(currentMaxRound + 1, totalRounds)}</span>
+                  <ArrowRight size={15} />
+                </button>
 
-            <button
-              onClick={() => {
-                if (confirm('Mulai ulang seluruh babak turnamen Swiss dari Babak 1?')) {
-                  onResetSwiss();
-                  setSelectedRoundTab(1);
-                }
-              }}
-              className="btn-glass-secondary"
-              title="Reset ke Babak 1"
-            >
-              <RotateCcw size={14} />
-              <span>Reset</span>
-            </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Mulai ulang seluruh babak turnamen Swiss dari Babak 1?')) {
+                      onResetSwiss();
+                      setSelectedRoundTab(1);
+                    }
+                  }}
+                  className="btn-glass-secondary"
+                  title="Reset ke Babak 1"
+                >
+                  <RotateCcw size={14} />
+                  <span>Reset</span>
+                </button>
+              </>
+            ) : (
+              <div className="spectator-mode-box">
+                <div className="spectator-badge">
+                  <Eye size={14} />
+                  <span>Mode Penonton • Progres Live</span>
+                </div>
+                {onRequestAdminLogin && (
+                  <button
+                    type="button"
+                    onClick={onRequestAdminLogin}
+                    className="btn-glass-secondary btn-login-hint"
+                    title="Masuk sebagai admin untuk mengubah skor pertandingan"
+                  >
+                    <Lock size={13} />
+                    <span>Login Admin</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -464,7 +492,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       <div className="score-control-cell">
                         {isBye ? (
                           <span className="score-bye-badge">1 - 0 (Bye)</span>
-                        ) : (
+                        ) : isAdmin ? (
                           <div className="score-pill-container">
                             <button
                               onClick={() => handleScoreChange(match.id, '1-0')}
@@ -495,6 +523,29 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                               >
                                 ✕
                               </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="score-view-container">
+                            {match.result === '1-0' ? (
+                              <span className="score-view-badge win-white" title="Menang Putih (1 - 0)">
+                                1 - 0
+                              </span>
+                            ) : match.result === '0.5-0.5' ? (
+                              <span className="score-view-badge draw" title="Remis (½ - ½)">
+                                ½ - ½
+                              </span>
+                            ) : match.result === '0-1' ? (
+                              <span className="score-view-badge win-black" title="Menang Hitam (0 - 1)">
+                                0 - 1
+                              </span>
+                            ) : (
+                              <span
+                                className="score-view-badge ongoing"
+                                title="Pertandingan sedang berlangsung"
+                              >
+                                VS
+                              </span>
                             )}
                           </div>
                         )}
