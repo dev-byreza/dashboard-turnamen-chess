@@ -73,7 +73,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const [selectedRoundTab, setSelectedRoundTab] = useState<number>(currentMaxRound);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
-  const [newPlayerRating, setNewPlayerRating] = useState('1800');
+  const [newPlayerRating, setNewPlayerRating] = useState('500');
   const celebratedRef = useRef(false);
 
   useEffect(() => {
@@ -87,7 +87,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     let originalTitle = document.title;
     const handleBeforePrint = () => {
       originalTitle = document.title;
-      document.title = '\u00A0';
     };
     const handleAfterPrint = () => {
       document.title = originalTitle;
@@ -118,9 +117,14 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const canGenerateNextRound = isCurrentRoundFullyScored && currentMaxRound < totalRounds;
   const isTournamentFinished = currentMaxRound === totalRounds && isCurrentRoundFullyScored;
 
-  // ---- Derived statistics ----
+  // ---- Derived statistics with live Elo calculation ----
   const avgElo = players.length
-    ? Math.round(players.reduce((sum, p) => sum + (p.rating || 1800), 0) / players.length)
+    ? Math.round(
+        standings.rows.reduce(
+          (sum, r) => sum + (r.currentRating ?? r.player.rating ?? 500),
+          0
+        ) / players.length
+      )
     : 0;
   const playableMatches = matches.filter((m) => !m.isBye);
   const scoredMatches = playableMatches.filter((m) => m.result !== null).length;
@@ -165,17 +169,31 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     });
   };
 
+  const handleApplyEloToRoster = () => {
+    if (!onUpdatePlayers) return;
+    const updated = players.map((p) => {
+      const summary = standings.eloReport?.playerSummaries.get(p.id);
+      return {
+        ...p,
+        rating: summary?.currentRating ?? p.rating ?? 500,
+      };
+    });
+    onUpdatePlayers(updated);
+    alert('Rating Elo peserta turnamen berhasil disimpan ke profil database!');
+  };
+
   const handleAddPlayer = () => {
     if (!newPlayerName.trim()) return;
     const newP: Player = {
       id: `sp_${Date.now()}`,
       name: newPlayerName.trim(),
       seed: players.length + 1,
-      rating: parseInt(newPlayerRating, 10) || 1800,
+      rating: parseInt(newPlayerRating, 10) || 500,
     };
     const updatedPlayers = [...players, newP];
     onUpdatePlayers?.(updatedPlayers);
     setNewPlayerName('');
+    setNewPlayerRating('500');
     onUpdateMatches(generateSwissRound1(updatedPlayers));
     setSelectedRoundTab(1);
   };
@@ -447,6 +465,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 const blackP = isBye ? null : getPlayer(match.blackPlayerId);
                 const whiteWon = match.result === '1-0' && !isBye;
                 const blackWon = match.result === '0-1';
+                const matchElo = standings.eloReport?.matchDetails.get(match.id);
 
                 return (
                   <div
@@ -484,7 +503,25 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                             {whiteP?.title && <span className="title-tag">{whiteP.title}</span>}
                             <span className="player-name-text">{whiteP?.name || 'TBD'}</span>
                           </div>
-                          <span className="player-elo-text">Elo {whiteP?.rating || '1800'}</span>
+                          <div className="player-elo-row">
+                            <span className="player-elo-text">
+                              Elo {matchElo ? matchElo.whiteBefore : (whiteP?.rating ?? 500)}
+                            </span>
+                            {matchElo && match.result !== null && !isBye && (
+                              <span
+                                className={`elo-delta-tag ${
+                                  matchElo.whiteDelta > 0
+                                    ? 'gain'
+                                    : matchElo.whiteDelta < 0
+                                    ? 'loss'
+                                    : 'neutral'
+                                }`}
+                                title={`Perubahan Elo: ${matchElo.whiteDelta > 0 ? `+${matchElo.whiteDelta}` : matchElo.whiteDelta} (kini: ${matchElo.whiteAfter})`}
+                              >
+                                {matchElo.whiteDelta > 0 ? `+${matchElo.whiteDelta}` : matchElo.whiteDelta}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -562,9 +599,27 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                             </span>
                             {blackP?.title && <span className="title-tag">{blackP.title}</span>}
                           </div>
-                          <span className="player-elo-text">
-                            {isBye ? 'Poin penuh' : `Elo ${blackP?.rating || '1800'}`}
-                          </span>
+                          <div className="player-elo-row">
+                            <span className="player-elo-text">
+                              {isBye
+                                ? 'Poin penuh'
+                                : `Elo ${matchElo ? matchElo.blackBefore : (blackP?.rating ?? 500)}`}
+                            </span>
+                            {matchElo && match.result !== null && !isBye && (
+                              <span
+                                className={`elo-delta-tag ${
+                                  matchElo.blackDelta > 0
+                                    ? 'gain'
+                                    : matchElo.blackDelta < 0
+                                    ? 'loss'
+                                    : 'neutral'
+                                }`}
+                                title={`Perubahan Elo: ${matchElo.blackDelta > 0 ? `+${matchElo.blackDelta}` : matchElo.blackDelta} (kini: ${matchElo.blackAfter})`}
+                              >
+                                {matchElo.blackDelta > 0 ? `+${matchElo.blackDelta}` : matchElo.blackDelta}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="pawn-avatar black-piece" title="Bidak Hitam">
                           ♙
@@ -593,15 +648,29 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <Trophy size={18} style={{ color: 'var(--gold)' }} />
               <h3 className="section-title-text">Klasemen Sementara</h3>
             </div>
-            <button
-              className="btn-glass-secondary no-print"
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
-              onClick={handlePrint}
-              title="Cetak / simpan klasemen sebagai PDF"
-            >
-              <Printer size={13} />
-              <span>Cetak</span>
-            </button>
+            <div className="flex-row-center gap-2 no-print">
+              {isAdmin && onUpdatePlayers && (
+                <button
+                  type="button"
+                  className="btn-glass-secondary"
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', gap: '0.35rem' }}
+                  onClick={handleApplyEloToRoster}
+                  title="Simpan rating Elo terbaru hasil pertandingan ke profil peserta di database"
+                >
+                  <TrendingUp size={13} style={{ color: 'var(--emerald)' }} />
+                  <span>Simpan Elo</span>
+                </button>
+              )}
+              <button
+                className="btn-glass-secondary"
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
+                onClick={handlePrint}
+                title="Cetak / simpan klasemen sebagai PDF"
+              >
+                <Printer size={13} />
+                <span>Cetak</span>
+              </button>
+            </div>
           </div>
 
           {/* Podium stage: 2 - 1 - 3 */}
@@ -610,18 +679,48 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <div className="podium-medal">🥈</div>
               <div className="podium-player-name">{top2?.player.name || '-'}</div>
               <div className="podium-points-tag">{top2?.points || 0} Pts</div>
+              {top2 && (
+                <div className="podium-elo-tag">
+                  Elo {top2.currentRating ?? top2.player.rating ?? 500}
+                  {top2.ratingChange ? (
+                    <span className={`podium-delta ${top2.ratingChange > 0 ? 'gain' : 'loss'}`}>
+                      {top2.ratingChange > 0 ? `+${top2.ratingChange}` : top2.ratingChange}
+                    </span>
+                  ) : null}
+                </div>
+              )}
               <div className="podium-pedestal">2</div>
             </div>
             <div className="podium-col rank-1">
               <div className="podium-medal">👑</div>
               <div className="podium-player-name">{top1?.player.name || '-'}</div>
               <div className="podium-points-tag">{top1?.points || 0} Pts</div>
+              {top1 && (
+                <div className="podium-elo-tag">
+                  Elo {top1.currentRating ?? top1.player.rating ?? 500}
+                  {top1.ratingChange ? (
+                    <span className={`podium-delta ${top1.ratingChange > 0 ? 'gain' : 'loss'}`}>
+                      {top1.ratingChange > 0 ? `+${top1.ratingChange}` : top1.ratingChange}
+                    </span>
+                  ) : null}
+                </div>
+              )}
               <div className="podium-pedestal">1</div>
             </div>
             <div className="podium-col rank-3">
               <div className="podium-medal">🥉</div>
               <div className="podium-player-name">{top3?.player.name || '-'}</div>
               <div className="podium-points-tag">{top3?.points || 0} Pts</div>
+              {top3 && (
+                <div className="podium-elo-tag">
+                  Elo {top3.currentRating ?? top3.player.rating ?? 500}
+                  {top3.ratingChange ? (
+                    <span className={`podium-delta ${top3.ratingChange > 0 ? 'gain' : 'loss'}`}>
+                      {top3.ratingChange > 0 ? `+${top3.ratingChange}` : top3.ratingChange}
+                    </span>
+                  ) : null}
+                </div>
+              )}
               <div className="podium-pedestal">3</div>
             </div>
           </div>
@@ -632,7 +731,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 <tr>
                   <th style={{ width: '48px' }}>#</th>
                   <th className="left">Pemain</th>
-                  <th>Elo</th>
+                  <th>Elo Live</th>
                   <th>Main</th>
                   <th title="Menang">M</th>
                   <th title="Remis">R</th>
@@ -669,7 +768,21 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           </div>
                         </div>
                       </td>
-                      <td>{row.player.rating || 1800}</td>
+                      <td>
+                        <div className="table-elo-cell">
+                          <span className="elo-live-val">
+                            {row.currentRating ?? row.player.rating ?? 500}
+                          </span>
+                          {row.ratingChange !== undefined && row.ratingChange !== 0 && (
+                            <span
+                              className={`elo-table-delta ${row.ratingChange > 0 ? 'gain' : 'loss'}`}
+                              title={`Rating awal: ${row.initialRating ?? 500} → sekarang: ${row.currentRating ?? 500}`}
+                            >
+                              {row.ratingChange > 0 ? `+${row.ratingChange}` : row.ratingChange}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td>{row.played}</td>
                       <td className="num-win">{row.won}</td>
                       <td>{row.drawn}</td>
@@ -722,7 +835,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   type="number"
                   value={newPlayerRating}
                   onChange={(e) => setNewPlayerRating(e.target.value)}
-                  placeholder="Elo"
+                  placeholder="500 (Default)"
                   className="form-input-text elo-input"
                 />
                 <button
@@ -744,7 +857,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       <span className="player-row-idx">{idx + 1}</span>
                       <span className="mini-avatar">{getInitials(p.name)}</span>
                       <span className="player-row-name">{p.name}</span>
-                      <span className="player-row-elo">({p.rating || 1800} Elo)</span>
+                      <span className="player-row-elo">({p.rating || 500} Elo)</span>
                     </div>
                     <button
                       type="button"

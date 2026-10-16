@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS chess_roster (
   id VARCHAR(64) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   seed INT DEFAULT 0,
-  rating INT DEFAULT 1200,
+  rating INT DEFAULT 500,
   club VARCHAR(255) DEFAULT 'Politeknik Sorowako',
   title VARCHAR(10),
   avatar VARCHAR(255),

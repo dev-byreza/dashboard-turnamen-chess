@@ -74,7 +74,7 @@ export async function ensureTables(sql: any) {
       id VARCHAR(64) PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       seed INT DEFAULT 0,
-      rating INT DEFAULT 1200,
+      rating INT DEFAULT 500,
       club VARCHAR(255) DEFAULT 'Politeknik Sorowako',
       title VARCHAR(10),
       avatar VARCHAR(255),
@@ -129,7 +129,7 @@ export async function initDb(force = false) {
     for (const p of DEFAULT_ROSTER) {
       await sql`
         INSERT INTO chess_roster (id, name, seed, rating, club, title)
-        VALUES (${p.id}, ${p.name}, ${p.seed}, ${p.rating || 1200}, ${p.club || 'Politeknik Sorowako'}, ${p.title || null})
+        VALUES (${p.id}, ${p.name}, ${p.seed}, ${p.rating ?? 500}, ${p.club || 'Politeknik Sorowako'}, ${p.title || null})
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           rating = EXCLUDED.rating,
@@ -240,7 +240,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       id: r.id,
       name: r.name,
       seed: r.seed || idx + 1,
-      rating: r.rating || 1200,
+      rating: r.rating ?? 500,
       club: r.club || 'Politeknik Sorowako',
       title: r.title || undefined,
       avatar: r.avatar || undefined,
@@ -311,7 +311,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           ${p.id},
           ${p.name},
           ${p.seed || 0},
-          ${p.rating || 1200},
+          ${p.rating ?? 500},
           ${p.club || 'Politeknik Sorowako'},
           ${p.title || null},
           ${p.avatar || null}

@@ -45,6 +45,9 @@ export interface StandingRow {
   buchholz?: number;
   sonnebornBerger?: number;
   directEncounter?: number;
+  initialRating?: number;
+  currentRating?: number;
+  ratingChange?: number;
 }
 
 export interface TournamentConfig {

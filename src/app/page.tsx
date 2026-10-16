@@ -320,6 +320,21 @@ export default function SwissTournamentPage() {
     }));
   };
 
+  const handleUpdatePlayers = (updatedPlayers: Player[]) => {
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return;
+    }
+    setStore((prev) => {
+      const idMap = new Map(updatedPlayers.map((p) => [p.id, p]));
+      const newRoster = prev.roster.map((p) => {
+        const u = idMap.get(p.id);
+        return u ? { ...p, rating: u.rating } : p;
+      });
+      return { ...prev, roster: newRoster };
+    });
+  };
+
   const handleDeleteRosterPlayer = (id: string) => {
     setStore((prev) => ({
       ...prev,
@@ -441,6 +456,7 @@ export default function SwissTournamentPage() {
             isAdmin={isAdmin}
             onRequestAdminLogin={() => setIsAdminModalOpen(true)}
             onUpdateMatches={handleUpdateActiveMatches}
+            onUpdatePlayers={handleUpdatePlayers}
             onResetSwiss={handleResetActive}
             onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
           />

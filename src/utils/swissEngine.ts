@@ -1,10 +1,12 @@
 import { Player, SwissMatch, MatchResult, StandingRow } from '../types/chess';
+import { calculateTournamentEloReport, TournamentEloReport } from './eloRating';
 
 export interface SwissStandingsResult {
   rows: StandingRow[];
   currentRoundMatches: SwissMatch[];
   completedRounds: number;
   isRoundComplete: boolean;
+  eloReport: TournamentEloReport;
 }
 
 // Generate Round 1 pairings (Top half vs Bottom half)
@@ -314,17 +316,25 @@ export function calculateSwissStandings(
     return (b.rating || 0) - (a.rating || 0) || a.seed - b.seed;
   });
 
-  const rows: StandingRow[] = sorted.map((p, idx) => ({
-    rank: idx + 1,
-    player: p,
-    played: stats[p.id].played,
-    won: stats[p.id].won,
-    drawn: stats[p.id].drawn,
-    lost: stats[p.id].lost,
-    points: stats[p.id].points,
-    buchholz: buchholzMap[p.id],
-    sonnebornBerger: sbMap[p.id],
-  }));
+  const eloReport = calculateTournamentEloReport(players, allMatches);
+
+  const rows: StandingRow[] = sorted.map((p, idx) => {
+    const eloSummary = eloReport.playerSummaries.get(p.id);
+    return {
+      rank: idx + 1,
+      player: p,
+      played: stats[p.id].played,
+      won: stats[p.id].won,
+      drawn: stats[p.id].drawn,
+      lost: stats[p.id].lost,
+      points: stats[p.id].points,
+      buchholz: buchholzMap[p.id],
+      sonnebornBerger: sbMap[p.id],
+      initialRating: eloSummary?.initialRating ?? p.rating ?? 500,
+      currentRating: eloSummary?.currentRating ?? p.rating ?? 500,
+      ratingChange: eloSummary?.delta ?? 0,
+    };
+  });
 
   // Identify completed rounds
   const rounds = Array.from(new Set(allMatches.map((m) => m.round))).sort((a, b) => a - b);
@@ -337,6 +347,7 @@ export function calculateSwissStandings(
     currentRoundMatches,
     completedRounds: isRoundComplete ? maxRound : maxRound - 1,
     isRoundComplete,
+    eloReport,
   };
 }
 

@@ -83,7 +83,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
 
   // Roster add form state
   const [rosterName, setRosterName] = useState<string>('');
-  const [rosterRating, setRosterRating] = useState<string>('1800');
+  const [rosterRating, setRosterRating] = useState<string>('500');
   const [rosterClub, setRosterClub] = useState<string>('');
   const [rosterTitle, setRosterTitle] = useState<string>('');
   const [rosterSearch, setRosterSearch] = useState<string>('');
@@ -91,7 +91,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   // Roster editing inline state
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editPlayerName, setEditPlayerName] = useState<string>('');
-  const [editPlayerRating, setEditPlayerRating] = useState<string>('1800');
+  const [editPlayerRating, setEditPlayerRating] = useState<string>('500');
   const [editPlayerClub, setEditPlayerClub] = useState<string>('');
   const [editPlayerTitle, setEditPlayerTitle] = useState<string>('');
 
@@ -144,7 +144,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       {
         id: newId,
         name,
-        rating: 1500,
+        rating: 500,
         club: 'Politeknik Sorowako',
       },
       true
@@ -188,14 +188,14 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     onAddRosterPlayer(
       {
         name,
-        rating: parseInt(rosterRating, 10) || 1800,
+        rating: parseInt(rosterRating, 10) || 500,
         club: rosterClub.trim() || undefined,
         title: (rosterTitle as Player['title']) || undefined,
       },
       autoEnrollToActive
     );
     setRosterName('');
-    setRosterRating('1800');
+    setRosterRating('500');
     setRosterClub('');
     setRosterTitle('');
   };
@@ -204,7 +204,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const handleStartEditPlayer = (p: Player) => {
     setEditingPlayerId(p.id);
     setEditPlayerName(p.name);
-    setEditPlayerRating(String(p.rating || 1800));
+    setEditPlayerRating(String(p.rating || 500));
     setEditPlayerClub(p.club || '');
     setEditPlayerTitle(p.title || '');
   };
@@ -213,7 +213,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     if (!editingPlayerId || !editPlayerName.trim()) return;
     onUpdateRosterPlayer(editingPlayerId, {
       name: editPlayerName.trim(),
-      rating: parseInt(editPlayerRating, 10) || 1800,
+      rating: parseInt(editPlayerRating, 10) || 500,
       club: editPlayerClub.trim() || undefined,
       title: (editPlayerTitle as Player['title']) || undefined,
     });
@@ -515,7 +515,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                                     {p.title && <span className="title-tag">{p.title}</span>}
                                   </div>
                                   <div className="picker-meta">
-                                    {p.club || 'Politeknik Sorowako'} • {p.rating || 1800} Elo
+                                    {p.club || 'Politeknik Sorowako'} • {p.rating || 500} Elo
                                   </div>
                                 </div>
                               </div>
@@ -715,12 +715,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                     </div>
 
                     <div className="form-field">
-                      <label className="form-label">Rating Elo</label>
+                      <label className="form-label">Rating Elo (Default 500)</label>
                       <input
                         type="number"
                         value={rosterRating}
                         onChange={(e) => setRosterRating(e.target.value)}
-                        placeholder="1800"
+                        placeholder="500"
                         className="form-input-text"
                       />
                     </div>
@@ -888,7 +888,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                             <div className="roster-name-line">
                               <span className="roster-name">{p.name}</span>
                               {p.title && <span className="title-tag">{p.title}</span>}
-                              <span className="roster-elo-chip">{p.rating || 1800} Elo</span>
+                              <span className="roster-elo-chip">{p.rating || 500} Elo</span>
                             </div>
                             <div className="roster-meta-line">
                               <span>{p.club || 'Politeknik Sorowako'}</span>

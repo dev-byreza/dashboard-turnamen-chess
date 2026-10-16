@@ -860,6 +860,105 @@ body::before {
   font-weight: 600;
 }
 
+.player-elo-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.elo-delta-tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-code, monospace);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.08rem 0.32rem;
+  border-radius: 6px;
+  line-height: 1.2;
+}
+
+.elo-delta-tag.gain {
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.12);
+  border: 1px solid rgba(22, 163, 74, 0.25);
+}
+
+.elo-delta-tag.loss {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+}
+
+.elo-delta-tag.neutral {
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.table-elo-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.elo-live-val {
+  font-family: var(--font-code, monospace);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--navy);
+}
+
+.elo-table-delta {
+  display: inline-block;
+  font-family: var(--font-code, monospace);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.08rem 0.3rem;
+  border-radius: 5px;
+  line-height: 1.1;
+}
+
+.elo-table-delta.gain {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+}
+
+.elo-table-delta.loss {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+}
+
+.podium-elo-tag {
+  margin-top: 0.25rem;
+  font-family: var(--font-code, monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.podium-delta {
+  font-size: 0.65rem;
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+}
+
+.podium-delta.gain {
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.15);
+}
+
+.podium-delta.loss {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.15);
+}
+
 /* Score selector */
 .score-control-cell {
   display: flex;
