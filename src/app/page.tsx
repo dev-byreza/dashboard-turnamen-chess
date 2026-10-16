@@ -16,7 +16,7 @@ const fontLabels: Record<FontOption, string> = {
   montserrat: 'Modern Collegiate',
   condensed: 'Athletic Block',
   tech: 'Futuristic Tech',
-  classical: 'Klasik Editorial (Serif)',
+  classical: 'Coinage Caps Kruger Gray',
 };
 
 export default function SwissTournamentPage() {
