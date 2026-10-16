@@ -528,7 +528,15 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         </div>
 
         {/* Right: Podium & Standings */}
-        <div className="section-card-panel">
+        <div className="section-card-panel standings-panel">
+          {/* Print-only Page 2 Header */}
+          <div className="print-page-header">
+            <div className="print-page-title">CHESS CLUB POLITEKNIK SOROWAKO</div>
+            <div className="print-page-subtitle">
+              {tournamentName || 'Turnamen Catur Sistem Swiss'} • Klasemen Sementara & Podium
+            </div>
+          </div>
+
           <div className="section-panel-header">
             <div className="section-title-wrap">
               <Trophy size={18} style={{ color: 'var(--gold)' }} />
