@@ -24,8 +24,6 @@ import {
   X,
   Calendar,
   MapPin,
-  Lock,
-  Eye,
   BookOpen,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -326,25 +324,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   <span>Reset</span>
                 </button>
               </>
-            ) : (
-              <div className="spectator-mode-box">
-                <div className="spectator-badge">
-                  <Eye size={14} />
-                  <span>Mode Penonton • Progres Live</span>
-                </div>
-                {onRequestAdminLogin && (
-                  <button
-                    type="button"
-                    onClick={onRequestAdminLogin}
-                    className="btn-glass-secondary btn-login-hint"
-                    title="Masuk sebagai admin untuk mengubah skor pertandingan"
-                  >
-                    <Lock size={13} />
-                    <span>Login Admin</span>
-                  </button>
-                )}
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
 
