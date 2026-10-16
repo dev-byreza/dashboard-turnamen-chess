@@ -514,7 +514,17 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           </div>
                           <div className="player-elo-row">
                             <span className="player-elo-text">
-                              Elo {matchElo ? matchElo.whiteBefore : (whiteP?.rating ?? 500)}
+                              Elo{' '}
+                              {matchElo && match.result !== null && !isBye ? (
+                                <>
+                                  <strong className="elo-after-val">{matchElo.whiteAfter}</strong>
+                                  <span className="elo-origin-note" title={`Rating awal: ${matchElo.whiteBefore}`}>
+                                    (awal {matchElo.whiteBefore})
+                                  </span>
+                                </>
+                              ) : (
+                                matchElo ? matchElo.whiteBefore : (whiteP?.rating ?? 500)
+                              )}
                             </span>
                             {matchElo && match.result !== null && !isBye && (
                               <span
@@ -525,7 +535,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                     ? 'loss'
                                     : 'neutral'
                                 }`}
-                                title={`Perubahan Elo: ${matchElo.whiteDelta > 0 ? `+${matchElo.whiteDelta}` : matchElo.whiteDelta} (kini: ${matchElo.whiteAfter})`}
+                                title={`Rating awal: ${matchElo.whiteBefore} → rating baru: ${matchElo.whiteAfter} (${matchElo.whiteDelta > 0 ? `+${matchElo.whiteDelta}` : matchElo.whiteDelta})`}
                               >
                                 {matchElo.whiteDelta > 0 ? `+${matchElo.whiteDelta}` : matchElo.whiteDelta}
                               </span>
@@ -610,9 +620,23 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           </div>
                           <div className="player-elo-row">
                             <span className="player-elo-text">
-                              {isBye
-                                ? 'Poin penuh'
-                                : `Elo ${matchElo ? matchElo.blackBefore : (blackP?.rating ?? 500)}`}
+                              {isBye ? (
+                                'Poin penuh'
+                              ) : (
+                                <>
+                                  Elo{' '}
+                                  {matchElo && match.result !== null ? (
+                                    <>
+                                      <strong className="elo-after-val">{matchElo.blackAfter}</strong>
+                                      <span className="elo-origin-note" title={`Rating awal: ${matchElo.blackBefore}`}>
+                                        (awal {matchElo.blackBefore})
+                                      </span>
+                                    </>
+                                  ) : (
+                                    matchElo ? matchElo.blackBefore : (blackP?.rating ?? 500)
+                                  )}
+                                </>
+                              )}
                             </span>
                             {matchElo && match.result !== null && !isBye && (
                               <span
@@ -623,7 +647,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                     ? 'loss'
                                     : 'neutral'
                                 }`}
-                                title={`Perubahan Elo: ${matchElo.blackDelta > 0 ? `+${matchElo.blackDelta}` : matchElo.blackDelta} (kini: ${matchElo.blackAfter})`}
+                                title={`Rating awal: ${matchElo.blackBefore} → rating baru: ${matchElo.blackAfter} (${matchElo.blackDelta > 0 ? `+${matchElo.blackDelta}` : matchElo.blackDelta})`}
                               >
                                 {matchElo.blackDelta > 0 ? `+${matchElo.blackDelta}` : matchElo.blackDelta}
                               </span>
