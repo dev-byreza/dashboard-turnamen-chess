@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
+import localFont from 'next/font/local';
 import './globals.css';
+
+const coinageFont = localFont({
+  src: '../../CoinageCapsKrugerGray.ttf',
+  variable: '--font-coinage',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Turnamen Catur Sistem Swiss | Dashboard Modern & Elegan',
@@ -12,12 +19,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id">
+    <html lang="id" className={coinageFont.variable}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body>{children}</body>
+      <body className={coinageFont.className}>{children}</body>
     </html>
   );
 }

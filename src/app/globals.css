@@ -35,8 +35,8 @@
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
 
-  /* Default Typography: Modern Collegiate (Matches Chess Club Politeknik Sorowako Logo) */
-  --font-display: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Default Typography: Coinage Caps Kruger Gray for Headlines & Display */
+  --font-display: 'Coinage Caps Kruger Gray', 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-code: 'JetBrains Mono', monospace;
   --font-editorial-serif: 'Coinage Caps Kruger Gray', 'DM Serif Display', 'Cormorant Garamond', 'Cinzel', Georgia, serif;
