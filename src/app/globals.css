@@ -1743,14 +1743,185 @@ body::before {
    PRINT — export standings cleanly
    ======================================================== */
 @media print {
-  body::before, .top-nav-bar, .hero-actions-group, .round-stepper-container,
-  .stats-grid, .matches-panel, .site-footer, .no-print { display: none !important; }
+  /* Hide background decorative texture, bulky hero card, and interactive controls */
+  body::before,
+  .hero-banner-card,
+  .hero-actions-group,
+  .round-stepper-container,
+  .stats-grid,
+  .matches-panel,
+  .champion-banner,
+  .modal-overlay,
+  .no-print,
+  .header-actions-row {
+    display: none !important;
+  }
 
-  html, body { background: #fff !important; }
-  .swiss-two-col-grid { display: block; }
-  .section-card-panel { box-shadow: none; border: none; animation: none; }
-  .hero-banner-card { box-shadow: none; }
-  .hero-banner-card::before, .hero-banner-card::after { display: none; }
+  html, body {
+    background: #ffffff !important;
+    color: #14213d !important;
+    font-size: 11pt !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .chess-wrapper {
+    max-width: 100% !important;
+    padding: 0.5cm !important;
+    margin: 0 !important;
+  }
+
+  /* Show simple, clean navy header (with logo and subtitle) */
+  .top-nav-bar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    background: #14213d !important;
+    background-color: #14213d !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color: #ffffff !important;
+    border: 1.5px solid #e0a82e !important;
+    border-radius: 12px !important;
+    padding: 14px 20px !important;
+    margin-bottom: 20px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+
+  .brand-section {
+    width: 100% !important;
+  }
+
+  .brand-logo-row {
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .brand-text-logo-img {
+    height: 40px !important;
+    width: auto !important;
+    display: block !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .brand-subtitle {
+    color: rgba(255, 255, 255, 0.88) !important;
+    font-size: 8.5pt !important;
+    margin-top: 5px !important;
+    display: block !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Layout and Standings */
+  .swiss-two-col-grid {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .section-card-panel {
+    box-shadow: none !important;
+    border: 1px solid #dcd4c5 !important;
+    border-radius: 12px !important;
+    padding: 16px !important;
+    animation: none !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+  }
+
+  .section-panel-header {
+    margin-bottom: 14px !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1.5px solid #e0a82e !important;
+  }
+
+  .section-title-text {
+    font-size: 13pt !important;
+    color: #14213d !important;
+  }
+
+  /* Podium */
+  .podium-stage {
+    background: #f8f6f0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin-bottom: 16px !important;
+    page-break-inside: avoid !important;
+  }
+
+  .podium-pedestal {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Standings table */
+  .swiss-table-responsive {
+    overflow: visible !important;
+    border: 1px solid #dcd4c5 !important;
+    border-radius: 8px !important;
+  }
+
+  .modern-swiss-table {
+    min-width: 100% !important;
+    width: 100% !important;
+    font-size: 9pt !important;
+  }
+
+  .modern-swiss-table th {
+    background: #ece8df !important;
+    color: #14213d !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    padding: 7px 8px !important;
+    border-bottom: 1.5px solid #b8a078 !important;
+  }
+
+  .modern-swiss-table td {
+    padding: 7px 8px !important;
+    border-bottom: 1px solid #e8e3d8 !important;
+    color: #14213d !important;
+  }
+
+  .rank-badge.gold {
+    background: #e0a82e !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .rank-badge.silver {
+    background: #94a3b8 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .rank-badge.bronze {
+    background: #b45309 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .points-pill {
+    background: #14213d !important;
+    color: #f6d77a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Footer on print */
+  .site-footer {
+    display: flex !important;
+    margin-top: 24px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid #dcd4c5 !important;
+    font-size: 8pt !important;
+    color: #64748b !important;
+    page-break-inside: avoid !important;
+  }
 }
 
 /* ========================================================
