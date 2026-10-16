@@ -370,7 +370,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           <div className="section-panel-header">
             <div className="section-title-wrap">
               <span className="section-dot" />
-              <h3 className="section-title-text">Meja Pertandingan • Babak {selectedRoundTab}</h3>
+              <h3 className="section-title-text">Daftar Match • Babak {selectedRoundTab}</h3>
             </div>
             <span className="section-hint">
               {activeRoundMatches.filter((m) => m.result !== null).length} / {activeRoundMatches.length} laga selesai
@@ -399,7 +399,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   >
                     <div className="board-card-top-bar">
                       <span className="board-number-badge">
-                        Meja {String(match.boardNumber).padStart(2, '0')}
+                        Match {String(match.boardNumber).padStart(2, '0')}
                       </span>
                       <span
                         className={`board-status-text ${match.result !== null ? 'completed' : 'pending'}`}
