@@ -52,7 +52,7 @@ async function main() {
         id VARCHAR(64) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         seed INT DEFAULT 0,
-        rating INT DEFAULT 1200,
+        rating INT DEFAULT 500,
         club VARCHAR(255) DEFAULT 'Politeknik Sorowako',
         title VARCHAR(10),
         avatar VARCHAR(255),
@@ -87,10 +87,10 @@ async function main() {
 
     console.log('♟️ Memasukkan data 4 peserta Politeknik Sorowako...');
     const players = [
-      { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 757, club: 'Politeknik Sorowako' },
-      { id: 'p_ziiganteng', name: 'ZiiGanteng', seed: 2, rating: 706, club: 'Politeknik Sorowako' },
-      { id: 'p_dewacad', name: 'DEWACAD', seed: 3, rating: 590, club: 'Politeknik Sorowako' },
-      { id: 'p_azazeel03', name: 'Azazeel03', seed: 4, rating: 354, club: 'Politeknik Sorowako' },
+      { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 500, club: 'Politeknik Sorowako' },
+      { id: 'p_ziiganteng', name: 'ZiiGanteng', seed: 2, rating: 500, club: 'Politeknik Sorowako' },
+      { id: 'p_dewacad', name: 'DEWACAD', seed: 3, rating: 500, club: 'Politeknik Sorowako' },
+      { id: 'p_azazeel03', name: 'Azazeel03', seed: 4, rating: 500, club: 'Politeknik Sorowako' },
     ];
 
     for (const p of players) {
@@ -175,7 +175,7 @@ async function main() {
     `;
 
     console.log('\n✅ BERHASIL! Data berhasil dimasukkan ke PostgreSQL di Vercel:');
-    console.log('   - 4 Peserta: Anxiety99 (757), ZiiGanteng (706), DEWACAD (590), Azazeel03 (354)');
+    console.log('   - 4 Peserta: Anxiety99 (500), ZiiGanteng (500), DEWACAD (500), Azazeel03 (500)');
     console.log('   - Turnamen: ROOKIE TOUR CHESS (16 Oktober 2026, C2 Only, 5 Babak)');
     console.log('   - Status: Aktif (Babak 1 siap dimainkan)\n');
   } catch (err) {
