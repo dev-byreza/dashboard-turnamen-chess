@@ -25,6 +25,8 @@ import {
   Calendar,
   MapPin,
   BookOpen,
+  Clock3,
+  Save,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -36,9 +38,11 @@ interface SwissDashboardProps {
   tournamentDate?: string;
   tournamentLocation?: string;
   pairingOverrides?: Record<number, SwissPairingOverride[]>;
+  roundSchedules?: Record<number, string>;
   isAdmin?: boolean;
   onRequestAdminLogin?: () => void;
   onUpdateMatches: (newMatches: SwissMatch[]) => void;
+  onUpdateRoundSchedule?: (round: number, scheduledAt: string) => void;
   onUpdatePlayers?: (newPlayers: Player[]) => void;
   onResetSwiss: () => void;
   onEditParticipants?: () => void;
@@ -53,6 +57,22 @@ const getInitials = (name: string) =>
     .map((w) => w[0]?.toUpperCase())
     .join('');
 
+const formatRoundSchedule = (value: string) => {
+  const [datePart, timePart] = value.split('T');
+  const [year, month, day] = (datePart || '').split('-').map(Number);
+  const [hour, minute] = (timePart || '').split(':');
+  const date = new Date(year, month - 1, day, 12);
+  if (!datePart || !timePart || Number.isNaN(date.getTime())) return value;
+
+  const formattedDate = date.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return `${formattedDate}, pukul ${hour}.${minute}`;
+};
+
 export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   players,
   matches,
@@ -61,9 +81,11 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   tournamentDate,
   tournamentLocation,
   pairingOverrides,
+  roundSchedules,
   isAdmin = false,
   onRequestAdminLogin,
   onUpdateMatches,
+  onUpdateRoundSchedule,
   onUpdatePlayers,
   onResetSwiss,
   onEditParticipants,
@@ -77,7 +99,14 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerRating, setNewPlayerRating] = useState('500');
+  const [roundScheduleDrafts, setRoundScheduleDrafts] = useState<Record<number, string>>(
+    roundSchedules || {}
+  );
   const celebratedRef = useRef(false);
+
+  useEffect(() => {
+    setRoundScheduleDrafts(roundSchedules || {});
+  }, [roundSchedules]);
 
   useEffect(() => {
     if (selectedRoundTab > currentMaxRound) {
@@ -378,6 +407,75 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             )}
           </div>
         </div>
+
+        <section className="round-schedule-panel" aria-labelledby="round-schedule-title">
+          <div className="round-schedule-heading">
+            <div>
+              <h3 id="round-schedule-title" className="round-schedule-title">
+                <Calendar size={17} /> Jadwal tanding per babak
+              </h3>
+              <p className="round-schedule-description">
+                {isAdmin
+                  ? 'Atur tanggal dan waktu pertandingan untuk setiap babak.'
+                  : 'Jadwal dapat dilihat semua peserta dan diatur oleh admin.'}
+              </p>
+            </div>
+            <span className={`round-schedule-access ${isAdmin ? 'admin' : ''}`}>
+              {isAdmin ? 'Kontrol admin' : 'Jadwal publik'}
+            </span>
+          </div>
+
+          <div className="round-schedule-grid">
+            {Array.from({ length: totalRounds }, (_, idx) => {
+              const roundNumber = idx + 1;
+              const savedSchedule = roundSchedules?.[roundNumber] || '';
+              const draftSchedule = roundScheduleDrafts[roundNumber] ?? savedSchedule;
+              const hasUnsavedChanges = draftSchedule !== savedSchedule;
+
+              return (
+                <div className="round-schedule-item" key={roundNumber}>
+                  <div className="round-schedule-round">Babak {roundNumber}</div>
+                  {isAdmin ? (
+                    <>
+                      <label className="round-schedule-input-label" htmlFor={`round-schedule-${roundNumber}`}>
+                        Tanggal dan waktu
+                      </label>
+                      <input
+                        id={`round-schedule-${roundNumber}`}
+                        className="round-schedule-input"
+                        type="datetime-local"
+                        value={draftSchedule}
+                        onChange={(event) =>
+                          setRoundScheduleDrafts((current) => ({
+                            ...current,
+                            [roundNumber]: event.target.value,
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="round-schedule-save"
+                        disabled={!hasUnsavedChanges}
+                        onClick={() => onUpdateRoundSchedule?.(roundNumber, draftSchedule)}
+                      >
+                        <Save size={14} /> Simpan jadwal
+                      </button>
+                    </>
+                  ) : roundSchedules?.[roundNumber] ? (
+                    <div className="round-schedule-time">
+                      <Clock3 size={15} />
+                      <time dateTime={roundSchedules[roundNumber]}>
+                        {formatRoundSchedule(roundSchedules[roundNumber])}
+                      </time>
+                    </div>
+                  ) : (
+                    <div className="round-schedule-empty">Jadwal belum ditentukan</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </div>
 
       {/* Stat cards */}

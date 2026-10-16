@@ -109,6 +109,8 @@ export interface Tournament {
   initialRatings?: Record<string, number>;
   /** Optional admin-defined pairings for a specific round. */
   pairingOverrides?: Record<number, SwissPairingOverride[]>;
+  /** Admin-managed local date and time for each round (datetime-local format). */
+  roundSchedules?: Record<number, string>;
   createdAt: number;
 }
 

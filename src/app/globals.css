@@ -510,6 +510,162 @@ body::before {
   gap: 0.35rem;
 }
 
+.round-schedule-panel {
+  margin-top: 1.1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.round-schedule-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.round-schedule-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--navy);
+  font-family: var(--font-editorial-serif);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.round-schedule-title svg {
+  color: var(--gold);
+  flex-shrink: 0;
+}
+
+.round-schedule-description {
+  margin: 0.3rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.round-schedule-access {
+  flex-shrink: 0;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  font-family: var(--font-code);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.round-schedule-access.admin {
+  border-color: var(--green-border);
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.round-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 0.65rem;
+}
+
+.round-schedule-item {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border-light);
+  border-radius: 11px;
+  background: var(--bg-surface);
+}
+
+.round-schedule-round {
+  margin-bottom: 0.5rem;
+  color: var(--navy);
+  font-family: var(--font-code);
+  font-size: 0.77rem;
+  font-weight: 800;
+}
+
+.round-schedule-input-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.round-schedule-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--bg-surface);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.round-schedule-input:focus-visible {
+  outline: 2px solid var(--sky);
+  outline-offset: 2px;
+}
+
+.round-schedule-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--navy);
+  border-radius: 8px;
+  color: #fff;
+  background: var(--navy);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.round-schedule-save:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.round-schedule-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.round-schedule-save:focus-visible {
+  outline: 2px solid var(--sky);
+  outline-offset: 2px;
+}
+
+.round-schedule-time {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  color: var(--text-main);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.round-schedule-time svg {
+  flex-shrink: 0;
+  margin-top: 0.12rem;
+  color: var(--green);
+}
+
+.round-schedule-empty {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
 /* ===== Stat cards ===== */
 .stats-grid {
   display: grid;
@@ -1715,6 +1871,10 @@ body::before {
     align-items: flex-start;
     gap: 0.75rem;
   }
+  .round-schedule-panel { padding: 0.8rem; }
+  .round-schedule-heading { gap: 0.5rem; }
+  .round-schedule-title { font-size: 0.92rem; }
+  .round-schedule-access { font-size: 0.62rem; }
   .round-pills-row {
     width: 100%;
     flex-wrap: wrap;
@@ -1753,16 +1913,21 @@ body::before {
   }
 
   .player-unit.is-black {
-    justify-content: flex-start;
-    text-align: left;
+    justify-content: flex-end;
+    text-align: right;
   }
 
   .player-unit.is-black .pawn-avatar {
-    order: -1;
+    order: 0;
+  }
+
+  .player-unit.is-black .player-info-meta {
+    flex-direction: row-reverse;
   }
 
   .player-unit.is-black .player-name-line {
-    justify-content: flex-start;
+    justify-content: flex-end;
+    text-align: right;
   }
 
   .player-info-meta {

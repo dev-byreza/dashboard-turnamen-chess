@@ -183,6 +183,27 @@ export default function SwissTournamentPage() {
     }));
   };
 
+  const handleUpdateRoundSchedule = (round: number, scheduledAt: string) => {
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return;
+    }
+    if (!activeTournament) return;
+
+    setStore((prev) => ({
+      ...prev,
+      tournaments: prev.tournaments.map((t) => {
+        if (t.id !== activeTournament.id) return t;
+
+        const roundSchedules = { ...(t.roundSchedules || {}) };
+        if (scheduledAt) roundSchedules[round] = scheduledAt;
+        else delete roundSchedules[round];
+
+        return { ...t, roundSchedules };
+      }),
+    }));
+  };
+
   // Reset active tournament back to round 1
   const handleResetActive = () => {
     if (!isAdmin) {
@@ -542,9 +563,11 @@ export default function SwissTournamentPage() {
             tournamentDate={activeTournament.date}
             tournamentLocation={activeTournament.location}
             pairingOverrides={activeTournament.pairingOverrides}
+            roundSchedules={activeTournament.roundSchedules}
             isAdmin={isAdmin}
             onRequestAdminLogin={() => setIsAdminModalOpen(true)}
             onUpdateMatches={handleUpdateActiveMatches}
+            onUpdateRoundSchedule={handleUpdateRoundSchedule}
             onUpdatePlayers={handleUpdatePlayers}
             onResetSwiss={handleResetActive}
             onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}

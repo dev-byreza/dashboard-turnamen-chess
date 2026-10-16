@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { Player, Tournament, TournamentStore, SwissMatch, SwissPairingOverride } from '../types/chess';
 
 export const DEFAULT_ROSTER: Player[] = [
-  { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 757, club: 'Politeknik Sorowako' },
+  { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 500, club: 'Politeknik Sorowako' },
   { id: 'p_ziiganteng', name: 'ZiiGanteng', seed: 2, rating: 706, club: 'Politeknik Sorowako' },
   { id: 'p_dewacad', name: 'DEWACAD', seed: 3, rating: 590, club: 'Politeknik Sorowako' },
   { id: 'p_azazeel03', name: 'Azazeel03', seed: 4, rating: 354, club: 'Politeknik Sorowako' },
@@ -96,6 +96,7 @@ export async function ensureTables(sql: any) {
       matches JSONB NOT NULL DEFAULT '[]'::jsonb,
       initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
       pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
+      round_schedules JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at BIGINT DEFAULT 0,
       is_active BOOLEAN DEFAULT FALSE,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -110,6 +111,11 @@ export async function ensureTables(sql: any) {
   await sql`
     ALTER TABLE chess_tournaments
     ADD COLUMN IF NOT EXISTS pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
+  `;
+
+  await sql`
+    ALTER TABLE chess_tournaments
+    ADD COLUMN IF NOT EXISTS round_schedules JSONB NOT NULL DEFAULT '{}'::jsonb;
   `;
 
   await sql`
@@ -228,7 +234,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
 
     // 2. Fetch tournaments
     const tourneyRows = (await sql`
-      SELECT id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active
+      SELECT id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, round_schedules, created_at, is_active
       FROM chess_tournaments
       ORDER BY created_at DESC
     `) as Array<{
@@ -241,6 +247,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       matches: SwissMatch[] | string;
       initial_ratings: Record<string, number> | string;
       pairing_overrides: Record<string, SwissPairingOverride[]> | string;
+      round_schedules: Record<number, string> | string;
       created_at: number | string;
       is_active: boolean;
     }>;
@@ -295,6 +302,13 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
           ? t.pairing_overrides
           : {};
 
+      const roundSchedules: Record<number, string> =
+        typeof t.round_schedules === 'string'
+          ? JSON.parse(t.round_schedules)
+          : t.round_schedules && typeof t.round_schedules === 'object'
+          ? t.round_schedules
+          : {};
+
       return {
         id: t.id,
         name: t.name,
@@ -305,6 +319,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
         matches,
         initialRatings: Object.keys(initialRatings).length > 0 ? initialRatings : undefined,
         pairingOverrides: Object.keys(pairingOverrides).length > 0 ? pairingOverrides : undefined,
+        roundSchedules: Object.keys(roundSchedules).length > 0 ? roundSchedules : undefined,
         createdAt: Number(t.created_at) || 0,
       };
     });
@@ -379,9 +394,10 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       const matchesJson = JSON.stringify(t.matches);
       const initialRatingsJson = JSON.stringify(t.initialRatings || {});
       const pairingOverridesJson = JSON.stringify(t.pairingOverrides || {});
+      const roundSchedulesJson = JSON.stringify(t.roundSchedules || {});
 
       await sql`
-        INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active)
+        INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, round_schedules, created_at, is_active)
         VALUES (
           ${t.id},
           ${t.name},
@@ -392,6 +408,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           ${matchesJson}::jsonb,
           ${initialRatingsJson}::jsonb,
           ${pairingOverridesJson}::jsonb,
+          ${roundSchedulesJson}::jsonb,
           ${t.createdAt || 0},
           ${isActive}
         )
@@ -404,8 +421,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           matches = EXCLUDED.matches,
           initial_ratings = EXCLUDED.initial_ratings,
           pairing_overrides = EXCLUDED.pairing_overrides,
-          initial_ratings = EXCLUDED.initial_ratings,
-          pairing_overrides = EXCLUDED.pairing_overrides,
+          round_schedules = EXCLUDED.round_schedules,
           is_active = EXCLUDED.is_active,
           updated_at = CURRENT_TIMESTAMP;
       `;

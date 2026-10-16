@@ -429,7 +429,7 @@ export function calculateSwissStandings(
 
 // Initial default Swiss data for Chess Club Politeknik Sorowako
 export const initialSwissPlayers: Player[] = [
-  { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 757, club: 'Politeknik Sorowako' },
+  { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 500, club: 'Politeknik Sorowako' },
   { id: 'p_ziiganteng', name: 'ZiiGanteng', seed: 2, rating: 706, club: 'Politeknik Sorowako' },
   { id: 'p_dewacad', name: 'DEWACAD', seed: 3, rating: 590, club: 'Politeknik Sorowako' },
   { id: 'p_azazeel03', name: 'Azazeel03', seed: 4, rating: 354, club: 'Politeknik Sorowako' },
