@@ -23,7 +23,7 @@ import {
   clearAdminSession,
   getStoredAdminPin,
 } from '../utils/adminAuth';
-import { Clock, Settings, Plus, Trophy, Lock, LogOut, Eye, BookOpen } from 'lucide-react';
+import { Clock, Settings, Plus, Trophy, Lock, LogOut, BookOpen } from 'lucide-react';
 
 export default function SwissTournamentPage() {
   const [store, setStore] = useState(createDefaultStore);
@@ -460,11 +460,6 @@ export default function SwissTournamentPage() {
               </>
             ) : (
               <>
-                <div className="spectator-status-badge" title="Mode Penonton (Hanya dapat melihat progres turnamen)">
-                  <Eye size={13} />
-                  <span>Mode Penonton</span>
-                </div>
-
                 <button
                   type="button"
                   onClick={() => setIsRulesOpen(true)}
