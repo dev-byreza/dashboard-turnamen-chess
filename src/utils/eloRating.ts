@@ -67,13 +67,19 @@ export function calculateMatchEloChange(
   ratingA: number,
   ratingB: number,
   scoreA: number,
-  kFactor: number = DEFAULT_K_FACTOR
+  kFactorA: number = DEFAULT_K_FACTOR,
+  kFactorB: number = DEFAULT_K_FACTOR
 ): { deltaA: number; deltaB: number; expectedA: number; expectedB: number } {
+  // Expected score pemain A berdasarkan selisih rating (R_B - R_A)
   const expectedA = calculateExpectedScore(ratingA, ratingB);
-  const expectedB = 1 - expectedA;
+  // Expected score pemain B berdasarkan selisih rating (R_A - R_B)
+  const expectedB = calculateExpectedScore(ratingB, ratingA);
 
-  const deltaA = Math.round(kFactor * (scoreA - expectedA));
-  const deltaB = -deltaA;
+  const scoreB = 1 - scoreA;
+
+  // Rumus FIDE: R' = R + K * (S - E) => Delta = round(K * (S - E))
+  const deltaA = Math.round(kFactorA * (scoreA - expectedA));
+  const deltaB = Math.round(kFactorB * (scoreB - expectedB));
 
   return { deltaA, deltaB, expectedA, expectedB };
 }

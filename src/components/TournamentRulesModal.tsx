@@ -264,19 +264,31 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                     Expected score pemain 1000: E = 1 / (1 + 10^((1400 − 1000) / 400)) ≈ <strong>0,09</strong>
                   </div>
 
-                  <div className="scenario-comparison-grid">
+                  <div className="scenario-comparison-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
                     <div className="scenario-col win">
-                      <div className="sc-badge">Jika Pemain 1000 Menang (S = 1)</div>
-                      <div className="sc-calc">R’ = 1000 + 40 × (1 − 0,09)</div>
-                      <div className="sc-result">R’ ≈ 1036 <span className="sc-tag gain">+36 Poin</span></div>
-                      <div className="sc-note">Upset besar mengganjar lonjakan Elo tinggi!</div>
+                      <div className="sc-badge">Skenario 1: Pemain 1000 Menang (1 - 0)</div>
+                      <div className="sc-calc">
+                        • <strong>Pemain 1000</strong>: E ≈ 0,09 → R’ = 1000 + 40 × (1 − 0,09) = <strong>1036</strong> <span className="sc-tag gain">+36</span>
+                      </div>
+                      <div className="sc-calc" style={{ marginTop: '0.4rem' }}>
+                        • <strong>Pemain 1400</strong>: E ≈ 0,91 → R’ = 1400 + 40 × (0 − 0,91) = <strong>1364</strong> <span className="sc-tag loss">−36</span>
+                      </div>
+                      <div className="sc-note" style={{ marginTop: '0.5rem' }}>
+                        Upset besar: Pemain 1000 dihadiahi +36 poin, sedangkan pemain 1400 dijatuhi penalti −36 poin karena kalah dari lawan yang jauh di bawahnya.
+                      </div>
                     </div>
 
                     <div className="scenario-col loss">
-                      <div className="sc-badge">Jika Pemain 1000 Kalah (S = 0)</div>
-                      <div className="sc-calc">R’ = 1000 + 40 × (0 − 0,09)</div>
-                      <div className="sc-result">R’ ≈ 996 <span className="sc-tag loss">−4 Poin</span></div>
-                      <div className="sc-note">Kalah dari lawan jauh lebih kuat hanya mengurangi sedikit poin.</div>
+                      <div className="sc-badge">Skenario 2: Pemain 1400 Menang (0 - 1)</div>
+                      <div className="sc-calc">
+                        • <strong>Pemain 1400</strong>: E ≈ 0,91 → R’ = 1400 + 40 × (1 − 0,91) = <strong>1404</strong> <span className="sc-tag gain">+4</span>
+                      </div>
+                      <div className="sc-calc" style={{ marginTop: '0.4rem' }}>
+                        • <strong>Pemain 1000</strong>: E ≈ 0,09 → R’ = 1000 + 40 × (0 − 0,09) = <strong>996</strong> <span className="sc-tag loss">−4</span>
+                      </div>
+                      <div className="sc-note" style={{ marginTop: '0.5rem' }}>
+                        Hasil wajar: Pemain 1400 hanya bertambah +4 poin, dan pemain 1000 hanya berkurang −4 poin karena kalah dari lawan yang jauh lebih kuat.
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -347,7 +359,7 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                       {simRatingA + lossA.deltaA}
                       <span className="sc-tag loss">{lossA.deltaA}</span>
                     </div>
-                    <div className="sim-outcome-opp">Pemain B: {simRatingB + lossA.deltaB} (+{-lossA.deltaA})</div>
+                    <div className="sim-outcome-opp">Pemain B: {simRatingB + lossA.deltaB} ({lossA.deltaB >= 0 ? `+${lossA.deltaB}` : lossA.deltaB})</div>
                   </div>
                 </div>
               </div>

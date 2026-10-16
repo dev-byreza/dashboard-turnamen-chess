@@ -861,18 +861,6 @@ body::before {
   font-weight: 600;
 }
 
-.elo-after-val {
-  font-weight: 800;
-  color: var(--navy);
-}
-
-.elo-origin-note {
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  margin-left: 0.22rem;
-  opacity: 0.85;
-}
 
 .player-elo-row {
   display: inline-flex;
