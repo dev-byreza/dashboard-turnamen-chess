@@ -87,3 +87,29 @@ export interface SwissTournamentData {
   matches: SwissMatch[];
   isFinished: boolean;
 }
+
+// Tournament management (multi-tournament + participant database)
+export interface Tournament {
+  id: string;
+  name: string;
+  date: string; // yyyy-mm-dd, may be empty
+  location: string;
+  totalRounds: number;
+  playerIds: string[]; // references into the roster
+  matches: SwissMatch[];
+  createdAt: number;
+}
+
+export interface TournamentStore {
+  roster: Player[];
+  tournaments: Tournament[];
+  activeId: string | null;
+}
+
+export interface TournamentFormData {
+  name: string;
+  date: string;
+  location: string;
+  totalRounds: number;
+  playerIds: string[];
+}

@@ -1,143 +1,274 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Player, SwissMatch } from '../types/chess';
-import { initialSwissPlayers, generateSwissRound1 } from '../utils/swissEngine';
+import { Player, SwissMatch, TournamentFormData } from '../types/chess';
+import {
+  loadStore,
+  saveStore,
+  createDefaultStore,
+  playersForTournament,
+  uid,
+  sameIds,
+} from '../utils/tournamentStore';
+import { generateSwissRound1 } from '../utils/swissEngine';
 import { SwissDashboard } from '../components/SwissDashboard';
 import { ChessTimerModal } from '../components/ChessTimerModal';
-import { Clock, RotateCcw, ShieldCheck, Tv, Eye } from 'lucide-react';
-
-const SWISS_STORAGE_KEY = 'CHESS_SWISS_POLTEK_SOROWAKO_V2';
+import { TournamentManager } from '../components/TournamentManager';
+import { Clock, ShieldCheck, Settings, Plus, Trophy } from 'lucide-react';
 
 export default function SwissTournamentPage() {
-  const [players, setPlayers] = useState<Player[]>(initialSwissPlayers);
-  const [matches, setMatches] = useState<SwissMatch[]>(() => generateSwissRound1(initialSwissPlayers));
-  const [totalRounds, setTotalRounds] = useState<number>(5);
-  const [isTimerOpen, setIsTimerOpen] = useState<boolean>(false);
-  const [isBroadcastMode, setIsBroadcastMode] = useState<boolean>(false);
+  const [store, setStore] = useState(createDefaultStore);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load saved state from LocalStorage
+  // Modals state
+  const [isTimerOpen, setIsTimerOpen] = useState<boolean>(false);
+  const [isManagerOpen, setIsManagerOpen] = useState<boolean>(false);
+  const [managerTab, setManagerTab] = useState<'tournaments' | 'roster'>('tournaments');
+  const [managerCreate, setManagerCreate] = useState<boolean>(false);
+  const [managerEditId, setManagerEditId] = useState<string | null>(null);
+
+  // Load saved state from LocalStorage on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SWISS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.players && parsed.matches) {
-          setPlayers(parsed.players);
-          setMatches(parsed.matches);
-          if (parsed.totalRounds) setTotalRounds(parsed.totalRounds);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse saved swiss data', e);
+    const loaded = loadStore();
+    if (loaded) {
+      setStore(loaded);
     }
+    setIsHydrated(true);
   }, []);
 
-  // Save to LocalStorage
-  const saveTournament = (
-    newPlayers: Player[],
-    newMatches: SwissMatch[],
-    roundsCount: number = totalRounds
-  ) => {
-    setPlayers(newPlayers);
-    setMatches(newMatches);
-    setTotalRounds(roundsCount);
-    try {
-      localStorage.setItem(
-        SWISS_STORAGE_KEY,
-        JSON.stringify({
-          players: newPlayers,
-          matches: newMatches,
-          totalRounds: roundsCount,
-        })
-      );
-    } catch (e) {
-      console.error('Failed to save swiss tournament to localStorage', e);
+  // Persist store to LocalStorage whenever it changes
+  useEffect(() => {
+    if (isHydrated) {
+      saveStore(store);
+    }
+  }, [store, isHydrated]);
+
+  // Resolve current active tournament
+  const activeTournament =
+    store.tournaments.find((t) => t.id === store.activeId) ||
+    store.tournaments[0] ||
+    null;
+
+  const activePlayers = activeTournament
+    ? playersForTournament(store.roster, activeTournament)
+    : [];
+
+  // Update matches for active tournament
+  const handleUpdateActiveMatches = (newMatches: SwissMatch[]) => {
+    if (!activeTournament) return;
+    setStore((prev) => ({
+      ...prev,
+      tournaments: prev.tournaments.map((t) =>
+        t.id === activeTournament.id ? { ...t, matches: newMatches } : t
+      ),
+    }));
+  };
+
+  // Reset active tournament back to round 1
+  const handleResetActive = () => {
+    if (!activeTournament) return;
+    const freshRound1 = generateSwissRound1(activePlayers);
+    setStore((prev) => ({
+      ...prev,
+      tournaments: prev.tournaments.map((t) =>
+        t.id === activeTournament.id ? { ...t, matches: freshRound1 } : t
+      ),
+    }));
+  };
+
+  // Save (create or update) tournament
+  const handleSaveTournament = (data: TournamentFormData, editId?: string) => {
+    if (editId) {
+      // Update existing
+      setStore((prev) => {
+        const existing = prev.tournaments.find((t) => t.id === editId);
+        if (!existing) return prev;
+
+        const playerListChanged = !sameIds(existing.playerIds, data.playerIds);
+        let updatedMatches = existing.matches;
+
+        // If player list changed, regenerate round 1 pairing
+        if (playerListChanged) {
+          const resolvedPlayers = data.playerIds
+            .map((id) => prev.roster.find((p) => p.id === id))
+            .filter((p): p is Player => Boolean(p))
+            .map((p, idx) => ({ ...p, seed: idx + 1 }));
+          updatedMatches = generateSwissRound1(resolvedPlayers);
+        }
+
+        const updatedTournaments = prev.tournaments.map((t) =>
+          t.id === editId
+            ? {
+                ...t,
+                name: data.name,
+                date: data.date,
+                location: data.location,
+                totalRounds: data.totalRounds,
+                playerIds: data.playerIds,
+                matches: updatedMatches,
+              }
+            : t
+        );
+
+        return { ...prev, tournaments: updatedTournaments };
+      });
+    } else {
+      // Create new tournament
+      const newId = uid('tn');
+      const resolvedPlayers = data.playerIds
+        .map((id) => store.roster.find((p) => p.id === id))
+        .filter((p): p is Player => Boolean(p))
+        .map((p, idx) => ({ ...p, seed: idx + 1 }));
+
+      const newTournament = {
+        id: newId,
+        name: data.name,
+        date: data.date,
+        location: data.location,
+        totalRounds: data.totalRounds,
+        playerIds: data.playerIds,
+        matches: generateSwissRound1(resolvedPlayers),
+        createdAt: Date.now(),
+      };
+
+      setStore((prev) => ({
+        ...prev,
+        tournaments: [newTournament, ...prev.tournaments],
+        activeId: newId,
+      }));
     }
   };
 
-  const handleResetSwiss = () => {
-    if (confirm('Kembalikan turnamen ke setelan awal Chess Club Politeknik Sorowako?')) {
-      const initialMatches = generateSwissRound1(initialSwissPlayers);
-      saveTournament(initialSwissPlayers, initialMatches, 5);
-    }
+  // Delete tournament
+  const handleDeleteTournament = (id: string) => {
+    setStore((prev) => {
+      const remaining = prev.tournaments.filter((t) => t.id !== id);
+      const nextActiveId =
+        prev.activeId === id ? (remaining[0]?.id || null) : prev.activeId;
+      return {
+        ...prev,
+        tournaments: remaining,
+        activeId: nextActiveId,
+      };
+    });
+  };
+
+  // Switch active tournament
+  const handleSetActive = (id: string) => {
+    setStore((prev) => ({ ...prev, activeId: id }));
+  };
+
+  // Roster CRUD
+  const handleAddRosterPlayer = (playerData: Omit<Player, 'id' | 'seed'>) => {
+    const newPlayer: Player = {
+      ...playerData,
+      id: uid('pl'),
+      seed: store.roster.length + 1,
+    };
+    setStore((prev) => ({
+      ...prev,
+      roster: [...prev.roster, newPlayer],
+    }));
+  };
+
+  const handleUpdateRosterPlayer = (id: string, updates: Partial<Player>) => {
+    setStore((prev) => ({
+      ...prev,
+      roster: prev.roster.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }));
+  };
+
+  const handleDeleteRosterPlayer = (id: string) => {
+    setStore((prev) => ({
+      ...prev,
+      roster: prev.roster.filter((p) => p.id !== id),
+    }));
+  };
+
+  const openManagerWithTab = (
+    tab: 'tournaments' | 'roster',
+    create: boolean = false,
+    editId: string | null = null
+  ) => {
+    setManagerTab(tab);
+    setManagerCreate(create);
+    setManagerEditId(editId);
+    setIsManagerOpen(true);
   };
 
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg-page)', color: 'var(--text-main)' }}>
       <div className="chess-wrapper">
-        {/* Floating Broadcast Mode Exit Button */}
-        {isBroadcastMode && (
-          <div className="broadcast-exit">
-            <button onClick={() => setIsBroadcastMode(false)} className="btn-gold-action">
-              <Eye size={14} />
-              <span>Keluar mode layar penuh</span>
+        {/* Top Header with Official Chess Club Politeknik Sorowako Logo */}
+        <header className="top-nav-bar">
+          <div className="brand-section">
+            <div className="brand-title-wrap">
+              <div className="brand-logo-row">
+                <img
+                  src="/images/logo-chess-club-text.png"
+                  alt="Chess Club Politeknik Sorowako"
+                  className="brand-text-logo-img"
+                />
+              </div>
+              <p className="brand-subtitle">
+                Dashboard turnamen catur sistem Swiss • UKM Catur Mahasiswa Politeknik Sorowako
+              </p>
+            </div>
+          </div>
+
+          <div className="header-actions-row">
+            <button
+              onClick={() => openManagerWithTab('tournaments')}
+              className="btn-gold-action"
+              title="Kelola daftar turnamen dan database peserta"
+            >
+              <Settings size={15} />
+              <span>Kelola turnamen</span>
+            </button>
+
+            <button
+              onClick={() => setIsTimerOpen(true)}
+              className="btn-glass-secondary"
+              title="Buka jam catur digital"
+            >
+              <Clock size={15} style={{ color: '#7dd3fc' }} />
+              <span>Jam catur</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Main Swiss Dashboard */}
+        {activeTournament ? (
+          <SwissDashboard
+            key={activeTournament.id}
+            players={activePlayers}
+            matches={activeTournament.matches}
+            totalRounds={activeTournament.totalRounds}
+            tournamentName={activeTournament.name}
+            tournamentDate={activeTournament.date}
+            tournamentLocation={activeTournament.location}
+            onUpdateMatches={handleUpdateActiveMatches}
+            onResetSwiss={handleResetActive}
+            onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
+          />
+        ) : (
+          <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }}>
+            <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
+            <h3 className="empty-title">Belum ada turnamen yang dipilih</h3>
+            <p className="empty-desc">
+              Buat turnamen catur baru atau pilih salah satu turnamen dari database Anda untuk memulai.
+            </p>
+            <button
+              type="button"
+              onClick={() => openManagerWithTab('tournaments', true)}
+              className="btn-gold-action"
+              style={{ margin: '1.25rem auto 0' }}
+            >
+              <Plus size={16} />
+              <span>Buat turnamen baru</span>
             </button>
           </div>
         )}
-
-        {/* Top Header with Official Chess Club Politeknik Sorowako Logo */}
-        {!isBroadcastMode && (
-          <header className="top-nav-bar">
-            <div className="brand-section">
-              <div className="brand-title-wrap">
-                <div className="brand-logo-row">
-                  <img
-                    src="/images/logo-chess-club-text.png"
-                    alt="Chess Club Politeknik Sorowako"
-                    className="brand-text-logo-img"
-                  />
-                  <span className="badge-pill-gold">Resmi 2026</span>
-                </div>
-                <p className="brand-subtitle">
-                  Dashboard turnamen catur sistem Swiss • UKM Catur Mahasiswa Politeknik Sorowako
-                </p>
-              </div>
-            </div>
-
-            <div className="header-actions-row">
-              <button
-                onClick={() => setIsTimerOpen(true)}
-                className="btn-glass-secondary"
-                title="Buka jam catur digital"
-              >
-                <Clock size={15} style={{ color: '#7dd3fc' }} />
-                <span>Jam catur</span>
-              </button>
-
-              <button
-                onClick={() => setIsBroadcastMode(true)}
-                className="btn-glass-secondary"
-                title="Tampilkan mode layar TV / proyektor"
-              >
-                <Tv size={15} style={{ color: '#f6d77a' }} />
-                <span>Mode TV</span>
-              </button>
-
-              <button
-                onClick={handleResetSwiss}
-                className="btn-glass-secondary"
-                title="Reset turnamen ke 8 peserta default"
-              >
-                <RotateCcw size={14} />
-                <span>Reset</span>
-              </button>
-            </div>
-          </header>
-        )}
-
-        {/* Main Swiss Dashboard */}
-        <SwissDashboard
-          players={players}
-          matches={matches}
-          totalRounds={totalRounds}
-          onUpdateMatches={(newM) => saveTournament(players, newM, totalRounds)}
-          onUpdatePlayers={(newP) => saveTournament(newP, matches, totalRounds)}
-          onResetSwiss={() => {
-            const initialMatches = generateSwissRound1(initialSwissPlayers);
-            saveTournament(initialSwissPlayers, initialMatches, 5);
-          }}
-        />
 
         {/* Footer with Logo */}
         <footer className="site-footer">
@@ -158,9 +289,32 @@ export default function SwissTournamentPage() {
       {/* Chess Timer Modal */}
       {isTimerOpen && (
         <ChessTimerModal
-          whiteName={players[0]?.name || 'Putih'}
-          blackName={players[1]?.name || 'Hitam'}
+          whiteName={activePlayers[0]?.name || 'Putih'}
+          blackName={activePlayers[1]?.name || 'Hitam'}
           onClose={() => setIsTimerOpen(false)}
+        />
+      )}
+
+      {/* Tournament & Roster Manager Modal */}
+      {isManagerOpen && (
+        <TournamentManager
+          roster={store.roster}
+          tournaments={store.tournaments}
+          activeId={store.activeId}
+          initialTab={managerTab}
+          initialCreate={managerCreate}
+          initialEditId={managerEditId}
+          onClose={() => {
+            setIsManagerOpen(false);
+            setManagerCreate(false);
+            setManagerEditId(null);
+          }}
+          onSetActive={handleSetActive}
+          onSaveTournament={handleSaveTournament}
+          onDeleteTournament={handleDeleteTournament}
+          onAddRosterPlayer={handleAddRosterPlayer}
+          onUpdateRosterPlayer={handleUpdateRosterPlayer}
+          onDeleteRosterPlayer={handleDeleteRosterPlayer}
         />
       )}
     </main>

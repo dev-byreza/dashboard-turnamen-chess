@@ -22,6 +22,8 @@ import {
   Flag,
   Printer,
   X,
+  Calendar,
+  MapPin,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -29,9 +31,13 @@ interface SwissDashboardProps {
   players: Player[];
   matches: SwissMatch[];
   totalRounds: number;
+  tournamentName?: string;
+  tournamentDate?: string;
+  tournamentLocation?: string;
   onUpdateMatches: (newMatches: SwissMatch[]) => void;
-  onUpdatePlayers: (newPlayers: Player[]) => void;
+  onUpdatePlayers?: (newPlayers: Player[]) => void;
   onResetSwiss: () => void;
+  onEditParticipants?: () => void;
 }
 
 const getInitials = (name: string) =>
@@ -46,9 +52,13 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   players,
   matches,
   totalRounds,
+  tournamentName,
+  tournamentDate,
+  tournamentLocation,
   onUpdateMatches,
   onUpdatePlayers,
   onResetSwiss,
+  onEditParticipants,
 }) => {
   const standings = calculateSwissStandings(players, matches);
   const rounds = Array.from(new Set(matches.map((m) => m.round))).sort((a, b) => a - b);
@@ -59,6 +69,12 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerRating, setNewPlayerRating] = useState('1800');
   const celebratedRef = useRef(false);
+
+  useEffect(() => {
+    if (selectedRoundTab > currentMaxRound) {
+      setSelectedRoundTab(currentMaxRound);
+    }
+  }, [currentMaxRound, selectedRoundTab]);
 
   const activeRoundMatches = matches.filter((m) => m.round === selectedRoundTab);
   const isCurrentRoundFullyScored =
@@ -123,7 +139,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
       rating: parseInt(newPlayerRating, 10) || 1800,
     };
     const updatedPlayers = [...players, newP];
-    onUpdatePlayers(updatedPlayers);
+    onUpdatePlayers?.(updatedPlayers);
     setNewPlayerName('');
     onUpdateMatches(generateSwissRound1(updatedPlayers));
     setSelectedRoundTab(1);
@@ -135,7 +151,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
       return;
     }
     const filtered = players.filter((p) => p.id !== id);
-    onUpdatePlayers(filtered);
+    onUpdatePlayers?.(filtered);
     onUpdateMatches(generateSwissRound1(filtered));
     setSelectedRoundTab(1);
   };
@@ -175,9 +191,27 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               </span>
               <span className="badge-pill-gold">{players.length} pemain terdaftar</span>
               <span className="hero-meta-text">• Format {totalRounds} babak resmi</span>
+              {tournamentDate && (
+                <span className="hero-meta-chip">
+                  <Calendar size={13} />
+                  <span>
+                    {new Date(tournamentDate).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </span>
+              )}
+              {tournamentLocation && (
+                <span className="hero-meta-chip">
+                  <MapPin size={13} />
+                  <span>{tournamentLocation}</span>
+                </span>
+              )}
             </div>
 
-            <h2 className="hero-title">Turnamen Catur Sistem Swiss</h2>
+            <h2 className="hero-title">{tournamentName || 'Turnamen Catur Sistem Swiss'}</h2>
             <p className="hero-desc">
               Diselenggarakan resmi oleh <strong>Chess Club Politeknik Sorowako</strong>. Setiap babak
               pemain dipasangkan dengan lawan yang memiliki perolehan poin serupa tanpa pernah
@@ -186,7 +220,16 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           </div>
 
           <div className="hero-actions-group">
-            <button onClick={() => setIsPlayerModalOpen(true)} className="btn-glass-secondary">
+            <button
+              onClick={() => {
+                if (onEditParticipants) {
+                  onEditParticipants();
+                } else {
+                  setIsPlayerModalOpen(true);
+                }
+              }}
+              className="btn-glass-secondary"
+            >
               <Users size={15} style={{ color: 'var(--sky)' }} />
               <span>Kelola peserta ({players.length})</span>
             </button>

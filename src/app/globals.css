@@ -1709,3 +1709,605 @@ button, input, select, textarea {
   font-variant-numeric: tabular-nums;
 }
 
+
+/* ==========================================================================
+   TOURNAMENT MANAGER & ROSTER DATABASE STYLES
+   ========================================================================== */
+
+.manager-box {
+  max-width: 880px;
+  width: 95%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.manager-tabs {
+  display: flex;
+  background: #f1ede4;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0 1.25rem;
+  gap: 0.5rem;
+}
+
+.manager-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-sub);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--fs-small);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.manager-tab:hover {
+  color: var(--navy);
+}
+
+.manager-tab.active {
+  color: var(--navy);
+  font-weight: 600;
+  border-bottom-color: var(--gold);
+  background: var(--bg-card);
+}
+
+.manager-body {
+  overflow-y: auto;
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.manager-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.toolbar-hint {
+  color: var(--text-sub);
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  margin: 0;
+}
+
+.tournament-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tournament-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.tournament-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.tournament-card.is-active {
+  border-left: 4px solid var(--gold);
+  background: #faf8f2;
+}
+
+.tournament-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tournament-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.tournament-name {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.active-chip {
+  background: rgba(224, 168, 46, 0.15);
+  color: #925f0a;
+  border: 1px solid rgba(224, 168, 46, 0.4);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.current-badge {
+  background: rgba(77, 124, 58, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(77, 124, 58, 0.3);
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.tournament-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--text-sub);
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tournament-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-sm {
+  padding: 0.45rem 0.75rem !important;
+  font-size: var(--fs-small) !important;
+  gap: 0.35rem !important;
+}
+
+.hero-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(20, 33, 61, 0.05);
+  border: 1px solid var(--border-soft);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--text-sub);
+}
+
+/* Form card and inputs */
+.form-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.form-card-header {
+  margin-bottom: 1.25rem;
+}
+
+.form-card-title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-h2);
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 0.3rem 0;
+}
+
+.form-card-subtitle {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--text-sub);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-field.full-col {
+  grid-column: 1 / -1;
+}
+
+.form-field.flex-2 {
+  flex: 2;
+  min-width: 220px;
+}
+
+.form-label {
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.form-label .req {
+  color: #dc2626;
+}
+
+.field-hint {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-sub);
+  margin-top: 0.15rem;
+}
+
+/* Participant Picker */
+.picker-section {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.picker-subtext {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-sub);
+}
+
+.picker-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-compact {
+  background: var(--bg-page);
+  border: 1px solid var(--border-card);
+  color: var(--text-sub);
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-compact:hover {
+  background: var(--bg-card-alt);
+  color: var(--navy);
+  border-color: var(--border-hover);
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.search-box.grow {
+  flex: 1;
+}
+
+.search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--text-main);
+}
+
+.search-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.1rem;
+}
+
+.picker-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.picker-row:last-child {
+  border-bottom: none;
+}
+
+.picker-row:hover {
+  background: var(--bg-page);
+}
+
+.picker-row.selected {
+  background: #fbf8ee;
+}
+
+.picker-checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.picker-row.selected .picker-checkbox {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.picker-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.picker-name {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--fs-small);
+  color: var(--navy);
+}
+
+.picker-meta {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-sub);
+}
+
+.picker-empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-sub);
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+}
+
+.alert-box-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  color: #92400e;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  margin-top: 0.75rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* Roster database tab */
+.roster-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.roster-add-card {
+  margin-bottom: 0;
+}
+
+.roster-form-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.roster-add-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.roster-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.roster-count-chip {
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--text-sub);
+  white-space: nowrap;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+}
+
+.roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.roster-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.roster-row:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.roster-row.editing {
+  flex-direction: column;
+  align-items: stretch;
+  background: #fdfcf9;
+  border-color: var(--gold);
+}
+
+.roster-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.roster-player-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.roster-name-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.roster-name {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--navy);
+  font-size: var(--fs-body);
+}
+
+.roster-elo-chip {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  background: rgba(77, 124, 58, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(77, 124, 58, 0.25);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.roster-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--text-sub);
+  margin-top: 0.2rem;
+}
+
+.dot-sep {
+  color: var(--border-soft);
+}
+
+.usage-info {
+  color: var(--text-sub);
+}
+
+.roster-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.roster-edit-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.2fr 2fr;
+  gap: 0.5rem;
+}
+
+.roster-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .roster-edit-grid {
+    grid-template-columns: 1fr;
+  }
+  .tournament-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .tournament-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
