@@ -473,7 +473,7 @@ body::before {
   background: var(--bg-soft);
 }
 
-.round-pill-btn:hover:not(:disabled) {
+.round-pill-btn:hover:not(:disabled):not(.active) {
   border-color: var(--gold-border);
   color: var(--navy);
   transform: translateY(-1px);
