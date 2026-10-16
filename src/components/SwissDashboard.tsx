@@ -26,6 +26,7 @@ import {
   MapPin,
   Lock,
   Eye,
+  BookOpen,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -42,6 +43,7 @@ interface SwissDashboardProps {
   onUpdatePlayers?: (newPlayers: Player[]) => void;
   onResetSwiss: () => void;
   onEditParticipants?: () => void;
+  onOpenRules?: () => void;
 }
 
 const getInitials = (name: string) =>
@@ -65,6 +67,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   onUpdatePlayers,
   onResetSwiss,
   onEditParticipants,
+  onOpenRules,
 }) => {
   const standings = calculateSwissStandings(players, matches);
   const rounds = Array.from(new Set(matches.map((m) => m.round))).sort((a, b) => a - b);
@@ -238,10 +241,16 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         <div className="flex-row-between">
           <div>
             <div className="hero-header-meta">
-              <span className="badge-pill-cyan">
+              <button
+                type="button"
+                onClick={onOpenRules}
+                className="badge-pill-cyan"
+                style={{ cursor: onOpenRules ? 'pointer' : 'default', border: 'none' }}
+                title="Klik untuk melihat panduan resmi Mekanisme Penilaian Swiss & Rumus Elo (K = 40)"
+              >
                 <Sparkles size={12} />
-                FIDE Swiss pairing engine
-              </span>
+                FIDE Swiss • Elo (K = 40)
+              </button>
               <span className="badge-pill-gold">{players.length} pemain terdaftar</span>
               <span className="hero-meta-text">• Format {totalRounds} babak resmi</span>
               {tournamentDate && (
@@ -649,6 +658,18 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <h3 className="section-title-text">Klasemen Sementara</h3>
             </div>
             <div className="flex-row-center gap-2 no-print">
+              {onOpenRules && (
+                <button
+                  type="button"
+                  className="btn-glass-secondary"
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', gap: '0.35rem' }}
+                  onClick={onOpenRules}
+                  title="Lihat Mekanisme Penilaian Swiss & Formula Elo FIDE (K = 40)"
+                >
+                  <BookOpen size={13} style={{ color: 'var(--gold)' }} />
+                  <span>Aturan & Elo</span>
+                </button>
+              )}
               {isAdmin && onUpdatePlayers && (
                 <button
                   type="button"
@@ -731,13 +752,14 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 <tr>
                   <th style={{ width: '48px' }}>#</th>
                   <th className="left">Pemain</th>
-                  <th>Elo Live</th>
+                  <th title="Rating Elo FIDE (K = 40) terhitung dinamis setiap pertandingan">Elo Live</th>
                   <th>Main</th>
-                  <th title="Menang">M</th>
-                  <th title="Remis">R</th>
-                  <th title="Kalah">K</th>
-                  <th title="Buchholz (Total Poin Lawan)">BH</th>
-                  <th>Poin</th>
+                  <th title="Menang (1 Poin)">M</th>
+                  <th title="Remis (0,5 Poin)">R</th>
+                  <th title="Kalah (0 Poin)">K</th>
+                  <th title="Buchholz (BH): Total poin seluruh lawan yang pernah dihadapi">BH</th>
+                  <th title="Sonneborn-Berger (SB): Kualitas kemenangan (100% poin lawan menang + 50% poin lawan remis)">SB</th>
+                  <th title="Total Poin Hasil Pertandingan">Poin</th>
                 </tr>
               </thead>
               <tbody>
@@ -787,7 +809,10 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       <td className="num-win">{row.won}</td>
                       <td>{row.drawn}</td>
                       <td className="num-loss">{row.lost}</td>
-                      <td className="num-bh">{row.buchholz || 0}</td>
+                      <td className="num-bh" title={`Buchholz: ${row.buchholz || 0}`}>{row.buchholz || 0}</td>
+                      <td className="num-bh" style={{ color: 'var(--gold)' }} title={`Sonneborn-Berger: ${row.sonnebornBerger || 0}`}>
+                        {row.sonnebornBerger !== undefined ? row.sonnebornBerger : 0}
+                      </td>
                       <td>
                         <div className="points-cell">
                           <span className="points-pill">{row.points}</span>

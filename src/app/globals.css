@@ -3425,5 +3425,472 @@ button, input, select, textarea {
   cursor: pointer;
 }
 
+/* ========================================================
+   TOURNAMENT RULES & ELO MODAL STYLES
+   ======================================================== */
+.rules-tabs-bar {
+  display: flex;
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--border-light);
+  padding: 0.35rem 1rem;
+  gap: 0.5rem;
+}
+
+.rules-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rules-tab-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.rules-tab-btn.active {
+  background: var(--bg-card);
+  color: var(--gold);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.rules-content-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.rules-intro-card {
+  padding: 0.9rem 1.1rem;
+  border-radius: 10px;
+  background: rgba(224, 168, 46, 0.08);
+  border: 1px solid rgba(224, 168, 46, 0.25);
+  font-size: 0.84rem;
+  color: var(--text-main);
+}
+
+.rules-section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.rules-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0;
+}
+
+.rules-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #14213d;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.rules-desc-p {
+  font-size: 0.82rem;
+  color: var(--text-sub);
+  margin: 0;
+}
+
+.points-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem;
+}
+
+.point-card {
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.point-card.win {
+  border-left: 4px solid #10b981;
+}
+
+.point-card.draw {
+  border-left: 4px solid var(--gold);
+}
+
+.point-card.loss {
+  border-left: 4px solid #f43f5e;
+}
+
+.point-card.bye {
+  border-left: 4px solid #38bdf8;
+}
+
+.point-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.point-val {
+  font-family: var(--font-code);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.point-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.rules-example-box {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-light);
+  font-size: 0.82rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.formula-highlight {
+  font-family: var(--font-code);
+  font-size: 0.84rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+}
+
+.rules-bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.rules-bullet-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  color: var(--text-main);
+}
+
+.bullet-icon {
+  color: #10b981;
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+
+.tiebreak-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.tiebreak-card {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tb-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tb-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.tb-desc {
+  font-size: 0.78rem;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+
+.tb-example {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  font-family: var(--font-code);
+  font-size: 0.76rem;
+  color: var(--text-main);
+}
+
+.hierarchy-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-light);
+}
+
+.step-pill {
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  background: var(--bg-card);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--navy);
+  border: 1px solid var(--border-light);
+}
+
+.step-arrow {
+  color: var(--gold);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.math-display-card {
+  padding: 0.9rem 1.1rem;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+}
+
+.math-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+
+.math-formula {
+  font-family: var(--font-code);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+
+.math-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.6rem;
+  font-size: 0.76rem;
+  color: var(--text-sub);
+}
+
+.scenario-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.scenario-col {
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.scenario-col.win {
+  border-left: 3px solid #10b981;
+}
+
+.scenario-col.loss {
+  border-left: 3px solid #f43f5e;
+}
+
+.sc-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.sc-calc {
+  font-family: var(--font-code);
+  font-size: 0.76rem;
+  color: var(--text-sub);
+}
+
+.sc-result {
+  font-family: var(--font-code);
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sc-tag {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.sc-tag.gain {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.sc-tag.loss {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+}
+
+.sc-note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.sim-inputs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sim-input-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sim-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.sim-vs-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #14213d;
+  font-weight: 800;
+  font-size: 0.72rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1.1rem;
+}
+
+.sim-expected-bar {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  font-size: 0.78rem;
+  color: var(--text-main);
+  text-align: center;
+}
+
+.sim-outcomes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.6rem;
+}
+
+.sim-outcome-card {
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sim-outcome-card.win {
+  border-top: 3px solid #10b981;
+}
+
+.sim-outcome-card.draw {
+  border-top: 3px solid var(--gold);
+}
+
+.sim-outcome-card.loss {
+  border-top: 3px solid #f43f5e;
+}
+
+.sim-outcome-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.sim-outcome-val {
+  font-family: var(--font-code);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sim-outcome-opp {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.ref-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ref-pill {
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-light);
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
 
 

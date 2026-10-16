@@ -16,13 +16,14 @@ import { SwissDashboard } from '../components/SwissDashboard';
 import { ChessTimerModal } from '../components/ChessTimerModal';
 import { TournamentManager } from '../components/TournamentManager';
 import { AdminLoginModal } from '../components/AdminLoginModal';
+import { TournamentRulesModal } from '../components/TournamentRulesModal';
 import {
   checkIsAdmin,
   saveAdminSession,
   clearAdminSession,
   getStoredAdminPin,
 } from '../utils/adminAuth';
-import { Clock, Settings, Plus, Trophy, Lock, LogOut, Eye } from 'lucide-react';
+import { Clock, Settings, Plus, Trophy, Lock, LogOut, Eye, BookOpen } from 'lucide-react';
 
 export default function SwissTournamentPage() {
   const [store, setStore] = useState(createDefaultStore);
@@ -34,6 +35,7 @@ export default function SwissTournamentPage() {
   // Modals state
   const [isTimerOpen, setIsTimerOpen] = useState<boolean>(false);
   const [isManagerOpen, setIsManagerOpen] = useState<boolean>(false);
+  const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
   const [managerTab, setManagerTab] = useState<'tournaments' | 'roster'>('tournaments');
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
@@ -428,6 +430,16 @@ export default function SwissTournamentPage() {
                 </button>
 
                 <button
+                  type="button"
+                  onClick={() => setIsRulesOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Lihat Mekanisme Penilaian Swiss & Formula Elo FIDE (K = 40)"
+                >
+                  <BookOpen size={15} style={{ color: 'var(--gold)' }} />
+                  <span>Mekanisme</span>
+                </button>
+
+                <button
                   onClick={() => setIsTimerOpen(true)}
                   className="btn-glass-secondary"
                   title="Buka jam catur digital"
@@ -452,6 +464,16 @@ export default function SwissTournamentPage() {
                   <Eye size={13} />
                   <span>Mode Penonton</span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRulesOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Lihat Mekanisme Penilaian Swiss & Formula Elo FIDE (K = 40)"
+                >
+                  <BookOpen size={15} style={{ color: 'var(--gold)' }} />
+                  <span>Mekanisme</span>
+                </button>
 
                 <button
                   onClick={() => setIsTimerOpen(true)}
@@ -492,6 +514,7 @@ export default function SwissTournamentPage() {
             onUpdatePlayers={handleUpdatePlayers}
             onResetSwiss={handleResetActive}
             onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
+            onOpenRules={() => setIsRulesOpen(true)}
           />
         ) : (
           <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }}>
@@ -562,6 +585,12 @@ export default function SwissTournamentPage() {
           saveAdminSession(pin);
           setIsAdmin(true);
         }}
+      />
+
+      {/* Tournament Rules & Elo Mechanism Modal */}
+      <TournamentRulesModal
+        isOpen={isRulesOpen}
+        onClose={() => setIsRulesOpen(false)}
       />
     </main>
   );

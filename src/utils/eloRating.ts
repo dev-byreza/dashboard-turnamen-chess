@@ -1,7 +1,22 @@
 import { Player, SwissMatch, MatchResult } from '../types/chess';
 
+/**
+ * Mekanisme Perhitungan Elo Rating FIDE
+ * Sesuai panduan resmi di MEKANISME PERHITUNGAN ELO.md:
+ * 
+ * Rumus dasar Elo:
+ * R' = R + K * (S - E)
+ * 
+ * Keterangan:
+ * - R  = Rating awal pemain
+ * - R' = Rating baru pemain setelah pertandingan
+ * - S  = Skor hasil pertandingan (1 = Menang, 0.5 = Remis, 0 = Kalah)
+ * - E  = Expected score (probabilitas kemenangan teoritis)
+ *        E = 1 / (1 + 10^((R_lawan - R) / 400))
+ * - K  = Faktor perkembangan FIDE (K = 40 untuk pemain pemula/turnamen terbuka)
+ */
 export const DEFAULT_PLAYER_RATING = 500;
-export const DEFAULT_K_FACTOR = 32;
+export const DEFAULT_K_FACTOR = 40;
 
 export interface MatchEloDetail {
   matchId: string;
@@ -46,6 +61,7 @@ export function calculateExpectedScore(ratingA: number, ratingB: number): number
 /**
  * Calculates rating change for a single game.
  * scoreA: 1 for win, 0.5 for draw, 0 for loss.
+ * R' = R + K(S - E)
  */
 export function calculateMatchEloChange(
   ratingA: number,
