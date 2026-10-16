@@ -100,8 +100,8 @@ export const ChessTimerModal: React.FC<ChessTimerModalProps> = ({
   };
 
   const stateLabel = (side: 'white' | 'black', seconds: number) => {
-    if (seconds === 0) return '⏰ WAKTU HABIS';
-    return activeTurn === side && isRunning ? '⚡ GILIRAN JALAN' : 'MENUNGGU';
+    if (seconds === 0) return '⏰ Waktu habis';
+    return activeTurn === side && isRunning ? '⚡ Giliran berjalan' : 'Menunggu';
   };
 
   return (
@@ -138,7 +138,7 @@ export const ChessTimerModal: React.FC<ChessTimerModalProps> = ({
             onClick={handleSwitchTurn}
             className={`timer-clock ${activeTurn === 'white' && isRunning ? 'active-white' : ''}`}
           >
-            <span className="timer-clock-label">PUTIH ({whiteName})</span>
+            <span className="timer-clock-label">Putih ({whiteName})</span>
             <div className="timer-clock-time">{formatTime(whiteSeconds)}</div>
             <span className="timer-clock-state">{stateLabel('white', whiteSeconds)}</span>
           </div>
@@ -147,7 +147,7 @@ export const ChessTimerModal: React.FC<ChessTimerModalProps> = ({
             onClick={handleSwitchTurn}
             className={`timer-clock ${activeTurn === 'black' && isRunning ? 'active-black' : ''}`}
           >
-            <span className="timer-clock-label">HITAM ({blackName})</span>
+            <span className="timer-clock-label">Hitam ({blackName})</span>
             <div className="timer-clock-time">{formatTime(blackSeconds)}</div>
             <span className="timer-clock-state">{stateLabel('black', blackSeconds)}</span>
           </div>
@@ -156,10 +156,10 @@ export const ChessTimerModal: React.FC<ChessTimerModalProps> = ({
         <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
           <button type="button" onClick={() => handleReset()} className="btn-glass-secondary">
             <RotateCcw size={14} />
-            <span>Reset Waktu</span>
+            <span>Reset waktu</span>
           </button>
 
-          <span className="section-hint">Tekan Spasi untuk ganti giliran</span>
+          <span className="section-hint">Tekan spasi untuk ganti giliran</span>
 
           <button
             type="button"

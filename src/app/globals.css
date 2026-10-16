@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=Cinzel:wght@600;700;800;900&family=Montserrat:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&family=Oswald:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
 
 @font-face {
   font-family: 'Coinage Caps Kruger Gray';
@@ -50,26 +50,21 @@
   --shadow-md: 0 6px 22px -6px rgba(20, 33, 61, 0.16);
   --shadow-lg: 0 18px 44px -14px rgba(20, 33, 61, 0.28);
 
-  --font-display: 'Coinage Caps Kruger Gray', 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-code: 'JetBrains Mono', monospace;
-  --font-editorial-serif: 'Coinage Caps Kruger Gray', 'DM Serif Display', 'Cormorant Garamond', 'Cinzel', Georgia, serif;
-}
+  /* ---- Type system (single source of truth) ----
+     Headings : Coinage Caps Kruger Gray, ALL CAPS
+     Body/small: Montserrat Regular, sentence case */
+  --font-heading: var(--font-coinage, 'Coinage Caps Kruger Gray'), 'Coinage Caps Kruger Gray', 'Cinzel', Georgia, serif;
+  --font-body: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-heading);
+  --font-editorial-serif: var(--font-heading);
+  --font-code: var(--font-body);
 
-/* Font Presets (switcher) */
-[data-font="condensed"] {
-  --font-display: 'Oswald', sans-serif;
-  --font-editorial-serif: 'Oswald', sans-serif;
-}
-
-[data-font="tech"] {
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-editorial-serif: 'Space Grotesk', sans-serif;
-}
-
-[data-font="classical"] {
-  --font-display: 'Cinzel', serif;
-  --font-editorial-serif: 'Cinzel', serif;
+  --fs-h1: clamp(1.6rem, 1.1rem + 2vw, 2.2rem);
+  --fs-h2: clamp(1.05rem, 0.95rem + 0.5vw, 1.2rem);
+  --fs-stat: clamp(1.3rem, 1rem + 1.2vw, 1.6rem);
+  --fs-body: 0.9rem;
+  --fs-small: 0.8rem;
+  --fs-xs: 0.72rem;
 }
 
 * {
@@ -1607,3 +1602,110 @@ body::before {
   .hero-banner-card { box-shadow: none; }
   .hero-banner-card::before, .hero-banner-card::after { display: none; }
 }
+
+/* ========================================================
+   TYPOGRAPHY SYSTEM — final, authoritative
+   • Headings  : Coinage Caps Kruger Gray, ALL CAPS, one scale
+   • Body/small: Montserrat Regular (400), sentence case
+   ======================================================== */
+@media (max-width: 480px) {
+  :root {
+    --fs-body: 0.85rem;
+    --fs-small: 0.76rem;
+    --fs-xs: 0.68rem;
+  }
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+button, input, select, textarea {
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+
+/* ---- Headings ---- */
+.hero-title,
+.champion-name,
+.section-title-text,
+.modal-title {
+  font-family: var(--font-heading);
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+}
+
+.hero-title,
+.champion-name {
+  font-size: var(--fs-h1);
+}
+
+.section-title-text,
+.modal-title {
+  font-size: var(--fs-h2);
+}
+
+.stat-value {
+  font-family: var(--font-heading);
+  font-size: var(--fs-stat);
+  letter-spacing: 0.04em;
+}
+
+/* ---- Body & small text: Montserrat Regular, sentence case ---- */
+.hero-desc, .empty-state, .player-name-text, .player-cell-name,
+.player-row-name, .form-input-text, .brand-subtitle, .badge-pill-gold,
+.badge-pill-cyan, .hero-meta-text, .hero-progress-head,
+.hero-progress-head strong, .round-pill-btn, .round-status-text,
+.stat-label, .section-hint, .board-status-text, .player-elo-text,
+.score-choice-btn, .score-bye-badge, .score-reset-btn,
+.modern-swiss-table th, .modern-swiss-table td, .podium-player-name,
+.podium-points-tag, .btn-gold-action, .btn-glass-secondary, .preset-btn,
+.timer-clock-label, .timer-clock-state, .points-pill, .rank-badge,
+.champion-meta, .champion-eyebrow, .site-footer, .title-tag,
+.player-cell-club, .board-number-badge, .player-row-elo, .player-row-idx,
+.finished-chip {
+  font-family: var(--font-body);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+/* Size tiers — body */
+.hero-desc, .empty-state, .player-name-text, .player-cell-name,
+.player-row-name, .form-input-text {
+  font-size: var(--fs-body);
+}
+
+/* Size tiers — small */
+.brand-subtitle, .badge-pill-gold, .badge-pill-cyan, .hero-meta-text,
+.hero-progress-head, .hero-progress-head strong, .round-pill-btn,
+.round-status-text, .stat-label, .section-hint, .board-status-text,
+.player-elo-text, .score-choice-btn, .score-bye-badge, .score-reset-btn,
+.modern-swiss-table th, .modern-swiss-table td, .podium-player-name,
+.podium-points-tag, .btn-gold-action, .btn-glass-secondary, .preset-btn,
+.timer-clock-label, .points-pill, .rank-badge, .champion-meta,
+.champion-eyebrow, .site-footer, .finished-chip {
+  font-size: var(--fs-small);
+}
+
+/* Size tiers — extra small */
+.title-tag, .player-cell-club, .board-number-badge, .timer-clock-state,
+.player-row-elo, .player-row-idx, .mini-avatar {
+  font-size: var(--fs-xs);
+}
+
+.timer-clock-time {
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+
+.modern-swiss-table td, .points-pill, .timer-clock-time,
+.stat-value, .podium-points-tag {
+  font-variant-numeric: tabular-nums;
+}
+

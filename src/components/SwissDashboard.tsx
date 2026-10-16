@@ -155,7 +155,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             <Trophy size={32} />
           </div>
           <div>
-            <div className="champion-eyebrow">Juara Turnamen</div>
+            <div className="champion-eyebrow">Juara turnamen</div>
             <div className="champion-name">{top1.player.name}</div>
             <div className="champion-meta">
               {top1.points} poin dari {top1.played} laga • Buchholz {top1.buchholz || 0}
@@ -171,10 +171,10 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             <div className="hero-header-meta">
               <span className="badge-pill-cyan">
                 <Sparkles size={12} />
-                FIDE SWISS PAIRING ENGINE
+                FIDE Swiss pairing engine
               </span>
-              <span className="badge-pill-gold">{players.length} Pemain Terdaftar</span>
-              <span className="hero-meta-text">• Format {totalRounds} Babak Resmi</span>
+              <span className="badge-pill-gold">{players.length} pemain terdaftar</span>
+              <span className="hero-meta-text">• Format {totalRounds} babak resmi</span>
             </div>
 
             <h2 className="hero-title">Turnamen Catur Sistem Swiss</h2>
@@ -188,7 +188,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           <div className="hero-actions-group">
             <button onClick={() => setIsPlayerModalOpen(true)} className="btn-glass-secondary">
               <Users size={15} style={{ color: 'var(--sky)' }} />
-              <span>Kelola Peserta ({players.length})</span>
+              <span>Kelola peserta ({players.length})</span>
             </button>
 
             <button
@@ -201,7 +201,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   : 'Selesaikan semua skor babak ini untuk membuka babak berikutnya'
               }
             >
-              <span>Pairing Babak {Math.min(currentMaxRound + 1, totalRounds)}</span>
+              <span>Pairing babak {Math.min(currentMaxRound + 1, totalRounds)}</span>
               <ArrowRight size={15} />
             </button>
 
@@ -224,7 +224,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         {/* Overall progress */}
         <div className="hero-progress">
           <div className="hero-progress-head">
-            <span>Progres Turnamen</span>
+            <span>Progres turnamen</span>
             <strong>{progressPct}%</strong>
           </div>
           <div className="progress-track">
@@ -252,7 +252,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   disabled={!hasMatches}
                   className={pillClass}
                 >
-                  <span>BABAK {rNum}</span>
+                  <span>Babak {rNum}</span>
                   {isDone && <CheckCircle2 size={13} />}
                 </button>
               );
@@ -262,11 +262,11 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           <div className="round-status-text">
             {isTournamentFinished ? (
               <span className="finished-chip">
-                <Crown size={16} /> TURNAMEN SELESAI
+                <Crown size={16} /> Turnamen selesai
               </span>
             ) : (
               <span>
-                Babak Berjalan:{' '}
+                Babak berjalan:{' '}
                 <strong>
                   Babak {selectedRoundTab} dari {totalRounds}
                 </strong>
@@ -304,7 +304,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             <div className="stat-value">
               {scoredMatches}/{expectedTotal}
             </div>
-            <div className="stat-label">Laga Selesai</div>
+            <div className="stat-label">Laga selesai</div>
           </div>
         </div>
         <div className="stat-card">
@@ -330,7 +330,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <h3 className="section-title-text">Meja Pertandingan • Babak {selectedRoundTab}</h3>
             </div>
             <span className="section-hint">
-              {activeRoundMatches.filter((m) => m.result !== null).length} / {activeRoundMatches.length} Laga Selesai
+              {activeRoundMatches.filter((m) => m.result !== null).length} / {activeRoundMatches.length} laga selesai
             </span>
           </div>
 
@@ -338,7 +338,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             {activeRoundMatches.length === 0 ? (
               <div className="empty-state">
                 Babak ini belum dipasangkan. Selesaikan pertandingan babak sebelumnya lalu klik{' '}
-                <strong>Pairing Babak {selectedRoundTab}</strong>.
+                <strong>Pairing babak {selectedRoundTab}</strong>.
               </div>
             ) : (
               activeRoundMatches.map((match, idx) => {
@@ -356,7 +356,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   >
                     <div className="board-card-top-bar">
                       <span className="board-number-badge">
-                        MEJA {String(match.boardNumber).padStart(2, '0')}
+                        Meja {String(match.boardNumber).padStart(2, '0')}
                       </span>
                       <span
                         className={`board-status-text ${match.result !== null ? 'completed' : 'pending'}`}
@@ -366,7 +366,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                             <CheckCircle2 size={12} /> Selesai
                           </>
                         ) : (
-                          '● Menunggu hasil'
+                          'Menunggu hasil'
                         )}
                       </span>
                     </div>
@@ -435,12 +435,12 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                         <div className="player-info-meta">
                           <div className="player-name-line">
                             <span className="player-name-text">
-                              {isBye ? 'BYE (Libur)' : blackP?.name || 'TBD'}
+                              {isBye ? 'Bye (libur)' : blackP?.name || 'TBD'}
                             </span>
                             {blackP?.title && <span className="title-tag">{blackP.title}</span>}
                           </div>
                           <span className="player-elo-text">
-                            {isBye ? 'Poin Penuh' : `Elo ${blackP?.rating || '1800'}`}
+                            {isBye ? 'Poin penuh' : `Elo ${blackP?.rating || '1800'}`}
                           </span>
                         </div>
                         <div className="pawn-avatar black-piece" title="Bidak Hitam">
@@ -584,7 +584,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   value={newPlayerName}
                   onChange={(e) => setNewPlayerName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
-                  placeholder="Nama Peserta Baru"
+                  placeholder="Nama peserta baru"
                   className="form-input-text grow"
                 />
                 <input
