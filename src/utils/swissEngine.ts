@@ -11,6 +11,35 @@ export interface SwissStandingsResult {
 
 // Generate Round 1 pairings (Top half vs Bottom half)
 export function generateSwissRound1(players: Player[]): SwissMatch[] {
+  // Jika 4 pemain turnamen resmi Rookie Tour Sorowako, jadwalkan Babak 1: DEWACAD vs ZiiGanteng dan Anxiety99 vs Azazeel03
+  const hasRookie4 =
+    players.length === 4 &&
+    players.some((p) => p.id === 'p_dewacad') &&
+    players.some((p) => p.id === 'p_ziiganteng') &&
+    players.some((p) => p.id === 'p_anxiety99') &&
+    players.some((p) => p.id === 'p_azazeel03');
+
+  if (hasRookie4) {
+    return [
+      {
+        id: `swiss_r1_b1_rookie`,
+        round: 1,
+        boardNumber: 1,
+        whitePlayerId: 'p_dewacad',
+        blackPlayerId: 'p_ziiganteng',
+        result: null,
+      },
+      {
+        id: `swiss_r1_b2_rookie`,
+        round: 1,
+        boardNumber: 2,
+        whitePlayerId: 'p_anxiety99',
+        blackPlayerId: 'p_azazeel03',
+        result: null,
+      },
+    ];
+  }
+
   const sorted = [...players].sort((a, b) => (b.rating || 0) - (a.rating || 0) || a.seed - b.seed);
   const n = sorted.length;
   const matches: SwissMatch[] = [];

@@ -45,7 +45,44 @@ export default function SwissTournamentPage() {
     setIsAdmin(checkIsAdmin());
     const loaded = loadStore();
     if (loaded) {
-      setStore(loaded);
+      // Migrasikan jadwal Babak 1 ke: DEWACAD vs ZiiGanteng (Papan 1) dan Anxiety99 vs Azazeel03 (Papan 2)
+      const migratedTournaments = loaded.tournaments.map((t) => {
+        if (t.id === 'tn_rookie_tour_chess') {
+          const hasOldR1 = t.matches.some(
+            (m) =>
+              m.round === 1 &&
+              ((m.whitePlayerId === 'p_anxiety99' && m.blackPlayerId === 'p_dewacad') ||
+                (m.whitePlayerId === 'p_dewacad' && m.blackPlayerId === 'p_anxiety99'))
+          );
+          if (hasOldR1) {
+            const updatedMatches = t.matches.map((m) => {
+              if (m.round === 1 && m.boardNumber === 1) {
+                return {
+                  ...m,
+                  whitePlayerId: 'p_dewacad',
+                  blackPlayerId: 'p_ziiganteng',
+                  result: null,
+                };
+              }
+              if (m.round === 1 && m.boardNumber === 2) {
+                return {
+                  ...m,
+                  whitePlayerId: 'p_anxiety99',
+                  blackPlayerId: 'p_azazeel03',
+                  result: null,
+                };
+              }
+              return m;
+            });
+            return { ...t, matches: updatedMatches };
+          }
+        }
+        return t;
+      });
+
+      const migratedStore = { ...loaded, tournaments: migratedTournaments };
+      setStore(migratedStore);
+      saveStore(migratedStore);
     }
     setIsHydrated(true);
 
