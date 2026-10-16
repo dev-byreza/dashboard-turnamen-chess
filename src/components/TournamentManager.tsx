@@ -294,30 +294,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                 : 'Mode Offline (LocalStorage)'}
             </span>
           </div>
-          <div className="db-status-actions">
-            {onSyncDb && dbStatus === 'connected' && (
-              <button
-                type="button"
-                onClick={() => onSyncDb()}
-                className="db-sync-btn"
-                title="Tarik pembaruan dari PostgreSQL"
-              >
-                <Database size={13} />
-                <span>Sync DB</span>
-              </button>
-            )}
-            {onResetToRookieTour && (
-              <button
-                type="button"
-                onClick={() => onResetToRookieTour()}
-                className="db-sync-btn reset"
-                title="Reset dan isi data turnamen ke ROOKIE TOUR CHESS & 4 peserta"
-              >
-                <Database size={13} />
-                <span>Seed ROOKIE TOUR</span>
-              </button>
-            )}
-          </div>
         </div>
 
         {/* Modal Navigation Tabs */}
