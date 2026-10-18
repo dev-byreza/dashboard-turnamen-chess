@@ -1892,21 +1892,22 @@ body::before {
   .champion-banner { flex-direction: column; text-align: center; padding: 1.25rem 1rem; }
   .champion-name { font-size: 1.5rem; }
 
-  /* Match cards: vertical-stacked player rows for 100% responsive mobile fit */
+  /* Keep both players and the result on one compact mobile row. */
   .match-action-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.35rem;
     width: 100%;
     min-width: 0;
   }
 
   .player-unit {
-    width: 100%;
+    width: auto;
     display: flex;
     align-items: center;
-    gap: 0.65rem;
-    padding: 0.45rem 0.65rem;
+    gap: 0.35rem;
+    padding: 0.35rem 0.25rem;
     background: #fdfbf7;
     border: 1px solid var(--border-soft);
     border-radius: 10px;
@@ -1924,7 +1925,8 @@ body::before {
   }
 
   .player-unit.is-black .player-info-meta {
-    flex-direction: row-reverse;
+    flex-direction: column;
+    align-items: flex-end;
   }
 
   .player-unit.is-black .player-name-line {
@@ -1936,57 +1938,65 @@ body::before {
     flex: 1;
     min-width: 0;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
   }
 
   .player-name-line {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    flex: 1;
+    gap: 0.25rem;
+    width: 100%;
     min-width: 0;
   }
 
+  .player-unit.is-black .player-elo-row { justify-content: flex-end; }
+
+  .title-tag { flex-shrink: 0; }
+
   .player-name-text {
-    font-size: 0.88rem;
+    flex: 1;
+    min-width: 0;
+    font-size: 0.82rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .player-elo-text {
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     flex-shrink: 0;
     color: var(--text-sub);
     font-weight: 500;
   }
 
   .score-control-cell {
-    width: 100%;
+    width: auto;
     min-width: 0;
     display: flex;
     justify-content: center;
-    margin-top: 0.2rem;
+    margin-top: 0;
   }
 
   .score-pill-container {
-    width: 100%;
-    max-width: 100%;
+    width: auto;
+    max-width: none;
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px;
+    gap: 2px;
+    padding: 2px;
     box-sizing: border-box;
     background: var(--bg-sunken);
   }
 
   .score-choice-btn {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
-    padding: 0.5rem 0.2rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.35rem;
+    font-size: 0.72rem;
     text-align: center;
     display: flex;
     align-items: center;
@@ -2024,10 +2034,14 @@ body::before {
   .stat-label { font-size: 0.6rem; }
 
   .section-card-panel { padding: 0.85rem 0.65rem; border-radius: 14px; min-width: 0; }
-  .board-match-card { padding: 0.75rem 0.7rem; border-radius: 12px; }
+  .board-match-card { padding: 0.65rem 0.5rem; border-radius: 12px; }
+  .match-action-grid { gap: 0.2rem; }
+  .player-unit { gap: 0.25rem; padding: 0.3rem 0.15rem; }
   .player-name-text { font-size: 0.82rem; }
   .player-elo-text { font-size: 0.68rem; }
-  .pawn-avatar { width: 28px; height: 28px; font-size: 0.85rem; }
+  .pawn-avatar { width: 24px; height: 24px; font-size: 0.78rem; }
+  .score-view-badge { padding: 0.38rem 0.55rem; font-size: 0.75rem; }
+  .score-choice-btn { padding: 0.38rem 0.25rem; font-size: 0.68rem; }
 
   .podium-stage { gap: 0.25rem; padding: 0.6rem 0 0; }
   .podium-player-name { font-size: 0.68rem; }
