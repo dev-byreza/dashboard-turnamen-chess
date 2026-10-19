@@ -8,6 +8,7 @@ import {
   playersForTournament,
   uid,
   createUniqueTournamentSlug,
+  createUniqueTournamentSlugFromValue,
   sameIds,
   hasStarted,
   ensureInitialRatings,
@@ -286,6 +287,10 @@ export default function SwissTournamentPage() {
             ? {
                 ...t,
                 name: data.name,
+                slug: createUniqueTournamentSlugFromValue(
+                  data.slug,
+                  prev.tournaments.filter((t) => t.id !== editId)
+                ),
                 date: data.date,
                 location: data.location,
                 totalRounds: data.totalRounds,
@@ -308,7 +313,10 @@ export default function SwissTournamentPage() {
       const createdAt = Date.now();
       const newTournament = {
         id: newId,
-        slug: createUniqueTournamentSlug(data.name, data.date, store.tournaments, createdAt),
+        slug: createUniqueTournamentSlugFromValue(
+          data.slug || createUniqueTournamentSlug(data.name, data.date, store.tournaments, createdAt),
+          store.tournaments
+        ),
         name: data.name,
         date: data.date,
         location: data.location,

@@ -20,7 +20,11 @@ import {
   Award,
   Layers,
 } from 'lucide-react';
-import { hasStarted } from '../utils/tournamentStore';
+import {
+  createUniqueTournamentSlug,
+  hasStarted,
+  normalizeTournamentSlug,
+} from '../utils/tournamentStore';
 
 interface TournamentManagerProps {
   roster: Player[];
@@ -78,6 +82,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
 
   // Tournament form state
   const [formName, setFormName] = useState<string>('');
+  const [formSlug, setFormSlug] = useState<string>('');
+  const [formSlugIsCustom, setFormSlugIsCustom] = useState<boolean>(false);
   const [formDate, setFormDate] = useState<string>('');
   const [formLocation, setFormLocation] = useState<string>('');
   const [formTotalRounds, setFormTotalRounds] = useState<number>(5);
@@ -106,12 +112,21 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     editingTournamentId &&
       tournaments.find((t) => t.id === editingTournamentId && hasStarted(t))
   );
+  const otherTournaments = tournaments.filter((t) => t.id !== editingTournamentId);
+  const suggestedSlug = createUniqueTournamentSlug(formName, formDate, otherTournaments);
+  const slugInputValue = formSlugIsCustom ? formSlug : suggestedSlug;
+  const normalizedSlug = normalizeTournamentSlug(slugInputValue);
+  const slugConflict = Boolean(normalizedSlug) && otherTournaments.some(
+    (tournament) => normalizeTournamentSlug(tournament.slug || '') === normalizedSlug
+  );
 
   // Helper to open create form
   const handleOpenCreateForm = () => {
     setEditingTournamentId(null);
     setFormName('');
     const today = new Date().toISOString().split('T')[0];
+    setFormSlug('');
+    setFormSlugIsCustom(false);
     setFormDate(today);
     setFormLocation('Kampus Politeknik Sorowako');
     setFormTotalRounds(5);
@@ -125,6 +140,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const handleOpenEditForm = (t: Tournament) => {
     setEditingTournamentId(t.id);
     setFormName(t.name);
+    setFormSlug(t.slug || '');
+    setFormSlugIsCustom(Boolean(t.slug));
     setFormDate(t.date || '');
     setFormLocation(t.location || '');
     setFormTotalRounds(t.totalRounds || 5);
@@ -177,6 +194,14 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       alert('Silakan masukkan nama turnamen.');
       return;
     }
+    if (!normalizedSlug) {
+      alert('Slug turnamen wajib diisi dengan huruf, angka, atau tanda hubung.');
+      return;
+    }
+    if (slugConflict) {
+      alert('Slug ini sudah dipakai turnamen lain. Gunakan slug yang berbeda.');
+      return;
+    }
     if (formPlayerIds.length < 4) {
       alert('Sistem Swiss memerlukan minimal 4 peserta.');
       return;
@@ -185,6 +210,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     onSaveTournament(
       {
         name: formName.trim(),
+        slug: normalizedSlug,
         date: formDate,
         location: formLocation.trim(),
         totalRounds: formTotalRounds,
@@ -369,7 +395,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                       {editingTournamentId ? 'Ubah informasi turnamen' : 'Buat turnamen baru'}
                     </h3>
                     <p className="form-card-subtitle">
-                      Tentukan nama turnamen, tanggal, lokasi, jumlah babak Swiss, dan pilih peserta dari database.
+                      Tentukan nama, slug, jadwal, lokasi, jumlah babak Swiss, dan peserta turnamen.
                     </p>
                   </div>
 
@@ -397,6 +423,47 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                           onChange={(e) => setFormDate(e.target.value)}
                           className="form-input-text"
                         />
+                      </div>
+
+                      <div className="form-field full-col">
+                        <label className="form-label" htmlFor="tournament-slug-input">
+                          Slug turnamen <span className="req">*</span>
+                        </label>
+                        <div className="tournament-slug-editor">
+                          <input
+                            id="tournament-slug-input"
+                            type="text"
+                            required
+                            maxLength={180}
+                            value={slugInputValue}
+                            onChange={(e) => {
+                              setFormSlug(e.target.value);
+                              setFormSlugIsCustom(true);
+                            }}
+                            placeholder="contoh: rookie-tour-chess-2026-10-19"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            className="form-input-text tournament-slug-input"
+                          />
+                          <button
+                            type="button"
+                            className="btn-compact"
+                            onClick={() => {
+                              setFormSlug('');
+                              setFormSlugIsCustom(false);
+                            }}
+                          >
+                            Buat otomatis
+                          </button>
+                        </div>
+                        <span className={`field-hint ${slugConflict ? 'tournament-slug-error' : ''}`}>
+                          {slugConflict
+                            ? 'Slug ini sudah dipakai turnamen lain, termasuk turnamen yang sudah selesai.'
+                            : normalizedSlug
+                            ? `Slug unik: ${normalizedSlug}`
+                            : 'Masukkan huruf, angka, dan tanda hubung.'}
+                        </span>
                       </div>
 
                       <div className="form-field">
@@ -557,7 +624,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                       </button>
                       <button
                         type="submit"
-                        disabled={formPlayerIds.length < 4 || !formName.trim()}
+                        disabled={formPlayerIds.length < 4 || !formName.trim() || !normalizedSlug || slugConflict}
                         className="btn-gold-action"
                       >
                         <Check size={16} />

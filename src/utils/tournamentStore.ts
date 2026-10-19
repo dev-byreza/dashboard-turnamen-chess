@@ -13,9 +13,11 @@ const slugify = (value: string) =>
     .slice(0, 160)
     .replace(/-+$/g, '');
 
-function uniqueTournamentSlug(name: string, date: string, createdAt: number, used: Set<string>) {
-  const datePart = date || new Date(createdAt || Date.now()).toISOString().slice(0, 10);
-  const base = `${slugify(name) || 'turnamen'}-${slugify(datePart) || 'tanpa-tanggal'}`;
+export function normalizeTournamentSlug(value: string): string {
+  return slugify(value);
+}
+
+function makeSlugUnique(base: string, used: Set<string>) {
   let candidate = base;
   let suffix = 2;
 
@@ -27,6 +29,24 @@ function uniqueTournamentSlug(name: string, date: string, createdAt: number, use
   return candidate;
 }
 
+export function createUniqueTournamentSlugFromValue(
+  value: string,
+  tournaments: Pick<Tournament, 'slug'>[]
+): string {
+  const used = new Set(
+    tournaments
+      .map((tournament) => normalizeTournamentSlug(tournament.slug || ''))
+      .filter(Boolean)
+  );
+  return makeSlugUnique(normalizeTournamentSlug(value) || 'turnamen', used);
+}
+
+function uniqueTournamentSlug(name: string, date: string, createdAt: number, used: Set<string>) {
+  const datePart = date || new Date(createdAt || Date.now()).toISOString().slice(0, 10);
+  const base = `${slugify(name) || 'turnamen'}-${slugify(datePart) || 'tanpa-tanggal'}`;
+  return makeSlugUnique(base, used);
+}
+
 /** Create a readable slug that is unique across existing tournaments, including completed ones. */
 export function createUniqueTournamentSlug(
   name: string,
@@ -34,7 +54,11 @@ export function createUniqueTournamentSlug(
   tournaments: Pick<Tournament, 'slug'>[],
   createdAt = Date.now()
 ): string {
-  const used = new Set(tournaments.map((tournament) => tournament.slug).filter(Boolean) as string[]);
+  const used = new Set(
+    tournaments
+      .map((tournament) => normalizeTournamentSlug(tournament.slug || ''))
+      .filter(Boolean)
+  );
   return uniqueTournamentSlug(name, date, createdAt, used);
 }
 
@@ -45,7 +69,7 @@ export function ensureUniqueTournamentSlugs(store: TournamentStore): TournamentS
   const chronological = [...store.tournaments].sort((a, b) => a.createdAt - b.createdAt);
 
   chronological.forEach((tournament) => {
-    const existing = tournament.slug?.trim().toLowerCase();
+    const existing = normalizeTournamentSlug(tournament.slug || '');
     const slug = existing && !used.has(existing)
       ? existing
       : uniqueTournamentSlug(tournament.name, tournament.date, tournament.createdAt, used);

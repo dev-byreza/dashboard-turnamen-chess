@@ -128,6 +128,7 @@ export interface TournamentStore {
 
 export interface TournamentFormData {
   name: string;
+  slug: string;
   date: string;
   location: string;
   totalRounds: number;

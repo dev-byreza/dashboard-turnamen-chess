@@ -2974,6 +2974,23 @@ button, input, select, textarea {
   font-family: var(--font-code);
 }
 
+.tournament-slug-editor {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tournament-slug-input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-family: var(--font-code);
+}
+
+.tournament-slug-error {
+  color: #c2413b;
+}
+
 .tournament-actions {
   display: flex;
   align-items: center;
