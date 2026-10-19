@@ -479,35 +479,23 @@ export default function SwissTournamentPage() {
           <div className="header-actions-row">
             {/* Database Cloud / Local Sync Badge */}
             <div
-              className={`db-nav-badge ${dbStatus === 'connected' ? 'connected' : dbStatus === 'unconfigured' ? 'unconfigured' : 'offline'}`}
+              className={`db-nav-badge ${dbStatus === 'connected' ? 'connected' : 'offline'}`}
               title={
                 dbStatus === 'connected'
-                  ? 'Database Cloud PostgreSQL (Neon/Vercel) Terhubung & Aktif'
-                  : dbStatus === 'unconfigured'
-                  ? 'Penyimpanan Lokal Aktif (Tambahkan POSTGRES_URL di Vercel untuk sinkronisasi cloud)'
+                  ? 'Online — database PostgreSQL terhubung'
                   : dbStatus === 'checking'
                   ? 'Memeriksa status database...'
-                  : 'Mode Offline (LocalStorage)'
+                  : 'Offline — database tidak terhubung'
               }
             >
               <span
                 className={`db-status-dot ${
                   dbStatus === 'connected'
                     ? 'connected'
-                    : dbStatus === 'unconfigured'
-                    ? 'unconfigured'
                     : 'offline'
                 }`}
               />
-              <span className="db-nav-text">
-                {dbStatus === 'connected'
-                  ? 'PostgreSQL'
-                  : dbStatus === 'unconfigured'
-                  ? 'Local Storage'
-                  : dbStatus === 'checking'
-                  ? 'Cek DB...'
-                  : 'Offline'}
-              </span>
+              <span className="db-nav-text">{dbStatus === 'connected' ? 'ONLINE' : 'OFFLINE'}</span>
             </div>
 
             {isAdminConnected ? (
@@ -607,40 +595,10 @@ export default function SwissTournamentPage() {
             onUpdateMatches={handleUpdateActiveMatches}
             onUpdateRoundSchedule={handleUpdateRoundSchedule}
             onUpdatePlayers={handleUpdatePlayers}
-            onResetSwiss={handleResetActive}
             onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
             onOpenRules={() => setIsRulesOpen(true)}
           />
-        ) : dbStatus === 'checking' ? (
-          <section className="chess-loading-state" role="status" aria-live="polite" aria-atomic="true">
-            <div className="chess-loading-board-frame" aria-hidden="true">
-              <div className="chess-loading-board">
-                {Array.from({ length: 16 }, (_, index) => (
-                  <span
-                    key={index}
-                    className={`chess-loading-square ${(Math.floor(index / 4) + index) % 2 === 0 ? 'is-light' : 'is-dark'}`}
-                  />
-                ))}
-                <span className="chess-loading-knight">♞</span>
-              </div>
-            </div>
-            <div className="chess-loading-copy">
-              <span className="chess-loading-label">
-                <span className="chess-loading-indicator" aria-hidden="true" />
-                MENYIAPKAN TURNAMEN
-              </span>
-              <h3 className="chess-loading-title">Memuat data pertandingan</h3>
-              <p className="chess-loading-description">
-                Menghubungkan ke database dan menyiapkan papan catur...
-              </p>
-              <span className="chess-loading-dots" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-            </div>
-          </section>
-        ) : (
+        ) : dbStatus === 'checking' ? null : (
           <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">
             <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
             <h3 className="empty-title">Belum ada turnamen yang dipilih</h3>
@@ -672,6 +630,17 @@ export default function SwissTournamentPage() {
         </footer>
       </div>
 
+      {!activeTournament && dbStatus === 'checking' && (
+        <section
+          className="chess-loading-state"
+          role="status"
+          aria-live="polite"
+          aria-label="Memuat data pertandingan"
+        >
+          <span className="chess-loading-knight" aria-hidden="true">♞</span>
+        </section>
+      )}
+
       {/* Chess Timer Modal */}
       {isTimerOpen && (
         <ChessTimerModal
@@ -702,6 +671,7 @@ export default function SwissTournamentPage() {
           onAddRosterPlayer={handleAddRosterPlayer}
           onUpdateRosterPlayer={handleUpdateRosterPlayer}
           onDeleteRosterPlayer={handleDeleteRosterPlayer}
+          onResetTournament={handleResetActive}
           onSyncDb={() => handleSyncWithDatabase()}
         />
       )}

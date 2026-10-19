@@ -10,7 +10,6 @@ import {
 import {
   Trophy,
   ArrowRight,
-  RotateCcw,
   Crown,
   Users,
   Plus,
@@ -44,7 +43,6 @@ interface SwissDashboardProps {
   onUpdateMatches: (newMatches: SwissMatch[]) => void;
   onUpdateRoundSchedule?: (round: number, scheduledAt: string) => void;
   onUpdatePlayers?: (newPlayers: Player[]) => void;
-  onResetSwiss: () => void;
   onEditParticipants?: () => void;
   onOpenRules?: () => void;
 }
@@ -87,7 +85,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   onUpdateMatches,
   onUpdateRoundSchedule,
   onUpdatePlayers,
-  onResetSwiss,
   onEditParticipants,
   onOpenRules,
 }) => {
@@ -337,19 +334,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   <ArrowRight size={15} />
                 </button>
 
-                <button
-                  onClick={() => {
-                    if (confirm('Mulai ulang seluruh babak turnamen Swiss dari Babak 1?')) {
-                      onResetSwiss();
-                      setSelectedRoundTab(1);
-                    }
-                  }}
-                  className="btn-glass-secondary"
-                  title="Reset ke Babak 1"
-                >
-                  <RotateCcw size={14} />
-                  <span>Reset</span>
-                </button>
               </>
             ) : null}
           </div>

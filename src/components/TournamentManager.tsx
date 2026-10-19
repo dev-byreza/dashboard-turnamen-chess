@@ -16,6 +16,7 @@ import {
   Database,
   Play,
   AlertCircle,
+  RotateCcw,
   Award,
   Layers,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ interface TournamentManagerProps {
   onAddRosterPlayer: (player: Omit<Player, 'id' | 'seed'> & { id?: string }, addToActiveTournament?: boolean) => void;
   onUpdateRosterPlayer: (id: string, updates: Partial<Player>) => void;
   onDeleteRosterPlayer: (id: string) => void;
+  onResetTournament: () => void;
   onSyncDb?: () => Promise<void> | void;
 }
 
@@ -62,11 +64,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   onAddRosterPlayer,
   onUpdateRosterPlayer,
   onDeleteRosterPlayer,
+  onResetTournament,
   onSyncDb,
 }) => {
   const [activeTab, setActiveTab] = useState<'tournaments' | 'roster'>(initialTab);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(initialCreate || Boolean(initialEditId));
   const [editingTournamentId, setEditingTournamentId] = useState<string | null>(initialEditId);
+  const [resetWarningTournamentId, setResetWarningTournamentId] = useState<string | null>(null);
 
   // Quick add inside tournament form
   const [quickPlayerName, setQuickPlayerName] = useState<string>('');
@@ -639,6 +643,38 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                                   <span>{t.totalRounds} babak</span>
                                 </span>
                               </div>
+
+                              {isActive && resetWarningTournamentId === t.id && (
+                                <div className="tournament-reset-warning" role="alert">
+                                  <AlertCircle size={18} aria-hidden="true" />
+                                  <div className="tournament-reset-warning-content">
+                                    <strong>Peringatan: reset turnamen</strong>
+                                    <p>
+                                      Seluruh pairing dan skor pada “{t.name}” akan dihapus. Turnamen akan dimulai kembali dari Babak 1. Tindakan ini tidak dapat dibatalkan.
+                                    </p>
+                                    <div className="tournament-reset-warning-actions">
+                                      <button
+                                        type="button"
+                                        className="btn-glass-secondary btn-sm"
+                                        onClick={() => setResetWarningTournamentId(null)}
+                                      >
+                                        Batal
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn-reset-confirm btn-sm"
+                                        onClick={() => {
+                                          onResetTournament();
+                                          setResetWarningTournamentId(null);
+                                        }}
+                                      >
+                                        <RotateCcw size={14} />
+                                        <span>Reset sekarang</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             <div className="tournament-actions">
@@ -657,6 +693,18 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                                 </button>
                               ) : (
                                 <span className="current-badge">Dibuka</span>
+                              )}
+
+                              {isActive && (
+                                <button
+                                  type="button"
+                                  onClick={() => setResetWarningTournamentId(t.id)}
+                                  className="btn-reset-tournament btn-sm"
+                                  title="Reset pairing dan hasil turnamen aktif"
+                                >
+                                  <RotateCcw size={14} />
+                                  <span>Reset</span>
+                                </button>
                               )}
 
                               <button
