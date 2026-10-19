@@ -870,8 +870,8 @@ body::before {
 .chess-loading-board {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 36px);
-  grid-template-rows: repeat(4, 36px);
+  grid-template-columns: repeat(3, 48px);
+  grid-template-rows: repeat(3, 48px);
   width: 144px;
   height: 144px;
   overflow: hidden;
@@ -892,30 +892,37 @@ body::before {
   top: 0;
   left: 0;
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   place-items: center;
   border-radius: 8px;
   background: var(--gold-gradient);
   box-shadow: 0 4px 12px rgba(12, 22, 48, 0.3);
   color: var(--navy-deep);
   font-family: Georgia, serif;
-  font-size: 1.55rem;
+  font-size: 1.9rem;
   line-height: 1;
   animation: chess-knight-route 4.8s ease-in-out infinite;
   will-change: transform;
 }
 
 @keyframes chess-knight-route {
-  0%, 18% { transform: translate(0, 0); }
-  20% { transform: translate(72px, 36px) translateY(-10px); }
-  22%, 38% { transform: translate(72px, 36px); }
-  40% { transform: translate(108px, 108px) translateY(-10px); }
-  42%, 58% { transform: translate(108px, 108px); }
-  60% { transform: translate(36px, 72px) translateY(-10px); }
-  62%, 78% { transform: translate(36px, 72px); }
-  80% { transform: translate(0, 0) translateY(-10px); }
-  82%, 100% { transform: translate(0, 0); }
+  0%, 10% { transform: translate(0, 0); }
+  12.5% { transform: translate(96px, 48px) translateY(-10px); }
+  15%, 23% { transform: translate(96px, 48px); }
+  25% { transform: translate(0, 96px) translateY(-10px); }
+  27.5%, 35.5% { transform: translate(0, 96px); }
+  37.5% { transform: translate(48px, 0) translateY(-10px); }
+  40%, 48% { transform: translate(48px, 0); }
+  50% { transform: translate(96px, 96px) translateY(-10px); }
+  52.5%, 60.5% { transform: translate(96px, 96px); }
+  62.5% { transform: translate(0, 48px) translateY(-10px); }
+  65%, 73% { transform: translate(0, 48px); }
+  75% { transform: translate(96px, 0) translateY(-10px); }
+  77.5%, 85.5% { transform: translate(96px, 0); }
+  87.5% { transform: translate(48px, 96px) translateY(-10px); }
+  90%, 98% { transform: translate(48px, 96px); }
+  100% { transform: translate(0, 0) translateY(-10px); }
 }
 
 /* ===== Match board cards ===== */
