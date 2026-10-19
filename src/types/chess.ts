@@ -3,6 +3,8 @@ export interface Player {
   name: string;
   seed: number;
   rating?: number;
+  /** Lifetime rated games completed before the active tournament. */
+  ratedGames?: number;
   avatar?: string;
   club?: string;
   title?: 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM';
@@ -107,6 +109,8 @@ export interface Tournament {
   matches: SwissMatch[];
   /** Snapshot of the admin-approved starting Elo, locked once the first result is entered. */
   initialRatings?: Record<string, number>;
+  /** Snapshot of lifetime rated games, used to keep the tournament's K-factor baseline stable. */
+  initialRatedGames?: Record<string, number>;
   /** Optional admin-defined pairings for a specific round. */
   pairingOverrides?: Record<number, SwissPairingOverride[]>;
   /** Admin-managed local date and time for each round (datetime-local format). */

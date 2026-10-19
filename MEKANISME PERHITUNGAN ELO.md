@@ -1,44 +1,48 @@
-Mekanisme Perhitungan Elo Rating FIDE digunakan untuk mengukur kekuatan pemain catur berdasarkan hasil pertandingan resmi. Sistem ini dikembangkan oleh Arpad Elo dan digunakan oleh FIDE sebagai standar rating internasional.
+Mekanisme Elo Rating mengukur kekuatan relatif pemain berdasarkan hasil pertandingan.
 
-Rumus dasar Elo:
+## Rumus
 
-R’ = R + K(S − E)
+Expected score pemain A terhadap pemain B:
+
+E_A = 1 / (1 + 10^((R_B - R_A) / 400))
+
+Perubahan rating:
+
+Delta R_A = K_A x (S_A - E_A)
+R_A baru = R_A awal + Delta R_A
 
 Keterangan:
-R = rating awal
-R’ = rating baru
-S = hasil pertandingan
-E = expected score
-K = faktor perkembangan
 
-Contoh Perhitungan:
-Pemain A memiliki rating 1000 melawan pemain B dengan rating 1400.
+- R_A dan R_B adalah rating sebelum pertandingan.
+- S adalah skor aktual: menang = 1, remis = 0,5, kalah = 0.
+- E adalah skor harapan berdasarkan selisih rating.
+- K mengatur besar perubahan rating. Nilainya dipilih untuk tiap pemain.
 
-Selisih rating = 400 poin.
-Secara teori, pemain 1400 jauh lebih diunggulkan.
+## K-factor dinamis
 
-Expected score pemain 1000:
+Dashboard memilih K berdasarkan rating dan jumlah laga berating pemain sebelum laga:
 
-E = 1 / (1 + 10^((1400−1000)/400))
-E ≈ 0,09
+- K = 40 jika pemain belum mencapai 30 laga berating.
+- K = 20 jika pemain sudah mencapai 30 laga dan ratingnya di bawah 2400.
+- K = 10 jika pemain sudah mencapai 30 laga dan ratingnya 2400 atau lebih.
 
-Jika pemain 1000 menang:
-Dengan K = 40
+Laga berating yang sudah selesai di turnamen aktif dihitung otomatis untuk pemilihan K di laga berikutnya. Jumlah laga dari turnamen terdahulu diisi pada kolom **Laga berating sebelumnya** di profil peserta. Untuk pemain baru, isi 0.
 
-R’ = 1000 + 40(1 − 0,09)
-R’ ≈ 1036
+Hasil Elo tiap laga dibulatkan ke bilangan bulat terdekat. Bye dan laga yang belum memiliki hasil tidak menambah jumlah laga berating.
 
-Rating naik sekitar +36 poin.
+## Contoh
 
-Sebaliknya jika kalah:
-R’ = 1000 + 40(0 − 0,09)
-R’ ≈ 996
+Pemain A berating 1000 melawan pemain B berating 1400. Skor harapan A sekitar 0,09, sedangkan skor harapan B sekitar 0,91.
 
-Rating hanya turun sekitar −4 poin.
+Jika keduanya memakai K = 40 dan A menang:
 
-Artinya, mengalahkan lawan lebih kuat memberikan kenaikan Elo jauh lebih besar.
+- A: 1000 + round(40 x (1 - 0,09)) = 1036 (naik 36).
+- B: 1400 + round(40 x (0 - 0,91)) = 1364 (turun 36).
 
-Referensi:
-• FIDE Rating Regulations
-• FIDE Handbook – Rating System
-• Arpad Elo Rating Formula
+Jika K kedua pemain berbeda, perubahan rating dihitung dengan K masing-masing.
+
+## Referensi
+
+- [Chessigma Elo Calculator](https://www.chessigma.com/tools/elo-calculator)
+- FIDE Rating Regulations dan FIDE Handbook – Rating System
+- Arpad Elo Rating Formula

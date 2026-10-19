@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, BookOpen, Trophy, TrendingUp, Calculator, ShieldCheck, Swords, CheckCircle2 } from 'lucide-react';
-import { calculateExpectedScore, calculateMatchEloChange, DEFAULT_K_FACTOR } from '../utils/eloRating';
+import { calculateExpectedScore, calculateMatchEloChange, getKFactor } from '../utils/eloRating';
 
 interface TournamentRulesModalProps {
   isOpen: boolean;
@@ -16,16 +16,19 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
   const [activeTab, setActiveTab] = useState<'swiss' | 'elo'>('swiss');
 
   // Simulator state
-  const [simRatingA, setSimRatingA] = useState<number>(1000);
-  const [simRatingB, setSimRatingB] = useState<number>(1400);
+  const [simRatingA, setSimRatingA] = useState<number>(520);
+  const [simRatingB, setSimRatingB] = useState<number>(480);
+  const [simRatedGamesA, setSimRatedGamesA] = useState<number>(0);
+  const [simRatedGamesB, setSimRatedGamesB] = useState<number>(0);
 
   if (!isOpen) return null;
 
-  // Real-time calculation using K = 40
   const expectedA = calculateExpectedScore(simRatingA, simRatingB);
-  const winA = calculateMatchEloChange(simRatingA, simRatingB, 1, DEFAULT_K_FACTOR);
-  const drawA = calculateMatchEloChange(simRatingA, simRatingB, 0.5, DEFAULT_K_FACTOR);
-  const lossA = calculateMatchEloChange(simRatingA, simRatingB, 0, DEFAULT_K_FACTOR);
+  const kFactorA = getKFactor(simRatingA, simRatedGamesA);
+  const kFactorB = getKFactor(simRatingB, simRatedGamesB);
+  const winA = calculateMatchEloChange(simRatingA, simRatingB, 1, kFactorA, kFactorB);
+  const drawA = calculateMatchEloChange(simRatingA, simRatingB, 0.5, kFactorA, kFactorB);
+  const lossA = calculateMatchEloChange(simRatingA, simRatingB, 0, kFactorA, kFactorB);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -70,7 +73,7 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
             onClick={() => setActiveTab('elo')}
           >
             <TrendingUp size={15} />
-            <span>2. Formula Perhitungan Elo (K = {DEFAULT_K_FACTOR})</span>
+            <span>2. Formula Perhitungan Elo (K dinamis)</span>
           </button>
         </div>
 
@@ -237,7 +240,10 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                     <div><strong>R’</strong> = Rating baru setelah pertandingan</div>
                     <div><strong>S</strong> = Skor hasil laga (Menang = 1, Remis = 0,5, Kalah = 0)</div>
                     <div><strong>E</strong> = Expected score (peluang kemenangan teoritis)</div>
-                    <div><strong>K</strong> = Faktor perkembangan FIDE (<strong>K = {DEFAULT_K_FACTOR}</strong>)</div>
+                    <div><strong>K</strong> = Faktor perkembangan Elo yang dipilih sesuai rating dan jumlah laga berating</div>
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.55rem' }}>
+                    K = 40 untuk kurang dari 30 laga berating, K = 20 setelah 30 laga jika rating di bawah 2400, dan K = 10 pada rating 2400 ke atas.
                   </div>
                 </div>
 
@@ -259,7 +265,7 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                   <p>
                     <strong>Pemain A (Rating 1000)</strong> melawan <strong>Pemain B (Rating 1400)</strong>:
                   </p>
-                  <p>Selisih rating = 400 poin. Secara teori pemain 1400 jauh lebih diunggulkan.</p>
+                  <p>Selisih rating = 400 poin. Secara teori pemain 1400 jauh lebih diunggulkan. Contoh ini memakai K = 40 untuk pemain dengan kurang dari 30 laga berating.</p>
                   <div className="formula-highlight">
                     Expected score pemain 1000: E = 1 / (1 + 10^((1400 − 1000) / 400)) ≈ <strong>0,09</strong>
                   </div>
@@ -300,10 +306,10 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                   <span className="rules-num">
                     <Calculator size={14} />
                   </span>
-                  Simulator Interaktif Elo Rating (K = {DEFAULT_K_FACTOR})
+                  Simulator Interaktif Elo Rating (K dinamis)
                 </h4>
                 <p className="rules-desc-p">
-                  Uji coba skenario pertandingan dengan memasukkan rating kedua pemain di bawah ini:
+                  Masukkan rating dan jumlah laga sebelumnya. Setiap skenario menampilkan perubahan Elo Pemain A dan Pemain B; papan pertandingan hanya menampilkan perubahan untuk hasil yang sudah dicatat.
                 </p>
 
                 <div className="sim-inputs-row">
@@ -323,6 +329,31 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                       type="number"
                       value={simRatingB}
                       onChange={(e) => setSimRatingB(Number(e.target.value) || 0)}
+                      className="form-input-text"
+                    />
+                  </div>
+                </div>
+
+                <div className="sim-inputs-row" style={{ marginTop: '0.65rem' }}>
+                  <div className="sim-input-col">
+                    <label className="sim-label">Laga berating sebelumnya A (K={kFactorA})</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={simRatedGamesA}
+                      onChange={(e) => setSimRatedGamesA(Math.max(0, Number(e.target.value) || 0))}
+                      className="form-input-text"
+                    />
+                  </div>
+                  <div className="sim-input-col">
+                    <label className="sim-label">Laga berating sebelumnya B (K={kFactorB})</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={simRatedGamesB}
+                      onChange={(e) => setSimRatedGamesB(Math.max(0, Number(e.target.value) || 0))}
                       className="form-input-text"
                     />
                   </div>
@@ -375,6 +406,7 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                   <span className="ref-pill">• FIDE Handbook – Rating System</span>
                   <span className="ref-pill">• Arpad Elo Rating Formula</span>
                   <span className="ref-pill">• Swiss-System Tournament Rules</span>
+                  <a className="ref-pill" href="https://www.chessigma.com/tools/elo-calculator" target="_blank" rel="noreferrer">• Kalkulator Elo Chessigma</a>
                 </div>
               </div>
             </div>
@@ -384,7 +416,7 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
         {/* Modal Footer */}
         <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
           <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            Chess Club Politeknik Sorowako • FIDE Swiss & Elo K=40
+            Chess Club Politeknik Sorowako • FIDE Swiss & Elo K dinamis
           </span>
           <button type="button" onClick={onClose} className="btn-glass-secondary">
             Tutup

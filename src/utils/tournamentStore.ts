@@ -1,5 +1,5 @@
 import { Player, Tournament, TournamentStore } from '../types/chess';
-import { generateSwissRound1, initialSwissPlayers } from './swissEngine';
+import { initialSwissPlayers } from './swissEngine';
 
 export const STORE_KEY = 'CHESS_TOURNAMENT_STORE_V3';
 const LEGACY_KEY = 'CHESS_SWISS_POLTEK_SOROWAKO_V2';
@@ -16,6 +16,7 @@ export function playersForTournament(roster: Player[], t: Tournament): Player[] 
       ...p,
       seed: i + 1,
       rating: t.initialRatings?.[p.id] ?? p.rating ?? 500,
+      ratedGames: t.initialRatedGames?.[p.id] ?? p.ratedGames ?? 0,
     }));
 }
 
@@ -31,19 +32,26 @@ export function hasStarted(t: Tournament): boolean {
 }
 
 /**
- * Preserve the approved starting Elo for tournaments that were already running
- * before the snapshot field was introduced.
+ * Preserve Elo and rated-game baselines for tournaments that were already
+ * running before their snapshot fields were introduced.
  */
 export function ensureInitialRatings(store: TournamentStore): TournamentStore {
   let changed = false;
   const tournaments = store.tournaments.map((t) => {
-    if (!hasStarted(t) || t.initialRatings) return t;
+    if (!hasStarted(t)) return t;
+
+    const needsInitialRatings = !t.playerIds.every((id) => typeof t.initialRatings?.[id] === 'number');
+    const needsInitialRatedGames = !t.playerIds.every((id) => typeof t.initialRatedGames?.[id] === 'number');
+    if (!needsInitialRatings && !needsInitialRatedGames) return t;
 
     changed = true;
     const initialRatings = Object.fromEntries(
-      t.playerIds.map((id) => [id, store.roster.find((p) => p.id === id)?.rating ?? 500])
+      t.playerIds.map((id) => [id, t.initialRatings?.[id] ?? store.roster.find((p) => p.id === id)?.rating ?? 500])
     );
-    return { ...t, initialRatings };
+    const initialRatedGames = Object.fromEntries(
+      t.playerIds.map((id) => [id, t.initialRatedGames?.[id] ?? store.roster.find((p) => p.id === id)?.ratedGames ?? 0])
+    );
+    return { ...t, initialRatings, initialRatedGames };
   });
 
   return changed ? { ...store, tournaments } : store;
@@ -58,9 +66,33 @@ export function createDefaultStore(): TournamentStore {
     location: 'C2 Only',
     totalRounds: 5,
     playerIds: roster.map((p) => p.id),
-    matches: generateSwissRound1(roster),
+    matches: [
+      {
+        id: 'swiss_r1_b1_rookie',
+        round: 1,
+        boardNumber: 1,
+        whitePlayerId: 'p_ziiganteng',
+        blackPlayerId: 'p_dewacad',
+        result: null,
+      },
+      {
+        id: 'swiss_r1_b2_rookie',
+        round: 1,
+        boardNumber: 2,
+        whitePlayerId: 'p_azazeel03',
+        blackPlayerId: 'p_anxiety99',
+        result: null,
+      },
+    ],
     pairingOverrides: {
-      2: [{ whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' }],
+      2: [
+        { whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' },
+        { whitePlayerId: 'p_dewacad', blackPlayerId: 'p_anxiety99' },
+      ],
+      3: [
+        { whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_anxiety99' },
+        { whitePlayerId: 'p_dewacad', blackPlayerId: 'p_azazeel03' },
+      ],
     },
     createdAt: 1729056000000,
   };

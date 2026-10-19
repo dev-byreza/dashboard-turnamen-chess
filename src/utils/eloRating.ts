@@ -13,10 +13,24 @@ import { Player, SwissMatch, MatchResult } from '../types/chess';
  * - S  = Skor hasil pertandingan (1 = Menang, 0.5 = Remis, 0 = Kalah)
  * - E  = Expected score (probabilitas kemenangan teoritis)
  *        E = 1 / (1 + 10^((R_lawan - R) / 400))
- * - K  = Faktor perkembangan FIDE (K = 40 untuk pemain pemula/turnamen terbuka)
+ * - K  = Faktor perkembangan FIDE (40 untuk <30 laga, 20 untuk rating <2400,
+ *        dan 10 untuk rating >=2400)
  */
 export const DEFAULT_PLAYER_RATING = 500;
-export const DEFAULT_K_FACTOR = 40;
+/** Default K used by the standalone calculator API when no player history is supplied. */
+export const DEFAULT_K_FACTOR = 20;
+export const NEW_PLAYER_K_FACTOR = 40;
+export const ESTABLISHED_PLAYER_K_FACTOR = 20;
+export const ELITE_PLAYER_K_FACTOR = 10;
+export const NEW_PLAYER_RATED_GAME_LIMIT = 30;
+
+/** FIDE-style K selection using the player's rating and lifetime rated-game count. */
+export function getKFactor(rating: number, ratedGames: number): number {
+  const completedGames = Number.isFinite(ratedGames) ? Math.max(0, Math.floor(ratedGames)) : 0;
+  if (completedGames < NEW_PLAYER_RATED_GAME_LIMIT) return NEW_PLAYER_K_FACTOR;
+  if (rating >= 2400) return ELITE_PLAYER_K_FACTOR;
+  return ESTABLISHED_PLAYER_K_FACTOR;
+}
 
 export interface MatchEloDetail {
   matchId: string;
@@ -34,6 +48,8 @@ export interface MatchEloDetail {
   winWhiteDelta: number;
   drawWhiteDelta: number;
   lossWhiteDelta: number;
+  whiteKFactor: number;
+  blackKFactor: number;
 }
 
 export interface PlayerEloSummary {
@@ -43,6 +59,7 @@ export interface PlayerEloSummary {
   currentRating: number;
   delta: number;
   matchesRated: number;
+  kFactor: number;
 }
 
 export interface TournamentEloReport {
@@ -90,13 +107,13 @@ export function calculateMatchEloChange(
  */
 export function calculateTournamentEloReport(
   players: Player[],
-  matches: SwissMatch[],
-  kFactor: number = DEFAULT_K_FACTOR
+  matches: SwissMatch[]
 ): TournamentEloReport {
   const playerMap = new Map<string, Player>();
   const initialRatings = new Map<string, number>();
   const runningRatings = new Map<string, number>();
   const matchesRatedCount = new Map<string, number>();
+  const ratedGamesBeforeTournament = new Map<string, number>();
 
   players.forEach((p) => {
     playerMap.set(p.id, p);
@@ -104,6 +121,7 @@ export function calculateTournamentEloReport(
     initialRatings.set(p.id, r);
     runningRatings.set(p.id, r);
     matchesRatedCount.set(p.id, 0);
+    ratedGamesBeforeTournament.set(p.id, Math.max(0, Math.floor(p.ratedGames ?? 0)));
   });
 
   // Sort matches chronologically: round asc, boardNumber asc
@@ -123,11 +141,15 @@ export function calculateTournamentEloReport(
     const blackBefore = isBye
       ? whiteBefore
       : (runningRatings.get(blackId) ?? DEFAULT_PLAYER_RATING);
+    const whiteGamesBefore = (ratedGamesBeforeTournament.get(whiteId) || 0) + (matchesRatedCount.get(whiteId) || 0);
+    const blackGamesBefore = (ratedGamesBeforeTournament.get(blackId) || 0) + (matchesRatedCount.get(blackId) || 0);
+    const whiteKFactor = getKFactor(whiteBefore, whiteGamesBefore);
+    const blackKFactor = isBye ? whiteKFactor : getKFactor(blackBefore, blackGamesBefore);
 
     // Calculate potential projections for pending match
-    const projWin = calculateMatchEloChange(whiteBefore, blackBefore, 1, kFactor).deltaA;
-    const projDraw = calculateMatchEloChange(whiteBefore, blackBefore, 0.5, kFactor).deltaA;
-    const projLoss = calculateMatchEloChange(whiteBefore, blackBefore, 0, kFactor).deltaA;
+    const projWin = calculateMatchEloChange(whiteBefore, blackBefore, 1, whiteKFactor, blackKFactor).deltaA;
+    const projDraw = calculateMatchEloChange(whiteBefore, blackBefore, 0.5, whiteKFactor, blackKFactor).deltaA;
+    const projLoss = calculateMatchEloChange(whiteBefore, blackBefore, 0, whiteKFactor, blackKFactor).deltaA;
 
     if (isBye || !match.result) {
       matchDetails.set(match.id, {
@@ -145,6 +167,8 @@ export function calculateTournamentEloReport(
         winWhiteDelta: projWin,
         drawWhiteDelta: projDraw,
         lossWhiteDelta: projLoss,
+        whiteKFactor,
+        blackKFactor,
       });
       continue;
     }
@@ -159,7 +183,8 @@ export function calculateTournamentEloReport(
       whiteBefore,
       blackBefore,
       scoreWhite,
-      kFactor
+      whiteKFactor,
+      blackKFactor
     );
 
     const whiteAfter = Math.max(100, whiteBefore + deltaWhite);
@@ -187,6 +212,8 @@ export function calculateTournamentEloReport(
       winWhiteDelta: projWin,
       drawWhiteDelta: projDraw,
       lossWhiteDelta: projLoss,
+      whiteKFactor,
+      blackKFactor,
     });
   }
 
@@ -205,6 +232,7 @@ export function calculateTournamentEloReport(
       currentRating,
       delta,
       matchesRated: ratedCount,
+      kFactor: getKFactor(currentRating, (ratedGamesBeforeTournament.get(p.id) || 0) + ratedCount),
     });
   });
 

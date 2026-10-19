@@ -216,6 +216,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
       name: newPlayerName.trim(),
       seed: players.length + 1,
       rating: parseInt(newPlayerRating, 10) || 500,
+      ratedGames: 0,
     };
     const updatedPlayers = [...players, newP];
     onUpdatePlayers?.(updatedPlayers);
@@ -270,10 +271,10 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 onClick={onOpenRules}
                 className="badge-pill-cyan"
                 style={{ cursor: onOpenRules ? 'pointer' : 'default', border: 'none' }}
-                title="Klik untuk melihat panduan resmi Mekanisme Penilaian Swiss & Rumus Elo (K = 40)"
+                title="Klik untuk melihat rumus Elo dan aturan K dinamis (40, 20, atau 10)"
               >
                 <Sparkles size={12} />
-                FIDE Swiss • Elo (K = 40)
+                FIDE Swiss • Elo (K dinamis)
               </button>
               <span className="badge-pill-gold">{players.length} pemain terdaftar</span>
               <span className="hero-meta-text">• Format {totalRounds} babak resmi</span>
@@ -739,7 +740,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   className="btn-glass-secondary"
                   style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', gap: '0.35rem' }}
                   onClick={onOpenRules}
-                  title="Lihat Mekanisme Penilaian Swiss & Formula Elo FIDE (K = 40)"
+                  title="Lihat Formula Elo dengan K dinamis (40, 20, atau 10)"
                 >
                   <BookOpen size={13} style={{ color: 'var(--gold)' }} />
                   <span>Aturan & Elo</span>
@@ -815,7 +816,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 <tr>
                   <th style={{ width: '48px' }}>#</th>
                   <th className="left">Pemain</th>
-                  <th title="Rating Elo FIDE (K = 40) terhitung dinamis setiap pertandingan">Elo Live</th>
+                  <th title="Rating Elo live dengan K dinamis: 40 (<30 laga), 20 (<2400), atau 10 (>=2400)">Elo Live</th>
                   <th>Main</th>
                   <th title="Menang (1 Poin)">M</th>
                   <th title="Remis (0,5 Poin)">R</th>
@@ -854,7 +855,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                         </div>
                       </td>
                       <td>
-                        <div className="table-elo-cell">
+                        <div className="table-elo-cell" title={`K aktif pemain: ${standings.eloReport?.playerSummaries.get(row.player.id)?.kFactor ?? 20}`}>
                           <span className="elo-live-val">
                             {row.currentRating ?? row.player.rating ?? 500}
                           </span>

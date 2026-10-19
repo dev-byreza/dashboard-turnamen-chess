@@ -53,11 +53,17 @@ async function main() {
         name VARCHAR(255) NOT NULL,
         seed INT DEFAULT 0,
         rating INT DEFAULT 500,
+        rated_games INT NOT NULL DEFAULT 0,
         club VARCHAR(255) DEFAULT 'Politeknik Sorowako',
         title VARCHAR(10),
         avatar VARCHAR(255),
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `;
+
+    await sql`
+      ALTER TABLE chess_roster
+      ADD COLUMN IF NOT EXISTS rated_games INT NOT NULL DEFAULT 0;
     `;
 
     await sql`
@@ -70,6 +76,7 @@ async function main() {
         player_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
         matches JSONB NOT NULL DEFAULT '[]'::jsonb,
         initial_ratings JSONB NOT NULL DEFAULT '{}'::jsonb,
+        initial_rated_games JSONB NOT NULL DEFAULT '{}'::jsonb,
         pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at BIGINT DEFAULT 0,
         is_active BOOLEAN DEFAULT FALSE,
@@ -113,20 +120,32 @@ async function main() {
 
     await sql`
       ALTER TABLE chess_tournaments
+      ADD COLUMN IF NOT EXISTS initial_rated_games JSONB NOT NULL DEFAULT '{}'::jsonb;
+    `;
+
+    await sql`
+      ALTER TABLE chess_tournaments
       ADD COLUMN IF NOT EXISTS pairing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
     `;
 
     console.log('🏆 Memasukkan turnamen ROOKIE TOUR CHESS (Babak 1 aktif)...');
     const playerIdsJson = JSON.stringify(players.map((p) => p.id));
     const pairingOverridesJson = JSON.stringify({
-      2: [{ whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' }],
+      2: [
+        { whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' },
+        { whitePlayerId: 'p_dewacad', blackPlayerId: 'p_anxiety99' },
+      ],
+      3: [
+        { whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_anxiety99' },
+        { whitePlayerId: 'p_dewacad', blackPlayerId: 'p_azazeel03' },
+      ],
     });
     const matchesJson = JSON.stringify([
       {
         id: 'swiss_r1_b1_rookie',
         round: 1,
         boardNumber: 1,
-        whitePlayerId: 'p_anxiety99',
+        whitePlayerId: 'p_ziiganteng',
         blackPlayerId: 'p_dewacad',
         result: null,
       },
@@ -135,7 +154,7 @@ async function main() {
         round: 1,
         boardNumber: 2,
         whitePlayerId: 'p_azazeel03',
-        blackPlayerId: 'p_ziiganteng',
+        blackPlayerId: 'p_anxiety99',
         result: null,
       },
     ]);

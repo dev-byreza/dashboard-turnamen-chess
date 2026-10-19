@@ -85,6 +85,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   // Roster add form state
   const [rosterName, setRosterName] = useState<string>('');
   const [rosterRating, setRosterRating] = useState<string>('500');
+  const [rosterRatedGames, setRosterRatedGames] = useState<string>('0');
   const [rosterClub, setRosterClub] = useState<string>('');
   const [rosterTitle, setRosterTitle] = useState<string>('');
   const [rosterSearch, setRosterSearch] = useState<string>('');
@@ -93,6 +94,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editPlayerName, setEditPlayerName] = useState<string>('');
   const [editPlayerRating, setEditPlayerRating] = useState<string>('500');
+  const [editPlayerRatedGames, setEditPlayerRatedGames] = useState<string>('0');
   const [editPlayerClub, setEditPlayerClub] = useState<string>('');
   const [editPlayerTitle, setEditPlayerTitle] = useState<string>('');
 
@@ -158,6 +160,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
         id: newId,
         name,
         rating: 500,
+        ratedGames: 0,
         club: 'Politeknik Sorowako',
       },
       true
@@ -203,6 +206,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       {
         name,
         rating: parseInt(rosterRating, 10) || 500,
+        ratedGames: Math.max(0, parseInt(rosterRatedGames, 10) || 0),
         club: rosterClub.trim() || undefined,
         title: (rosterTitle as Player['title']) || undefined,
       },
@@ -213,6 +217,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     }
     setRosterName('');
     setRosterRating('500');
+    setRosterRatedGames('0');
     setRosterClub('');
     setRosterTitle('');
   };
@@ -222,6 +227,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setEditingPlayerId(p.id);
     setEditPlayerName(p.name);
     setEditPlayerRating(String(p.rating || 500));
+    setEditPlayerRatedGames(String(p.ratedGames ?? 0));
     setEditPlayerClub(p.club || '');
     setEditPlayerTitle(p.title || '');
   };
@@ -231,6 +237,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     onUpdateRosterPlayer(editingPlayerId, {
       name: editPlayerName.trim(),
       rating: parseInt(editPlayerRating, 10) || 500,
+      ratedGames: Math.max(0, parseInt(editPlayerRatedGames, 10) || 0),
       club: editPlayerClub.trim() || undefined,
       title: (editPlayerTitle as Player['title']) || undefined,
     });
@@ -239,6 +246,11 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
 
   const isRatingLocked = (playerId: string) =>
     tournaments.some((t) => t.playerIds.includes(playerId) && hasStarted(t));
+
+  const isRatedGamesLocked = (playerId: string) =>
+    tournaments.some(
+      (t) => t.playerIds.includes(playerId) && hasStarted(t) && t.initialRatedGames?.[playerId] === undefined
+    );
 
   // Player usage count in tournaments
   const getPlayerTournamentCount = (playerId: string) => {
@@ -726,6 +738,19 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                     </div>
 
                     <div className="form-field">
+                      <label className="form-label">Laga berating sebelumnya</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={rosterRatedGames}
+                        onChange={(e) => setRosterRatedGames(e.target.value)}
+                        placeholder="0"
+                        className="form-input-text"
+                      />
+                    </div>
+
+                    <div className="form-field">
                       <label className="form-label">Gelar catur</label>
                       <select
                         value={rosterTitle}
@@ -841,6 +866,16 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                               className="form-input-text"
                               disabled={isRatingLocked(p.id)}
                             />
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={editPlayerRatedGames}
+                              onChange={(e) => setEditPlayerRatedGames(e.target.value)}
+                              placeholder="Laga berating"
+                              className="form-input-text"
+                              disabled={isRatedGamesLocked(p.id)}
+                            />
                             <select
                               value={editPlayerTitle}
                               onChange={(e) => setEditPlayerTitle(e.target.value)}
@@ -894,7 +929,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                             <div className="roster-name-line">
                               <span className="roster-name">{p.name}</span>
                               {p.title && <span className="title-tag">{p.title}</span>}
-                              <span className="roster-elo-chip">{p.rating || 500} Elo</span>
+                              <span className="roster-elo-chip">{p.rating || 500} Elo • {p.ratedGames ?? 0} laga</span>
                             </div>
                             <div className="roster-meta-line">
                               <span>{p.club || 'Politeknik Sorowako'}</span>

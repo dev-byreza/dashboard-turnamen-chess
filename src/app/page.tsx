@@ -177,6 +177,13 @@ export default function SwissTournamentPage() {
                       t.playerIds.map((id) => [id, prev.roster.find((p) => p.id === id)?.rating ?? 500])
                     )
                   : undefined),
+              initialRatedGames:
+                t.initialRatedGames ||
+                (hasStarted({ ...t, matches: newMatches })
+                  ? Object.fromEntries(
+                      t.playerIds.map((id) => [id, prev.roster.find((p) => p.id === id)?.ratedGames ?? 0])
+                    )
+                  : undefined),
             }
           : t
       ),
@@ -215,7 +222,9 @@ export default function SwissTournamentPage() {
     setStore((prev) => ({
       ...prev,
       tournaments: prev.tournaments.map((t) =>
-        t.id === activeTournament.id ? { ...t, matches: freshRound1 } : t
+        t.id === activeTournament.id
+          ? { ...t, matches: freshRound1, initialRatings: undefined, initialRatedGames: undefined }
+          : t
       ),
     }));
   };
@@ -367,14 +376,27 @@ export default function SwissTournamentPage() {
     const ratingLocked = store.tournaments.some(
       (t) => t.playerIds.includes(id) && hasStarted(t)
     );
+    const ratedGamesLocked = store.tournaments.some(
+      (t) => t.playerIds.includes(id) && hasStarted(t) && t.initialRatedGames?.[id] === undefined
+    );
+
+    const safeUpdates = { ...updates };
     if (ratingLocked && updates.rating !== undefined) {
-      alert('Rating Elo peserta sudah terkunci karena turnamen telah dimulai.');
-      return;
+      if (updates.rating !== store.roster.find((p) => p.id === id)?.rating) {
+        alert('Rating Elo peserta sudah terkunci karena turnamen telah dimulai.');
+      }
+      delete safeUpdates.rating;
+    }
+    if (ratedGamesLocked && updates.ratedGames !== undefined) {
+      if (updates.ratedGames !== store.roster.find((p) => p.id === id)?.ratedGames) {
+        alert('Riwayat laga berating belum dapat diubah sebelum baseline turnamen tersimpan.');
+      }
+      delete safeUpdates.ratedGames;
     }
 
     setStore((prev) => ({
       ...prev,
-      roster: prev.roster.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      roster: prev.roster.map((p) => (p.id === id ? { ...p, ...safeUpdates } : p)),
     }));
   };
 
@@ -492,7 +514,7 @@ export default function SwissTournamentPage() {
                   type="button"
                   onClick={() => setIsRulesOpen(true)}
                   className="btn-glass-secondary"
-                  title="Lihat Mekanisme Penilaian Swiss & Formula Elo FIDE (K = 40)"
+                  title="Lihat Formula Elo dengan K dinamis (40, 20, atau 10)"
                 >
                   <BookOpen size={15} style={{ color: 'var(--gold)' }} />
                   <span>Mekanisme</span>
@@ -523,7 +545,7 @@ export default function SwissTournamentPage() {
                   type="button"
                   onClick={() => setIsRulesOpen(true)}
                   className="btn-glass-secondary"
-                  title="Lihat Mekanisme Penilaian Swiss & Formula Elo FIDE (K = 40)"
+                  title="Lihat Formula Elo dengan K dinamis (40, 20, atau 10)"
                 >
                   <BookOpen size={15} style={{ color: 'var(--gold)' }} />
                   <span>Mekanisme</span>
