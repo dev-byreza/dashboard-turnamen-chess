@@ -7,6 +7,7 @@ import {
   countCompletedGamesInOtherTournaments,
   playersForTournament,
   uid,
+  createUniqueTournamentSlug,
   sameIds,
   hasStarted,
   ensureInitialRatings,
@@ -304,15 +305,17 @@ export default function SwissTournamentPage() {
         .filter((p): p is Player => Boolean(p))
         .map((p, idx) => ({ ...p, seed: idx + 1 }));
 
+      const createdAt = Date.now();
       const newTournament = {
         id: newId,
+        slug: createUniqueTournamentSlug(data.name, data.date, store.tournaments, createdAt),
         name: data.name,
         date: data.date,
         location: data.location,
         totalRounds: data.totalRounds,
         playerIds: data.playerIds,
         matches: generateSwissRound1(resolvedPlayers),
-        createdAt: Date.now(),
+        createdAt,
       };
 
       setStore((prev) => ({

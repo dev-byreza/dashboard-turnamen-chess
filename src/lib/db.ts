@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { Player, Tournament, TournamentStore, SwissMatch, SwissPairingOverride } from '../types/chess';
+import { ensureUniqueTournamentSlugs } from '../utils/tournamentStore';
 
 /** Get the active connection string from environment */
 export function getConnectionString(): string | null {
@@ -50,6 +51,7 @@ export async function ensureTables(sql: any) {
   await sql`
     CREATE TABLE IF NOT EXISTS chess_tournaments (
       id VARCHAR(64) PRIMARY KEY,
+      slug VARCHAR(255),
       name VARCHAR(255) NOT NULL,
       date VARCHAR(50) DEFAULT '',
       location VARCHAR(255) DEFAULT '',
@@ -64,6 +66,17 @@ export async function ensureTables(sql: any) {
       is_active BOOLEAN DEFAULT FALSE,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `;
+
+  await sql`
+    ALTER TABLE chess_tournaments
+    ADD COLUMN IF NOT EXISTS slug VARCHAR(255);
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS chess_tournaments_slug_unique_idx
+    ON chess_tournaments (slug)
+    WHERE slug IS NOT NULL;
   `;
 
   await sql`
@@ -142,11 +155,12 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
 
     // 2. Fetch tournaments
     const tourneyRows = (await sql`
-      SELECT id, name, date, location, total_rounds, player_ids, matches, initial_ratings, initial_rated_games, pairing_overrides, round_schedules, created_at, is_active
+      SELECT id, slug, name, date, location, total_rounds, player_ids, matches, initial_ratings, initial_rated_games, pairing_overrides, round_schedules, created_at, is_active
       FROM chess_tournaments
       ORDER BY created_at DESC
     `) as Array<{
       id: string;
+      slug: string | null;
       name: string;
       date: string;
       location: string;
@@ -222,6 +236,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
 
       return {
         id: t.id,
+        slug: t.slug || undefined,
         name: t.name,
         date: t.date || '',
         location: t.location || '',
@@ -242,11 +257,11 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       tournaments[0]?.id ||
       null;
 
-    return {
+    return ensureUniqueTournamentSlugs({
       roster,
       tournaments,
       activeId,
-    };
+    });
   } catch (err) {
     console.error('Error fetching tournament store from PostgreSQL:', err);
     return null;
@@ -304,8 +319,9 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       `);
     }
 
-    // 2. Save tournaments
-    for (const t of store.tournaments) {
+    // 2. Save tournaments, backfilling stable slugs for older rows when needed.
+    const tournaments = ensureUniqueTournamentSlugs(store).tournaments;
+    for (const t of tournaments) {
       const isActive = t.id === store.activeId;
       const playerIdsJson = JSON.stringify(t.playerIds);
       const matchesJson = JSON.stringify(t.matches);
@@ -315,9 +331,10 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       const roundSchedulesJson = JSON.stringify(t.roundSchedules || {});
 
       queries.push(sql`
-        INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, initial_rated_games, pairing_overrides, round_schedules, created_at, is_active)
+        INSERT INTO chess_tournaments (id, slug, name, date, location, total_rounds, player_ids, matches, initial_ratings, initial_rated_games, pairing_overrides, round_schedules, created_at, is_active)
         VALUES (
           ${t.id},
+          ${t.slug || ''},
           ${t.name},
           ${t.date || ''},
           ${t.location || ''},
@@ -332,6 +349,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           ${isActive}
         )
         ON CONFLICT (id) DO UPDATE SET
+          slug = EXCLUDED.slug,
           name = EXCLUDED.name,
           date = EXCLUDED.date,
           location = EXCLUDED.location,
@@ -348,10 +366,10 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
     }
 
     // Delete removed tournaments, including all rows for an empty tournament list.
-    if (store.tournaments.length === 0) {
+    if (tournaments.length === 0) {
       queries.push(sql`DELETE FROM chess_tournaments`);
     } else {
-      const activeTourneyIdsJson = JSON.stringify(store.tournaments.map((t) => t.id));
+      const activeTourneyIdsJson = JSON.stringify(tournaments.map((t) => t.id));
       queries.push(sql`
         DELETE FROM chess_tournaments
         WHERE id NOT IN (SELECT jsonb_array_elements_text(${activeTourneyIdsJson}::jsonb));

@@ -3,6 +3,67 @@ import { Player, Tournament, TournamentStore } from '../types/chess';
 export const uid = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+const slugify = (value: string) =>
+  value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 160)
+    .replace(/-+$/g, '');
+
+function uniqueTournamentSlug(name: string, date: string, createdAt: number, used: Set<string>) {
+  const datePart = date || new Date(createdAt || Date.now()).toISOString().slice(0, 10);
+  const base = `${slugify(name) || 'turnamen'}-${slugify(datePart) || 'tanpa-tanggal'}`;
+  let candidate = base;
+  let suffix = 2;
+
+  while (used.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+/** Create a readable slug that is unique across existing tournaments, including completed ones. */
+export function createUniqueTournamentSlug(
+  name: string,
+  date: string,
+  tournaments: Pick<Tournament, 'slug'>[],
+  createdAt = Date.now()
+): string {
+  const used = new Set(tournaments.map((tournament) => tournament.slug).filter(Boolean) as string[]);
+  return uniqueTournamentSlug(name, date, createdAt, used);
+}
+
+/** Backfill legacy tournaments and resolve any duplicate slugs in a stable creation order. */
+export function ensureUniqueTournamentSlugs(store: TournamentStore): TournamentStore {
+  const used = new Set<string>();
+  const slugById = new Map<string, string>();
+  const chronological = [...store.tournaments].sort((a, b) => a.createdAt - b.createdAt);
+
+  chronological.forEach((tournament) => {
+    const existing = tournament.slug?.trim().toLowerCase();
+    const slug = existing && !used.has(existing)
+      ? existing
+      : uniqueTournamentSlug(tournament.name, tournament.date, tournament.createdAt, used);
+    used.add(slug);
+    slugById.set(tournament.id, slug);
+  });
+
+  let changed = false;
+  const tournaments = store.tournaments.map((tournament) => {
+    const slug = slugById.get(tournament.id)!;
+    if (tournament.slug === slug) return tournament;
+    changed = true;
+    return { ...tournament, slug };
+  });
+
+  return changed ? { ...store, tournaments } : store;
+}
+
 /** Resolve a tournament's players from the roster, in order, with fresh seeds. */
 export function playersForTournament(roster: Player[], t: Tournament): Player[] {
   return t.playerIds

@@ -101,6 +101,8 @@ export interface SwissTournamentData {
 // Tournament management (multi-tournament + participant database)
 export interface Tournament {
   id: string;
+  /** Human-readable unique identifier, generated from the tournament name/date. */
+  slug?: string;
   name: string;
   date: string; // yyyy-mm-dd, may be empty
   location: string;

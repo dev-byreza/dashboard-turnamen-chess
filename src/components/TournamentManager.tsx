@@ -642,6 +642,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                                   <Layers size={14} />
                                   <span>{t.totalRounds} babak</span>
                                 </span>
+                                {t.slug && (
+                                  <span className="meta-item tournament-slug" title="Slug unik turnamen">
+                                    <span aria-hidden="true">#</span>
+                                    <code>{t.slug}</code>
+                                  </span>
+                                )}
                               </div>
 
                               {isActive && resetWarningTournamentId === t.id && (

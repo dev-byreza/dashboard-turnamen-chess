@@ -2964,6 +2964,16 @@ button, input, select, textarea {
   gap: 0.35rem;
 }
 
+.tournament-slug {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.tournament-slug code {
+  overflow-wrap: anywhere;
+  font-family: var(--font-code);
+}
+
 .tournament-actions {
   display: flex;
   align-items: center;
