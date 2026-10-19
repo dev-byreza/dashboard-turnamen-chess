@@ -854,6 +854,183 @@ body::before {
   font-size: 0.875rem;
 }
 
+/* ===== Chess-themed database loading state ===== */
+.chess-loading-state {
+  position: relative;
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  align-items: center;
+  gap: 1.5rem;
+  width: min(100%, 580px);
+  min-height: 184px;
+  margin: 4rem auto 5rem;
+  padding: 1.5rem 1.75rem;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  background: linear-gradient(145deg, var(--bg-surface), var(--bg-soft));
+  box-shadow: var(--shadow-md);
+  text-align: left;
+}
+
+.chess-loading-state::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--gold-gradient);
+}
+
+.chess-loading-board-frame {
+  width: 124px;
+  padding: 6px;
+  border: 1px solid var(--gold-border);
+  border-radius: 15px;
+  background: var(--bg-sunken);
+  box-shadow: 0 8px 20px rgba(20, 33, 61, 0.12);
+}
+
+.chess-loading-board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  grid-template-rows: repeat(4, 28px);
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.chess-loading-square.is-light {
+  background: #f5ead0;
+}
+
+.chess-loading-square.is-dark {
+  background: var(--navy-soft);
+}
+
+.chess-loading-knight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 7px;
+  background: var(--gold-gradient);
+  box-shadow: 0 3px 9px rgba(12, 22, 48, 0.24);
+  color: var(--navy-deep);
+  font-family: Georgia, serif;
+  font-size: 1.2rem;
+  line-height: 1;
+  animation: chess-knight-route 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.chess-loading-copy {
+  min-width: 0;
+}
+
+.chess-loading-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.chess-loading-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-bright);
+  box-shadow: 0 0 0 3px var(--green-soft);
+  animation: chess-loading-pulse 1.5s ease-in-out infinite;
+}
+
+.chess-loading-title {
+  color: var(--navy);
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+
+.chess-loading-description {
+  margin-top: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.chess-loading-dots {
+  display: inline-flex;
+  gap: 0.3rem;
+  margin-top: 0.75rem;
+}
+
+.chess-loading-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: chess-loading-pulse 1s ease-in-out infinite;
+}
+
+.chess-loading-dots i:nth-child(2) { animation-delay: 0.16s; }
+.chess-loading-dots i:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes chess-knight-route {
+  0%, 18% { transform: translate(0, 0); }
+  20% { transform: translate(56px, 28px) translateY(-9px); }
+  22%, 38% { transform: translate(56px, 28px); }
+  40% { transform: translate(84px, 84px) translateY(-9px); }
+  42%, 58% { transform: translate(84px, 84px); }
+  60% { transform: translate(28px, 56px) translateY(-9px); }
+  62%, 78% { transform: translate(28px, 56px); }
+  80% { transform: translate(0, 0) translateY(-9px); }
+  82%, 100% { transform: translate(0, 0); }
+}
+
+@keyframes chess-loading-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.82); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 560px) {
+  .chess-loading-state {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 1.15rem;
+    max-width: 380px;
+    margin: 2.75rem auto 3.5rem;
+    padding: 1.5rem 1.25rem;
+    text-align: center;
+  }
+
+  .chess-loading-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chess-loading-knight,
+  .chess-loading-indicator,
+  .chess-loading-dots i {
+    animation: none;
+  }
+
+  .chess-loading-knight {
+    transform: none;
+  }
+}
+
 /* ===== Match board cards ===== */
 .matches-list-wrapper {
   display: flex;

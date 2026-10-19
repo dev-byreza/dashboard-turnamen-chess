@@ -611,20 +611,41 @@ export default function SwissTournamentPage() {
             onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
             onOpenRules={() => setIsRulesOpen(true)}
           />
+        ) : dbStatus === 'checking' ? (
+          <section className="chess-loading-state" role="status" aria-live="polite" aria-atomic="true">
+            <div className="chess-loading-board-frame" aria-hidden="true">
+              <div className="chess-loading-board">
+                {Array.from({ length: 16 }, (_, index) => (
+                  <span
+                    key={index}
+                    className={`chess-loading-square ${(Math.floor(index / 4) + index) % 2 === 0 ? 'is-light' : 'is-dark'}`}
+                  />
+                ))}
+                <span className="chess-loading-knight">♞</span>
+              </div>
+            </div>
+            <div className="chess-loading-copy">
+              <span className="chess-loading-label">
+                <span className="chess-loading-indicator" aria-hidden="true" />
+                MENYIAPKAN TURNAMEN
+              </span>
+              <h3 className="chess-loading-title">Memuat data pertandingan</h3>
+              <p className="chess-loading-description">
+                Menghubungkan ke database dan menyiapkan papan catur...
+              </p>
+              <span className="chess-loading-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+            </div>
+          </section>
         ) : (
           <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">
-            {dbStatus === 'checking' ? (
-              <Clock size={42} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
-            ) : (
-              <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
-            )}
-            <h3 className="empty-title">
-              {dbStatus === 'checking' ? 'Memuat data turnamen' : 'Belum ada turnamen yang dipilih'}
-            </h3>
+            <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
+            <h3 className="empty-title">Belum ada turnamen yang dipilih</h3>
             <p className="empty-desc">
-              {dbStatus === 'checking'
-                ? 'Sedang mengambil data dari database Neon...'
-                : dbStatus === 'connected'
+              {dbStatus === 'connected'
                 ? isAdminConnected
                   ? 'Pilih turnamen dari database atau buat turnamen baru.'
                   : 'Belum ada turnamen. Hubungi administrator untuk membuat atau memilih turnamen.'
