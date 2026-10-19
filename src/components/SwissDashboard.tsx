@@ -26,7 +26,6 @@ import {
   BookOpen,
   Clock3,
   Save,
-  Search,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -72,25 +71,6 @@ const formatRoundSchedule = (value: string) => {
   return `${formattedDate}, pukul ${hour}.${minute}`;
 };
 
-const smoothChartPath = (points: Array<{ x: number; y: number }>) => {
-  if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
-  let path = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const previous = points[index - 1] || points[index];
-    const start = points[index];
-    const end = points[index + 1];
-    const next = points[index + 2] || end;
-    const controlOneX = start.x + (end.x - previous.x) / 6;
-    const controlOneY = Math.max(44, Math.min(232, start.y + (end.y - previous.y) / 6));
-    const controlTwoX = end.x - (next.x - start.x) / 6;
-    const controlTwoY = Math.max(44, Math.min(232, end.y - (next.y - start.y) / 6));
-    path += ` C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${end.x} ${end.y}`;
-  }
-  return path;
-};
-
 export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   players,
   matches,
@@ -116,7 +96,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerRating, setNewPlayerRating] = useState('500');
-  const [statisticsPlayerFilter, setStatisticsPlayerFilter] = useState('');
   const [roundScheduleDrafts, setRoundScheduleDrafts] = useState<Record<number, string>>(
     roundSchedules || {}
   );
@@ -260,68 +239,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const top1 = standings.rows[0];
   const top2 = standings.rows[1];
   const top3 = standings.rows[2];
-
-  const normalizedStatisticsPlayerFilter = statisticsPlayerFilter.trim().toLowerCase();
-  const filteredPlayerStandings = standings.rows.filter((row) =>
-    !normalizedStatisticsPlayerFilter ||
-    row.player.name.toLowerCase().includes(normalizedStatisticsPlayerFilter)
-  );
-  const statisticsPalette = ['#b8891a', '#315a91', '#4d7c3a', '#b06a30', '#6b63be', '#c2413b', '#178a9a', '#929db0'];
-  const statisticsRoundNumbers = Array.from({ length: totalRounds }, (_, index) => index + 1);
-  const playerPointSeries = filteredPlayerStandings.map((standing, index) => {
-    const pointsByRound = new Map<number, number>();
-
-    matches.forEach((match) => {
-      if (match.result === null) return;
-
-      let earnedPoints = 0;
-      const isBye = Boolean(match.isBye || match.blackPlayerId === '__bye__');
-      if (isBye && match.whitePlayerId === standing.player.id) {
-        earnedPoints = 1;
-      } else if (match.whitePlayerId === standing.player.id) {
-        earnedPoints = match.result === '1-0' ? 1 : match.result === '0.5-0.5' ? 0.5 : 0;
-      } else if (match.blackPlayerId === standing.player.id) {
-        earnedPoints = match.result === '0-1' ? 1 : match.result === '0.5-0.5' ? 0.5 : 0;
-      }
-
-      if (earnedPoints > 0) {
-        pointsByRound.set(match.round, (pointsByRound.get(match.round) || 0) + earnedPoints);
-      }
-    });
-
-    let cumulativePoints = 0;
-    const points = statisticsRoundNumbers.map((round) => {
-      cumulativePoints += pointsByRound.get(round) || 0;
-      return { round, points: cumulativePoints };
-    });
-
-    return {
-      id: standing.player.id,
-      name: standing.player.name,
-      points,
-      color: statisticsPalette[index % statisticsPalette.length],
-    };
-  });
-  const visiblePlayerPointSeries = playerPointSeries.slice(0, 8);
-  const hiddenPlayerSeriesCount = Math.max(0, playerPointSeries.length - visiblePlayerPointSeries.length);
-  const maxChartPoints = Math.max(
-    1,
-    totalRounds,
-    ...visiblePlayerPointSeries.flatMap((series) => series.points.map((point) => point.points))
-  );
-  const chartTicks = Array.from({ length: 5 }, (_, index) => (maxChartPoints * index) / 4);
-  const filteredOutcomeTotals = filteredPlayerStandings.reduce(
-    (totals, row) => ({
-      wins: totals.wins + row.won,
-      draws: totals.draws + row.drawn,
-      losses: totals.losses + row.lost,
-    }),
-    { wins: 0, draws: 0, losses: 0 }
-  );
-  const totalFilteredResults =
-    filteredOutcomeTotals.wins + filteredOutcomeTotals.draws + filteredOutcomeTotals.losses;
-  const hasCompletedStatisticsMatch = matches.some((match) => match.result !== null);
-  const donutCircumference = 2 * Math.PI * 43;
 
   return (
     <div className="stack-page">
@@ -592,9 +509,9 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
 
       {/* Main 2-Column Grid */}
       <div className="swiss-two-col-grid">
-        <div className="matches-statistics-column">
-          {/* Left: Match Boards */}
-          <div className="section-card-panel matches-panel">
+
+        {/* Left: Match Boards */}
+        <div className="section-card-panel matches-panel">
           <div className="section-panel-header">
             <div className="section-title-wrap">
               <span className="section-dot" />
@@ -784,256 +701,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               })
             )}
           </div>
-          </div>
-
-          <section className="section-card-panel tournament-statistics-panel">
-            <div className="section-panel-header">
-              <div className="section-title-wrap">
-                <span className="section-dot" />
-                <h3 className="section-title-text">Statistik Turnamen</h3>
-              </div>
-              <span className="section-hint">
-                {filteredPlayerStandings.length} pemain sesuai filter
-              </span>
-            </div>
-
-            <label className="form-label statistics-filter-label" htmlFor="statistics-player-filter">
-              Filter nama player
-            </label>
-            <div className="search-box statistics-player-search">
-              <Search size={16} aria-hidden="true" />
-              <input
-                id="statistics-player-filter"
-                type="search"
-                className="search-input"
-                value={statisticsPlayerFilter}
-                onChange={(event) => setStatisticsPlayerFilter(event.target.value)}
-                placeholder="Cari nama pemain untuk semua diagram..."
-              />
-              {statisticsPlayerFilter && (
-                <button
-                  type="button"
-                  className="search-clear-btn"
-                  aria-label="Hapus filter nama pemain"
-                  onClick={() => setStatisticsPlayerFilter('')}
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
-            <p className="statistics-filter-hint">
-              Garis menunjukkan akumulasi poin pemain pada setiap babak.
-            </p>
-
-            {filteredPlayerStandings.length === 0 ? (
-              <div className="empty-state statistics-empty-state" role="status">
-                {normalizedStatisticsPlayerFilter
-                  ? `Tidak ada pemain yang cocok dengan nama “${statisticsPlayerFilter.trim()}”.`
-                  : 'Belum ada pemain untuk divisualisasikan.'}
-              </div>
-            ) : !hasCompletedStatisticsMatch ? (
-              <div className="empty-state statistics-empty-state" role="status">
-                Diagram tren poin akan tampil setelah hasil pertandingan pertama dicatat.
-              </div>
-            ) : (
-              <div className="statistics-trend-chart-wrap">
-                <svg
-                  className="statistics-trend-chart"
-                  viewBox="0 0 720 290"
-                  role="img"
-                  aria-label="Diagram tren akumulasi poin pemain di setiap babak"
-                >
-                  <rect x="0" y="0" width="720" height="290" rx="12" className="statistics-chart-background" />
-                  <text x="18" y="22" className="statistics-chart-axis-title">TREN POIN PEMAIN</text>
-                  {chartTicks.map((tick, index) => {
-                    const y = 232 - (tick / maxChartPoints) * 188;
-                    return (
-                      <g key={`tick-${index}`}>
-                        <line x1="62" x2="700" y1={y} y2={y} className="statistics-chart-gridline" />
-                        <text x="48" y={y + 4} textAnchor="end" className="statistics-chart-tick">
-                          {Number.isInteger(tick) ? tick : tick.toFixed(1)}
-                        </text>
-                      </g>
-                    );
-                  })}
-                  {statisticsRoundNumbers.map((round, index) => {
-                    const x = statisticsRoundNumbers.length <= 1
-                      ? 381
-                      : 62 + (index * 638) / (statisticsRoundNumbers.length - 1);
-                    return (
-                      <g key={`round-${round}`}>
-                        <line x1={x} x2={x} y1="44" y2="232" className="statistics-chart-v-gridline" />
-                        <text x={x} y="258" textAnchor="middle" className="statistics-chart-tick">
-                          Babak {round}
-                        </text>
-                      </g>
-                    );
-                  })}
-                  {visiblePlayerPointSeries.map((series) => {
-                    const chartPoints = series.points.map((point, index) => {
-                      const x = statisticsRoundNumbers.length <= 1
-                        ? 381
-                        : 62 + (index * 638) / (statisticsRoundNumbers.length - 1);
-                      const y = 232 - (point.points / maxChartPoints) * 188;
-                      return { x, y, point };
-                    });
-                    const path = smoothChartPath(chartPoints);
-                    const areaPath = chartPoints.length > 0
-                      ? `${path} L ${chartPoints[chartPoints.length - 1].x} 232 L ${chartPoints[0].x} 232 Z`
-                      : '';
-
-                    return (
-                      <g key={series.id}>
-                        <defs>
-                          <linearGradient id={`statistics-area-${series.id}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={series.color} stopOpacity="0.28" />
-                            <stop offset="100%" stopColor={series.color} stopOpacity="0.015" />
-                          </linearGradient>
-                        </defs>
-                        <path d={areaPath} fill={`url(#statistics-area-${series.id})`} />
-                        <path d={path} fill="none" stroke={series.color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-                        {chartPoints.map(({ x, y, point }) => {
-                          return (
-                            <circle key={`${series.id}-${point.round}`} cx={x} cy={y} r="4" fill={series.color} stroke="white" strokeWidth="2">
-                              <title>{`${series.name} • Babak ${point.round}: ${point.points} poin`}</title>
-                            </circle>
-                          );
-                        })}
-                      </g>
-                    );
-                  })}
-                </svg>
-                <div className="statistics-chart-legend" aria-label="Legenda pemain">
-                  {visiblePlayerPointSeries.map((series) => (
-                    <button
-                      type="button"
-                      key={series.id}
-                      className="statistics-chart-legend-item"
-                      onClick={() => setStatisticsPlayerFilter(series.name)}
-                      title={`Filter diagram ke ${series.name}`}
-                    >
-                      <span style={{ backgroundColor: series.color }} />
-                      {series.name}
-                    </button>
-                  ))}
-                  {hiddenPlayerSeriesCount > 0 && (
-                    <span className="statistics-chart-more">+{hiddenPlayerSeriesCount} pemain lain, cari nama untuk melihat</span>
-                  )}
-                </div>
-              </div>
-            )}
-            <div className="statistics-all-player">
-              <div className="statistics-subsection-heading">
-                <div>
-                  <h4>Ringkasan Semua Pemain</h4>
-                  <p>{filteredPlayerStandings.length} dari {standings.rows.length} pemain ditampilkan</p>
-                </div>
-                <span className="statistics-subsection-mark">WIN · DRAW · LOSS</span>
-              </div>
-
-              {filteredPlayerStandings.length === 0 ? (
-                <div className="empty-state statistics-empty-state" role="status">
-                  Tidak ada player yang cocok dengan filter nama.
-                </div>
-              ) : (
-                <div className="statistics-player-chart-layout">
-                  <div className="statistics-outcome-overview">
-                    <div className="statistics-outcome-donut-wrap">
-                      <svg className="statistics-outcome-donut" viewBox="0 0 112 112" role="img" aria-label="Diagram proporsi hasil pemain yang sedang difilter">
-                        <circle cx="56" cy="56" r="43" className="statistics-donut-track" />
-                        {totalFilteredResults > 0 && (() => {
-                          const segments = [
-                            { key: 'wins', value: filteredOutcomeTotals.wins, color: 'var(--green-bright)' },
-                            { key: 'draws', value: filteredOutcomeTotals.draws, color: 'var(--gold-bright)' },
-                            { key: 'losses', value: filteredOutcomeTotals.losses, color: 'var(--rose)' },
-                          ];
-                          let offset = 0;
-                          return segments.map((segment) => {
-                            const length = (segment.value / totalFilteredResults) * donutCircumference;
-                            const circle = (
-                              <circle
-                                key={segment.key}
-                                cx="56"
-                                cy="56"
-                                r="43"
-                                fill="none"
-                                stroke={segment.color}
-                                strokeWidth="13"
-                                strokeDasharray={`${length} ${donutCircumference - length}`}
-                                strokeDashoffset={-offset}
-                                transform="rotate(-90 56 56)"
-                              >
-                                <title>{`${segment.key === 'wins' ? 'Menang' : segment.key === 'draws' ? 'Remis' : 'Kalah'}: ${segment.value}`}</title>
-                              </circle>
-                            );
-                            offset += length;
-                            return circle;
-                          });
-                        })()}
-                        <text x="56" y="53" textAnchor="middle" className="statistics-donut-total">{totalFilteredResults}</text>
-                        <text x="56" y="69" textAnchor="middle" className="statistics-donut-caption">hasil pemain</text>
-                      </svg>
-                      <span className="statistics-donut-label">Komposisi Hasil</span>
-                    </div>
-                    <div className="statistics-outcome-summary">
-                      <div className="statistics-outcome-summary-heading">Total seluruh pemain terpilih</div>
-                      <div className="statistics-outcome-stat win">
-                        <span><i /> Menang</span><strong>{filteredOutcomeTotals.wins}</strong>
-                      </div>
-                      <div className="statistics-outcome-stat draw">
-                        <span><i /> Remis</span><strong>{filteredOutcomeTotals.draws}</strong>
-                      </div>
-                      <div className="statistics-outcome-stat loss">
-                        <span><i /> Kalah</span><strong>{filteredOutcomeTotals.losses}</strong>
-                      </div>
-                      <p className="statistics-outcome-note">Bye masuk hitungan menang sesuai perhitungan poin turnamen.</p>
-                    </div>
-                  </div>
-
-                  <div className="statistics-player-bars" aria-label="Grafik performa seluruh pemain">
-                    {filteredPlayerStandings.map((row) => {
-                      const resultCount = row.won + row.drawn + row.lost;
-                      const winWidth = resultCount ? (row.won / resultCount) * 100 : 0;
-                      const drawWidth = resultCount ? (row.drawn / resultCount) * 100 : 0;
-                      const lossWidth = resultCount ? (row.lost / resultCount) * 100 : 0;
-                      return (
-                        <div className="statistics-player-bar-row" key={row.player.id}>
-                          <div className="statistics-player-bar-heading">
-                            <div className="statistics-player-bar-name-wrap">
-                              <span className={`statistics-player-rank ${row.rank <= 3 ? `rank-${row.rank}` : ''}`}>{row.rank}</span>
-                              <span className="statistics-player-bar-name">{row.player.name}</span>
-                            </div>
-                            <div className="statistics-player-bar-metrics">
-                              <span className="statistics-player-points">{row.points} <small>poin</small></span>
-                              <span className="statistics-player-elo">
-                                Elo {row.currentRating ?? row.player.rating ?? 500}
-                                {row.ratingChange !== undefined && (
-                                  <b className={row.ratingChange > 0 ? 'up' : row.ratingChange < 0 ? 'down' : ''}>
-                                    {row.ratingChange > 0 ? `+${row.ratingChange}` : row.ratingChange}
-                                  </b>
-                                )}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="statistics-player-result-bar" role="img" aria-label={`${row.player.name}: ${row.won} menang, ${row.drawn} remis, ${row.lost} kalah`}>
-                            {row.won > 0 && <span className="win" style={{ width: `${winWidth}%` }} title={`Menang: ${row.won}`} />}
-                            {row.drawn > 0 && <span className="draw" style={{ width: `${drawWidth}%` }} title={`Remis: ${row.drawn}`} />}
-                            {row.lost > 0 && <span className="loss" style={{ width: `${lossWidth}%` }} title={`Kalah: ${row.lost}`} />}
-                            {resultCount === 0 && <span className="empty" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="statistics-result-legend" aria-label="Legenda komposisi hasil">
-                    <span><i className="win" /> Menang</span>
-                    <span><i className="draw" /> Remis</span>
-                    <span><i className="loss" /> Kalah</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
         </div>
 
         {/* Right: Podium & Standings */}
