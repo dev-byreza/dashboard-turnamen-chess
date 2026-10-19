@@ -26,7 +26,6 @@ import {
   BookOpen,
   Clock3,
   Save,
-  Info,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -163,23 +162,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const progressPct = expectedTotal
     ? Math.min(100, Math.round((scoredMatches / expectedTotal) * 100))
     : 0;
-  const roundCompletedCount = activeRoundMatches.filter((match) => match.result !== null).length;
-  const roundProgressPct = activeRoundMatches.length
-    ? Math.round((roundCompletedCount / activeRoundMatches.length) * 100)
-    : 0;
-  const ratedRoundResults = activeRoundMatches.filter(
-    (match) => !match.isBye && match.blackPlayerId !== '__bye__' && match.result !== null
-  );
-  const roundOutcomes = {
-    white: ratedRoundResults.filter((match) => match.result === '1-0').length,
-    draw: ratedRoundResults.filter((match) => match.result === '0.5-0.5').length,
-    black: ratedRoundResults.filter((match) => match.result === '0-1').length,
-  };
-  const outcomeTotal = ratedRoundResults.length;
-  const outcomePercent = (count: number) => outcomeTotal ? Math.round((count / outcomeTotal) * 100) : 0;
-  const biggestEloGain = standings.rows
-    .filter((row) => (row.ratingChange ?? 0) > 0)
-    .sort((a, b) => (b.ratingChange ?? 0) - (a.ratingChange ?? 0))[0];
   const maxPoints = Math.max(1, ...standings.rows.map((r) => r.points));
 
   // Celebrate once when the tournament finishes
@@ -532,7 +514,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
       <div className="swiss-two-col-grid">
 
         {/* Left: Match Boards */}
-        <div className="matches-column">
         <div className="section-card-panel matches-panel">
           <div className="section-panel-header">
             <div className="section-title-wrap">
@@ -733,92 +714,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               })
             )}
           </div>
-        </div>
-
-        <section className="section-card-panel round-statistics-panel" aria-labelledby="round-statistics-title">
-          <div className="section-panel-header round-statistics-header">
-            <div className="section-title-wrap">
-              <Sparkles size={17} className="round-statistics-heading-icon" aria-hidden="true" />
-              <h3 id="round-statistics-title" className="section-title-text">Statistik & Info Turnamen</h3>
-            </div>
-            <span className="round-statistics-round-chip">Babak {selectedRoundTab} dari {totalRounds}</span>
-          </div>
-
-          <div className="round-statistics-progress">
-            <div className="round-statistics-progress-heading">
-              <span><Swords size={14} /> Progres laga babak ini</span>
-              <span className="round-statistics-progress-value">
-                {roundCompletedCount}/{activeRoundMatches.length} laga selesai
-                <strong>{roundProgressPct}%</strong>
-              </span>
-            </div>
-            <div
-              className="round-statistics-progress-track"
-              role="progressbar"
-              aria-label="Progres laga babak ini"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={roundProgressPct}
-            >
-              <span style={{ width: `${roundProgressPct}%` }} />
-            </div>
-            <div className="round-statistics-outcome-legend">
-              <span><i className="outcome-dot white" /> Putih: {outcomePercent(roundOutcomes.white)}% ({roundOutcomes.white})</span>
-              <span><i className="outcome-dot draw" /> Remis: {outcomePercent(roundOutcomes.draw)}% ({roundOutcomes.draw})</span>
-              <span><i className="outcome-dot black" /> Hitam: {outcomePercent(roundOutcomes.black)}% ({roundOutcomes.black})</span>
-            </div>
-            <div className="round-statistics-outcome-track" aria-label="Distribusi hasil babak ini">
-              {outcomeTotal > 0 ? (
-                <>
-                  <span className="white" style={{ width: `${(roundOutcomes.white / outcomeTotal) * 100}%` }} />
-                  <span className="draw" style={{ width: `${(roundOutcomes.draw / outcomeTotal) * 100}%` }} />
-                  <span className="black" style={{ width: `${(roundOutcomes.black / outcomeTotal) * 100}%` }} />
-                </>
-              ) : <span className="empty" />}
-            </div>
-          </div>
-
-          <div className="round-statistics-highlights">
-            <article className="round-statistics-highlight elo-gain-highlight">
-              <span className="round-statistics-icon gain"><TrendingUp size={19} /></span>
-              <div className="round-statistics-highlight-copy">
-                <span className="round-statistics-label">Lonjakan Elo tertinggi</span>
-                {biggestEloGain ? (
-                  <>
-                    <strong>{biggestEloGain.player.name} <em>+{biggestEloGain.ratingChange} Elo</em></strong>
-                    <span>Elo baru: {biggestEloGain.currentRating ?? biggestEloGain.player.rating ?? 500}{biggestEloGain.player.title ? ` (${biggestEloGain.player.title})` : ''}</span>
-                  </>
-                ) : (
-                  <>
-                    <strong>Belum ada kenaikan</strong>
-                    <span>Perubahan muncul setelah hasil tercatat</span>
-                  </>
-                )}
-              </div>
-            </article>
-            <article className="round-statistics-highlight rating-format-highlight">
-              <span className="round-statistics-icon format"><Swords size={19} /></span>
-              <div className="round-statistics-highlight-copy">
-                <span className="round-statistics-label">Rata-rata Elo & format</span>
-                <strong>{avgElo} Elo <em>Swiss / RR</em></strong>
-                <span>{players.length} peserta • {tournamentLocation || 'Politeknik Sorowako'}</span>
-              </div>
-            </article>
-          </div>
-
-          <div className="round-statistics-legend">
-            <div className="round-statistics-legend-heading">
-              <strong><Info size={13} /> Keterangan indikator klasemen</strong>
-              <span>Menang = 1 • Remis = ½ • Kalah = 0</span>
-            </div>
-            <div className="round-statistics-legend-grid">
-              <div><strong>M / R / K</strong><span>Menang / Remis / Kalah</span></div>
-              <div><strong>BH (Buchholz)</strong><span>Total poin seluruh lawan</span></div>
-              <div><strong>SB (Sonneborn)</strong><span>Skor lawan yang dikalahkan</span></div>
-              <div><strong>GM / FM / CM</strong><span>Gelar Master kehormatan</span></div>
-            </div>
-          </div>
-        </section>
         </div>
 
         {/* Right: Podium & Standings */}

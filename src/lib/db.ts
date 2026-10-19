@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { Player, Tournament, TournamentStore, SwissMatch, SwissPairingOverride } from '../types/chess';
-import { ensureUniqueTournamentSlugs, synchronizeGlobalElo } from '../utils/tournamentStore';
+import { ensureUniqueTournamentSlugs } from '../utils/tournamentStore';
 
 /** Get the active connection string from environment */
 export function getConnectionString(): string | null {
@@ -257,11 +257,11 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       tournaments[0]?.id ||
       null;
 
-    return synchronizeGlobalElo(ensureUniqueTournamentSlugs({
+    return ensureUniqueTournamentSlugs({
       roster,
       tournaments,
       activeId,
-    }));
+    });
   } catch (err) {
     console.error('Error fetching tournament store from PostgreSQL:', err);
     return null;

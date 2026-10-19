@@ -3,7 +3,7 @@ export interface Player {
   name: string;
   seed: number;
   rating?: number;
-  /** Synchronized lifetime count of rated matches across all tournaments. */
+  /** Manually recorded historical rated games; completed matches in other tournaments are added during Elo calculation. */
   ratedGames?: number;
   avatar?: string;
   club?: string;

@@ -1,5 +1,4 @@
 import { Player, Tournament, TournamentStore } from '../types/chess';
-import { calculateTournamentEloReport } from './eloRating';
 
 export const uid = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -102,6 +101,26 @@ export function playersForTournament(roster: Player[], t: Tournament): Player[] 
     }));
 }
 
+/** Count completed, rated games from tournaments outside the one being calculated. */
+export function countCompletedGamesInOtherTournaments(
+  tournaments: Tournament[],
+  currentTournamentId: string
+): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  tournaments
+    .filter((tournament) => tournament.id !== currentTournamentId)
+    .forEach((tournament) => {
+      tournament.matches.forEach((match) => {
+        if (match.isBye || match.blackPlayerId === '__bye__' || match.result === null) return;
+        counts.set(match.whitePlayerId, (counts.get(match.whitePlayerId) || 0) + 1);
+        counts.set(match.blackPlayerId, (counts.get(match.blackPlayerId) || 0) + 1);
+      });
+    });
+
+  return counts;
+}
+
 export function sameIds(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   const setA = new Set(a);
@@ -137,79 +156,6 @@ export function ensureInitialRatings(store: TournamentStore): TournamentStore {
   });
 
   return changed ? { ...store, tournaments } : store;
-}
-
-/** Rebuild each tournament baseline and the shared roster Elo in creation order. */
-export function synchronizeGlobalElo(store: TournamentStore): TournamentStore {
-  const ratings = new Map(store.roster.map((player) => [player.id, player.rating ?? 500]));
-  const ratedGames = new Map(store.roster.map((player) => [player.id, player.ratedGames ?? 0]));
-  const initializedPlayers = new Set<string>();
-  const normalizedById = new Map<string, Tournament>();
-  [...store.tournaments]
-    .sort((a, b) => a.createdAt - b.createdAt)
-    .forEach((tournament) => {
-      const tournamentPlayers = tournament.playerIds.flatMap((id, index) => {
-        const rosterPlayer = store.roster.find((player) => player.id === id);
-        if (!rosterPlayer) return [];
-
-        if (!initializedPlayers.has(id)) {
-          const hasLockedSnapshot = hasStarted(tournament);
-          ratings.set(
-            id,
-            (hasLockedSnapshot ? tournament.initialRatings?.[id] : undefined) ?? rosterPlayer.rating ?? 500
-          );
-          ratedGames.set(
-            id,
-            (hasLockedSnapshot ? tournament.initialRatedGames?.[id] : undefined) ?? rosterPlayer.ratedGames ?? 0
-          );
-        }
-
-        return {
-          ...rosterPlayer,
-          seed: index + 1,
-          rating: ratings.get(id) ?? 500,
-          ratedGames: ratedGames.get(id) ?? 0,
-        };
-      });
-
-      const initialRatings = Object.fromEntries(
-        tournamentPlayers.map((player) => [player.id, player.rating ?? 500])
-      );
-      const initialRatedGames = Object.fromEntries(
-        tournamentPlayers.map((player) => [player.id, player.ratedGames ?? 0])
-      );
-      const normalizedTournament = { ...tournament, initialRatings, initialRatedGames };
-      const report = calculateTournamentEloReport(tournamentPlayers, tournament.matches);
-
-      report.playerSummaries.forEach((summary) => {
-        ratings.set(summary.playerId, summary.currentRating);
-        ratedGames.set(
-          summary.playerId,
-          (initialRatedGames[summary.playerId] ?? 0) + summary.matchesRated
-        );
-        initializedPlayers.add(summary.playerId);
-      });
-      tournament.playerIds.forEach((id) => initializedPlayers.add(id));
-
-      const snapshotsChanged =
-        JSON.stringify(tournament.initialRatings || {}) !== JSON.stringify(initialRatings) ||
-        JSON.stringify(tournament.initialRatedGames || {}) !== JSON.stringify(initialRatedGames);
-      normalizedById.set(tournament.id, snapshotsChanged ? normalizedTournament : tournament);
-    });
-  const tournaments = store.tournaments.map((tournament) => normalizedById.get(tournament.id) || tournament);
-
-  const roster = store.roster.map((player) => {
-    const rating = ratings.get(player.id) ?? player.rating ?? 500;
-    const games = ratedGames.get(player.id) ?? player.ratedGames ?? 0;
-    return rating === player.rating && games === (player.ratedGames ?? 0)
-      ? player
-      : { ...player, rating, ratedGames: games };
-  });
-
-  const changed =
-    tournaments.some((tournament, index) => tournament !== store.tournaments[index]) ||
-    roster.some((player, index) => player !== store.roster[index]);
-  return changed ? { ...store, roster, tournaments } : store;
 }
 
 export function createEmptyStore(): TournamentStore {
