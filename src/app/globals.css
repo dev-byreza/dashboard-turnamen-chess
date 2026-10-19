@@ -805,6 +805,24 @@ body::before {
   align-items: start;
 }
 
+.tournament-top-grid {
+  display: grid;
+  grid-template-columns: 1.08fr 0.92fr;
+  gap: 1.5rem;
+  align-items: stretch;
+  margin-bottom: 1.5rem;
+}
+
+.standings-panel-full {
+  width: 100%;
+}
+
+.standings-panel-full .podium-stage {
+  max-width: 620px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .section-card-panel {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -2299,10 +2317,15 @@ body::before {
    RESPONSIVE
    ======================================================== */
 @media (max-width: 1024px) {
-  .swiss-two-col-grid {
+  .swiss-two-col-grid,
+  .tournament-top-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 1.25rem;
     width: 100%;
+  }
+
+  .tournament-top-grid {
+    margin-bottom: 1.25rem;
   }
 
   .section-card-panel {
@@ -2676,7 +2699,8 @@ body::before {
     print-color-adjust: exact !important;
   }
 
-  .swiss-two-col-grid {
+  .swiss-two-col-grid,
+  .tournament-top-grid {
     display: block !important;
     width: 100% !important;
   }

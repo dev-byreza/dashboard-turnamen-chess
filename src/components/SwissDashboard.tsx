@@ -563,11 +563,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         </div>
       </div>
 
-      {/* Main 2-Column Grid */}
-      <div className="swiss-two-col-grid">
-
-        {/* Left: Match Boards & Statistics */}
-        <div className="matches-column">
+      {/* Top 2-Column Row: Match Boards (Left) & Statistics (Right) */}
+      <div className="tournament-top-grid">
         <div className="section-card-panel matches-panel">
           <div className="section-panel-header">
             <div className="section-title-wrap">
@@ -864,10 +861,10 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             </div>
           </div>
         </section>
-        </div>
+      </div>
 
-        {/* Right: Podium & Standings */}
-        <div className="section-card-panel standings-panel">
+      {/* Bottom Full-Width Row: Podium & Standings */}
+      <div className="section-card-panel standings-panel standings-panel-full">
           {/* Print-only Page 2 Header */}
           <div className="print-page-header">
             <div className="print-page-title">CHESS CLUB POLITEKNIK SOROWAKO</div>
@@ -1040,7 +1037,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             </table>
           </div>
         </div>
-      </div>
 
       {/* MODAL: Kelola Peserta */}
       {isPlayerModalOpen && (
