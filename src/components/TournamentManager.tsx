@@ -461,7 +461,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                           {slugConflict
                             ? 'Slug ini sudah dipakai turnamen lain, termasuk turnamen yang sudah selesai.'
                             : normalizedSlug
-                            ? `Slug unik: ${normalizedSlug}`
+                            ? `URL halaman turnamen: /${normalizedSlug}`
                             : 'Masukkan huruf, angka, dan tanda hubung.'}
                         </span>
                       </div>
@@ -710,10 +710,10 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                                   <span>{t.totalRounds} babak</span>
                                 </span>
                                 {t.slug && (
-                                  <span className="meta-item tournament-slug" title="Slug unik turnamen">
+                                  <a href={`/${t.slug}`} className="meta-item tournament-slug" title="Buka halaman turnamen dengan slug ini">
                                     <span aria-hidden="true">#</span>
                                     <code>{t.slug}</code>
-                                  </span>
+                                  </a>
                                 )}
                               </div>
 
@@ -1098,3 +1098,4 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     </div>
   );
 };
+

@@ -26,6 +26,7 @@ import {
   BookOpen,
   Clock3,
   Save,
+  Search,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -96,6 +97,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerRating, setNewPlayerRating] = useState('500');
+  const [statisticsPlayerFilter, setStatisticsPlayerFilter] = useState('');
   const [roundScheduleDrafts, setRoundScheduleDrafts] = useState<Record<number, string>>(
     roundSchedules || {}
   );
@@ -239,6 +241,75 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const top1 = standings.rows[0];
   const top2 = standings.rows[1];
   const top3 = standings.rows[2];
+
+  const normalizedStatisticsPlayerFilter = statisticsPlayerFilter.trim().toLowerCase();
+  const roundPlayerHistory = matches
+    .flatMap((match) => {
+      const whitePlayer = getPlayer(match.whitePlayerId);
+      if (!whitePlayer) return [];
+
+      const isBye = Boolean(match.isBye || match.blackPlayerId === '__bye__');
+      const blackPlayer = isBye ? null : getPlayer(match.blackPlayerId);
+      const matchElo = standings.eloReport?.matchDetails.get(match.id);
+      const toPlayerResult = (isWhite: boolean) => {
+        if (isBye) return { label: 'Bye', points: 1, tone: 'bye' };
+        if (match.result === null) return { label: 'Menunggu', points: 0, tone: 'pending' };
+        if (match.result === '0.5-0.5') return { label: 'Remis', points: 0.5, tone: 'draw' };
+
+        const won = isWhite ? match.result === '1-0' : match.result === '0-1';
+        return won
+          ? { label: 'Menang', points: 1, tone: 'win' }
+          : { label: 'Kalah', points: 0, tone: 'loss' };
+      };
+
+      const whiteResult = toPlayerResult(true);
+      const rows = [{
+        id: `${match.id}-${whitePlayer.id}`,
+        matchId: match.id,
+        round: match.round,
+        boardNumber: match.boardNumber,
+        playerName: whitePlayer.name,
+        opponentName: isBye ? 'Bye' : blackPlayer?.name || 'TBD',
+        color: 'Putih',
+        result: whiteResult.label,
+        resultTone: whiteResult.tone,
+        points: whiteResult.points,
+        eloDelta: match.result !== null && !isBye ? matchElo?.whiteDelta : undefined,
+      }];
+
+      if (blackPlayer) {
+        const blackResult = toPlayerResult(false);
+        rows.push({
+          id: `${match.id}-${blackPlayer.id}`,
+          matchId: match.id,
+          round: match.round,
+          boardNumber: match.boardNumber,
+          playerName: blackPlayer.name,
+          opponentName: whitePlayer.name,
+          color: 'Hitam',
+          result: blackResult.label,
+          resultTone: blackResult.tone,
+          points: blackResult.points,
+          eloDelta: match.result !== null ? matchElo?.blackDelta : undefined,
+        });
+      }
+
+      return rows;
+    })
+    .filter((row) =>
+      !normalizedStatisticsPlayerFilter ||
+      row.playerName.toLowerCase().includes(normalizedStatisticsPlayerFilter)
+    )
+    .sort((a, b) =>
+      a.round - b.round ||
+      a.boardNumber - b.boardNumber ||
+      a.playerName.localeCompare(b.playerName)
+    );
+
+  const filteredPlayerStandings = standings.rows.filter((row) =>
+    !normalizedStatisticsPlayerFilter ||
+    row.player.name.toLowerCase().includes(normalizedStatisticsPlayerFilter)
+  );
 
   return (
     <div className="stack-page">
@@ -509,8 +580,9 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
 
       {/* Main 2-Column Grid */}
       <div className="swiss-two-col-grid">
-        {/* Left: Match Boards */}
-        <div className="section-card-panel matches-panel">
+        <div className="matches-statistics-column">
+          {/* Left: Match Boards */}
+          <div className="section-card-panel matches-panel">
           <div className="section-panel-header">
             <div className="section-title-wrap">
               <span className="section-dot" />
@@ -700,6 +772,154 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               })
             )}
           </div>
+          </div>
+
+          <section className="section-card-panel tournament-statistics-panel">
+            <div className="section-panel-header">
+              <div className="section-title-wrap">
+                <span className="section-dot" />
+                <h3 className="section-title-text">Statistik Seluruh Babak</h3>
+              </div>
+              <span className="section-hint">
+                {roundPlayerHistory.length} catatan pertandingan pemain
+              </span>
+            </div>
+
+            <label className="form-label statistics-filter-label" htmlFor="statistics-player-filter">
+              Filter nama player
+            </label>
+            <div className="search-box statistics-player-search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                id="statistics-player-filter"
+                type="search"
+                className="search-input"
+                value={statisticsPlayerFilter}
+                onChange={(event) => setStatisticsPlayerFilter(event.target.value)}
+                placeholder="Cari nama pemain untuk semua babak..."
+              />
+              {statisticsPlayerFilter && (
+                <button
+                  type="button"
+                  className="search-clear-btn"
+                  aria-label="Hapus filter nama pemain"
+                  onClick={() => setStatisticsPlayerFilter('')}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+            <p className="statistics-filter-hint">
+              Filter yang sama juga diterapkan pada statistik all player di bawah.
+            </p>
+
+            {roundPlayerHistory.length === 0 ? (
+              <div className="empty-state statistics-empty-state">
+                {normalizedStatisticsPlayerFilter
+                  ? `Tidak ada data pertandingan untuk nama “${statisticsPlayerFilter.trim()}”.`
+                  : 'Belum ada data pertandingan untuk ditampilkan.'}
+              </div>
+            ) : (
+              <div className="swiss-table-responsive statistics-table-scroll">
+                <table className="modern-swiss-table statistics-table">
+                  <thead>
+                    <tr>
+                      <th>Babak</th>
+                      <th className="left">Player</th>
+                      <th className="left">Lawan</th>
+                      <th>Bidak</th>
+                      <th>Hasil</th>
+                      <th>Poin</th>
+                      <th>Δ Elo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roundPlayerHistory.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.round}</td>
+                        <td className="left statistics-player-name">{row.playerName}</td>
+                        <td className="left">{row.opponentName}</td>
+                        <td>{row.color}</td>
+                        <td>
+                          <span className={`statistics-result-badge ${row.resultTone}`}>
+                            {row.result}
+                          </span>
+                        </td>
+                        <td>{row.result === 'Menunggu' ? '—' : row.points}</td>
+                        <td>
+                          {typeof row.eloDelta === 'number' ? (
+                            <span className={row.eloDelta > 0 ? 'num-win' : row.eloDelta < 0 ? 'num-loss' : ''}>
+                              {row.eloDelta > 0 ? `+${row.eloDelta}` : row.eloDelta}
+                            </span>
+                          ) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="section-card-panel tournament-statistics-panel">
+            <div className="section-panel-header">
+              <div className="section-title-wrap">
+                <span className="section-dot" />
+                <h3 className="section-title-text">Statistik All Player</h3>
+              </div>
+              <span className="section-hint">
+                {filteredPlayerStandings.length} dari {standings.rows.length} pemain
+              </span>
+            </div>
+
+            {filteredPlayerStandings.length === 0 ? (
+              <div className="empty-state statistics-empty-state">
+                Tidak ada player yang cocok dengan filter nama.
+              </div>
+            ) : (
+              <div className="swiss-table-responsive statistics-table-scroll">
+                <table className="modern-swiss-table statistics-table all-player-statistics-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th className="left">Player</th>
+                      <th>Main</th>
+                      <th>Menang</th>
+                      <th>Remis</th>
+                      <th>Kalah</th>
+                      <th>Poin</th>
+                      <th>Elo Live</th>
+                      <th>Δ Elo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPlayerStandings.map((row) => {
+                      const rank = standings.rows.findIndex((item) => item.player.id === row.player.id) + 1;
+                      return (
+                        <tr key={row.player.id}>
+                          <td>{rank}</td>
+                          <td className="left statistics-player-name">{row.player.name}</td>
+                          <td>{row.played}</td>
+                          <td className="num-win">{row.won}</td>
+                          <td>{row.drawn}</td>
+                          <td className="num-loss">{row.lost}</td>
+                          <td><span className="points-pill">{row.points}</span></td>
+                          <td>{row.currentRating ?? row.player.rating ?? 500}</td>
+                          <td>
+                            {row.ratingChange === undefined ? '—' : (
+                              <span className={row.ratingChange > 0 ? 'num-win' : row.ratingChange < 0 ? 'num-loss' : ''}>
+                                {row.ratingChange > 0 ? `+${row.ratingChange}` : row.ratingChange}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
 
         {/* Right: Podium & Standings */}
@@ -960,3 +1180,4 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     </div>
   );
 };
+
