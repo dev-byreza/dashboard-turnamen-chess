@@ -885,7 +885,7 @@ body::before {
 }
 
 .chess-loading-square.is-dark {
-  background: var(--navy);
+  background: var(--navy-soft);
 }
 
 .chess-loading-knight {
@@ -897,10 +897,11 @@ body::before {
   height: 48px;
   place-items: center;
   background: transparent;
-  color: #111111;
+  color: var(--gold-bright);
   font-family: Georgia, serif;
-  font-size: 1.9rem;
+  font-size: 2.5rem;
   line-height: 1;
+  text-shadow: 0 2px 3px rgba(12, 22, 48, 0.28);
   animation: chess-knight-route 4.8s ease-in-out infinite;
   will-change: transform;
 }
@@ -922,6 +923,18 @@ body::before {
   87.5% { transform: translate(48px, 96px) translateY(-10px); }
   90%, 98% { transform: translate(48px, 96px); }
   100% { transform: translate(0, 0) translateY(-10px); }
+}
+
+@media (max-width: 480px) {
+  .chess-loading-board {
+    transform: scale(0.75);
+  }
+}
+
+@media (min-width: 769px) {
+  .chess-loading-board {
+    transform: scale(0.9);
+  }
 }
 
 /* ===== Match board cards ===== */
