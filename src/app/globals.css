@@ -494,6 +494,14 @@ body::before {
   background: var(--green-soft);
 }
 
+.round-pill-btn.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--bg-soft);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+}
+
 .round-status-text {
   font-size: 0.8rem;
   color: var(--text-secondary);

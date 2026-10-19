@@ -26,6 +26,7 @@ import {
   BookOpen,
   Clock3,
   Save,
+  Lock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -90,9 +91,33 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
 }) => {
   const standings = calculateSwissStandings(players, matches);
   const rounds = Array.from(new Set(matches.map((m) => m.round))).sort((a, b) => a - b);
-  const currentMaxRound = rounds.length > 0 ? Math.max(...rounds) : 1;
 
-  const [selectedRoundTab, setSelectedRoundTab] = useState<number>(currentMaxRound);
+  const isRoundCompleted = (r: number) => {
+    const rMatches = matches.filter((m) => m.round === r);
+    return rMatches.length > 0 && rMatches.every((m) => m.result !== null);
+  };
+
+  const isRoundUnlocked = (r: number) => {
+    if (r === 1) return true;
+    return isRoundCompleted(r - 1) || matches.some((m) => m.round === r && m.result !== null);
+  };
+
+  // Determine currently active round based on actual match progress
+  const currentActiveRound = (() => {
+    for (let r = 1; r <= totalRounds; r++) {
+      const rMatches = matches.filter((m) => m.round === r);
+      if (rMatches.length > 0 && rMatches.some((m) => m.result === null)) {
+        return r;
+      }
+      if (rMatches.length === 0 && (r === 1 || isRoundCompleted(r - 1))) {
+        return r;
+      }
+    }
+    if (rounds.length > 0) return Math.max(...rounds);
+    return 1;
+  })();
+
+  const [selectedRoundTab, setSelectedRoundTab] = useState<number>(currentActiveRound);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerRating, setNewPlayerRating] = useState('500');
@@ -105,11 +130,12 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     setRoundScheduleDrafts(roundSchedules || {});
   }, [roundSchedules]);
 
+  // Keep selected tab in sync with unlocked rounds
   useEffect(() => {
-    if (selectedRoundTab > currentMaxRound) {
-      setSelectedRoundTab(currentMaxRound);
+    if (!isRoundUnlocked(selectedRoundTab)) {
+      setSelectedRoundTab(currentActiveRound);
     }
-  }, [currentMaxRound, selectedRoundTab]);
+  }, [currentActiveRound, selectedRoundTab]);
 
   // Suppress document.title during print so browser top margin only shows the date without falling back to URL
   useEffect(() => {
@@ -140,12 +166,20 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   };
 
   const activeRoundMatches = matches.filter((m) => m.round === selectedRoundTab);
-  const currentRoundMatches = matches.filter((m) => m.round === currentMaxRound);
+  const currentRoundMatches = matches.filter((m) => m.round === currentActiveRound);
   const isCurrentRoundFullyScored =
     currentRoundMatches.length > 0 && currentRoundMatches.every((m) => m.result !== null);
 
-  const canGenerateNextRound = isCurrentRoundFullyScored && currentMaxRound < totalRounds;
-  const isTournamentFinished = currentMaxRound === totalRounds && isCurrentRoundFullyScored;
+  const hasNextRoundMatches = matches.some((m) => m.round === currentActiveRound + 1);
+  const canGenerateNextRound =
+    isCurrentRoundFullyScored &&
+    currentActiveRound < totalRounds &&
+    !hasNextRoundMatches;
+
+  const allRoundsCompleted =
+    totalRounds > 0 &&
+    Array.from({ length: totalRounds }).every((_, idx) => isRoundCompleted(idx + 1));
+  const isTournamentFinished = allRoundsCompleted;
 
   // ---- Derived statistics with live Elo calculation ----
   const avgElo = players.length
@@ -179,16 +213,21 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     if (!isTournamentFinished) celebratedRef.current = false;
   }, [isTournamentFinished]);
 
+  const canEditMatchScore = (match: SwissMatch) => {
+    if (!isAdmin) return false;
+    return isRoundUnlocked(match.round);
+  };
+
   const handleScoreChange = (matchId: string, result: MatchResult) => {
     const match = matches.find((m) => m.id === matchId);
-    if (!isAdmin || !match || match.round !== currentMaxRound) return;
+    if (!match || !canEditMatchScore(match)) return;
     const updated = matches.map((m) => (m.id === matchId ? { ...m, result } : m));
     onUpdateMatches(updated);
   };
 
   const handleGenerateNextRound = () => {
     if (!canGenerateNextRound) return;
-    const nextRoundNum = currentMaxRound + 1;
+    const nextRoundNum = currentActiveRound + 1;
     const newRoundMatches = generateNextSwissRound(
       nextRoundNum,
       players,
@@ -320,19 +359,21 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   <span>Kelola peserta ({players.length})</span>
                 </button>
 
-                <button
-                  onClick={handleGenerateNextRound}
-                  disabled={!canGenerateNextRound}
-                  className="btn-gold-action"
-                  title={
-                    canGenerateNextRound
-                      ? 'Pasangkan babak berikutnya berdasarkan poin & Buchholz'
-                      : 'Selesaikan semua skor babak ini untuk membuka babak berikutnya'
-                  }
-                >
-                  <span>Pairing babak {Math.min(currentMaxRound + 1, totalRounds)}</span>
-                  <ArrowRight size={15} />
-                </button>
+                {!hasNextRoundMatches && (
+                  <button
+                    onClick={handleGenerateNextRound}
+                    disabled={!canGenerateNextRound}
+                    className="btn-gold-action"
+                    title={
+                      canGenerateNextRound
+                        ? 'Pasangkan babak berikutnya berdasarkan poin & Buchholz'
+                        : 'Selesaikan semua skor babak ini untuk membuka babak berikutnya'
+                    }
+                  >
+                    <span>Pairing babak {Math.min(currentActiveRound + 1, totalRounds)}</span>
+                    <ArrowRight size={15} />
+                  </button>
+                )}
 
               </>
             ) : null}
@@ -355,21 +396,29 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           <div className="round-pills-row">
             {Array.from({ length: totalRounds }).map((_, idx) => {
               const rNum = idx + 1;
-              const hasMatches = rounds.includes(rNum);
-              const rMatches = matches.filter((m) => m.round === rNum);
-              const isDone = rMatches.length > 0 && rMatches.every((m) => m.result !== null);
+              const isUnlocked = isRoundUnlocked(rNum);
+              const isDone = isRoundCompleted(rNum);
 
               let pillClass = 'round-pill-btn';
               if (selectedRoundTab === rNum) pillClass += ' active';
               else if (isDone) pillClass += ' completed';
+              else if (!isUnlocked) pillClass += ' locked';
 
               return (
                 <button
                   key={rNum}
-                  onClick={() => hasMatches && setSelectedRoundTab(rNum)}
-                  disabled={!hasMatches}
+                  onClick={() => isUnlocked && setSelectedRoundTab(rNum)}
+                  disabled={!isUnlocked}
                   className={pillClass}
+                  title={
+                    !isUnlocked
+                      ? `Babak ${rNum} belum dimulai. Selesaikan babak sebelumnya terlebih dahulu.`
+                      : isDone
+                      ? `Babak ${rNum} (Selesai)`
+                      : `Babak ${rNum}`
+                  }
                 >
+                  {!isUnlocked && <Lock size={11} style={{ opacity: 0.6 }} />}
                   <span>Babak {rNum}</span>
                   {isDone && <CheckCircle2 size={13} />}
                 </button>
@@ -386,8 +435,13 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <span>
                 Babak berjalan:{' '}
                 <strong>
-                  Babak {selectedRoundTab} dari {totalRounds}
+                  Babak {currentActiveRound} dari {totalRounds}
                 </strong>
+                {selectedRoundTab !== currentActiveRound && (
+                  <span style={{ fontSize: '0.8rem', opacity: 0.8, marginLeft: 4 }}>
+                    (melihat Babak {selectedRoundTab})
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -503,9 +557,9 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           </div>
           <div>
             <div className="stat-value">
-              {selectedRoundTab}/{totalRounds}
+              {currentActiveRound}/{totalRounds}
             </div>
-            <div className="stat-label">Babak</div>
+            <div className="stat-label">Babak berjalan</div>
           </div>
         </div>
       </div>
@@ -536,7 +590,17 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           </div>
 
           <div className="matches-list-wrapper">
-            {activeRoundMatches.length === 0 ? (
+            {!isRoundUnlocked(selectedRoundTab) ? (
+              <div className="empty-state">
+                <Lock size={32} style={{ color: 'var(--navy-soft)', margin: '0 auto 0.75rem', opacity: 0.6 }} />
+                <h4 style={{ margin: '0 0 0.35rem', fontWeight: 700, fontSize: '1rem', color: 'var(--navy)' }}>
+                  Babak {selectedRoundTab} Belum Dimulai
+                </h4>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Babak ini belum dibuka. Selesaikan seluruh pertandingan pada babak sebelumnya terlebih dahulu.
+                </p>
+              </div>
+            ) : activeRoundMatches.length === 0 ? (
               <div className="empty-state">
                 Babak ini belum dipasangkan. Selesaikan pertandingan babak sebelumnya lalu klik{' '}
                 <strong>Pairing babak {selectedRoundTab}</strong>.
@@ -612,7 +676,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       <div className="score-control-cell">
                         {isBye ? (
                           <span className="score-bye-badge">1 - 0 (Bye)</span>
-                        ) : isAdmin && match.round === currentMaxRound ? (
+                        ) : canEditMatchScore(match) ? (
                           <div className="score-pill-container">
                             <button
                               onClick={() => handleScoreChange(match.id, '1-0')}
