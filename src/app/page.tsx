@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Player, SwissMatch, TournamentFormData, TournamentStore } from '../types/chess';
 import {
   createEmptyStore,
-  countCompletedGamesInOtherTournaments,
   playersForTournament,
   uid,
   createUniqueTournamentSlug,
@@ -12,6 +11,7 @@ import {
   sameIds,
   hasStarted,
   ensureInitialRatings,
+  synchronizeGlobalElo,
 } from '../utils/tournamentStore';
 import { generateSwissRound1 } from '../utils/swissEngine';
 import { TournamentDirectory } from '../components/TournamentDirectory';
@@ -58,7 +58,7 @@ export default function SwissTournamentPage() {
         if (cancelled) return;
         if (data.success && data.configured && data.source === 'postgres' && data.store) {
           setDbStatus('connected');
-          const syncedStore = ensureInitialRatings(data.store);
+          const syncedStore = synchronizeGlobalElo(ensureInitialRatings(data.store));
           confirmedStoreRef.current = data.store;
           lastPersistedStoreRef.current = data.store;
           setStore(syncedStore);
@@ -152,7 +152,7 @@ export default function SwissTournamentPage() {
         const tourRes = await fetch('/api/tournament');
         const tourData = await tourRes.json();
         if (tourData.success && tourData.configured && tourData.source === 'postgres' && tourData.store) {
-          const syncedStore = ensureInitialRatings(tourData.store);
+          const syncedStore = synchronizeGlobalElo(ensureInitialRatings(tourData.store));
           confirmedStoreRef.current = tourData.store;
           lastPersistedStoreRef.current = tourData.store;
           setStore(syncedStore);
@@ -175,16 +175,7 @@ export default function SwissTournamentPage() {
     null;
 
   const activePlayers = activeTournament
-    ? (() => {
-        const gamesFromOtherTournaments = countCompletedGamesInOtherTournaments(
-          store.tournaments,
-          activeTournament.id
-        );
-        return playersForTournament(store.roster, activeTournament).map((player) => ({
-          ...player,
-          ratedGames: (player.ratedGames ?? 0) + (gamesFromOtherTournaments.get(player.id) ?? 0),
-        }));
-      })()
+    ? playersForTournament(store.roster, activeTournament)
     : [];
 
   const isAdminConnected = isAdmin && dbStatus === 'connected';
@@ -192,7 +183,7 @@ export default function SwissTournamentPage() {
   // Keep score entry and round scheduling available to admins on the root dashboard.
   const handleUpdateActiveMatches = (newMatches: SwissMatch[]) => {
     if (!requireConnectedAdmin() || !activeTournament) return;
-    setStore((prev) => ({
+    setStore((prev) => synchronizeGlobalElo({
       ...prev,
       tournaments: prev.tournaments.map((t) =>
         t.id === activeTournament.id
@@ -239,11 +230,11 @@ export default function SwissTournamentPage() {
     if (!requireConnectedAdmin()) return;
     if (!activeTournament) return;
     const freshRound1 = generateSwissRound1(activePlayers);
-    setStore((prev) => ({
+    setStore((prev) => synchronizeGlobalElo({
       ...prev,
       tournaments: prev.tournaments.map((t) =>
         t.id === activeTournament.id
-          ? { ...t, matches: freshRound1, initialRatings: undefined, initialRatedGames: undefined }
+          ? { ...t, matches: freshRound1 }
           : t
       ),
     }));
@@ -294,11 +285,14 @@ export default function SwissTournamentPage() {
                 totalRounds: data.totalRounds,
                 playerIds: data.playerIds,
                 matches: updatedMatches,
+                ...(playerListChanged && !hasStarted(existing)
+                  ? { initialRatings: undefined, initialRatedGames: undefined }
+                  : {}),
               }
             : t
         );
 
-        return { ...prev, tournaments: updatedTournaments };
+        return synchronizeGlobalElo({ ...prev, tournaments: updatedTournaments });
       });
     } else {
       // Create new tournament
@@ -321,10 +315,12 @@ export default function SwissTournamentPage() {
         totalRounds: data.totalRounds,
         playerIds: data.playerIds,
         matches: generateSwissRound1(resolvedPlayers),
+        initialRatings: Object.fromEntries(resolvedPlayers.map((player) => [player.id, player.rating ?? 500])),
+        initialRatedGames: Object.fromEntries(resolvedPlayers.map((player) => [player.id, player.ratedGames ?? 0])),
         createdAt,
       };
 
-      setStore((prev) => ({
+      setStore((prev) => synchronizeGlobalElo({
         ...prev,
         tournaments: [newTournament, ...prev.tournaments],
         activeId: newId,
@@ -339,11 +335,11 @@ export default function SwissTournamentPage() {
       const remaining = prev.tournaments.filter((t) => t.id !== id);
       const nextActiveId =
         prev.activeId === id ? (remaining[0]?.id || null) : prev.activeId;
-      return {
+      return synchronizeGlobalElo({
         ...prev,
         tournaments: remaining,
         activeId: nextActiveId,
-      };
+      });
     });
   };
 
@@ -394,11 +390,11 @@ export default function SwissTournamentPage() {
         });
       }
 
-      return {
+      return synchronizeGlobalElo({
         ...prev,
         roster: updatedRoster,
         tournaments: updatedTournaments,
-      };
+      });
     });
   };
 
@@ -425,7 +421,7 @@ export default function SwissTournamentPage() {
       delete safeUpdates.ratedGames;
     }
 
-    setStore((prev) => ({
+    setStore((prev) => synchronizeGlobalElo({
       ...prev,
       roster: prev.roster.map((p) => (p.id === id ? { ...p, ...safeUpdates } : p)),
     }));
@@ -450,7 +446,7 @@ export default function SwissTournamentPage() {
         );
         return u && !ratingLocked ? { ...p, rating: u.rating } : p;
       });
-      return { ...prev, roster: newRoster };
+      return synchronizeGlobalElo({ ...prev, roster: newRoster });
     });
   };
 

@@ -6,10 +6,7 @@ import { useParams } from 'next/navigation';
 import { ArrowLeft, Trophy } from 'lucide-react';
 import { SwissDashboard } from '../../components/SwissDashboard';
 import type { TournamentStore } from '../../types/chess';
-import {
-  countCompletedGamesInOtherTournaments,
-  playersForTournament,
-} from '../../utils/tournamentStore';
+import { playersForTournament } from '../../utils/tournamentStore';
 
 type TournamentPageState =
   | { status: 'loading' }
@@ -54,14 +51,7 @@ export default function TournamentSlugPage() {
 
   const players = useMemo(() => {
     if (pageState.status !== 'ready' || !tournament) return [];
-    const otherTournamentGames = countCompletedGamesInOtherTournaments(
-      pageState.store.tournaments,
-      tournament.id
-    );
-    return playersForTournament(pageState.store.roster, tournament).map((player) => ({
-      ...player,
-      ratedGames: (player.ratedGames ?? 0) + (otherTournamentGames.get(player.id) ?? 0),
-    }));
+    return playersForTournament(pageState.store.roster, tournament);
   }, [pageState, tournament]);
 
   const isLoading = pageState.status === 'loading';
