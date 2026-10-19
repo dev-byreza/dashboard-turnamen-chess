@@ -14,6 +14,7 @@ import {
   ensureInitialRatings,
 } from '../utils/tournamentStore';
 import { generateSwissRound1 } from '../utils/swissEngine';
+import { TournamentDirectory } from '../components/TournamentDirectory';
 import { SwissDashboard } from '../components/SwissDashboard';
 import { ChessTimerModal } from '../components/ChessTimerModal';
 import { TournamentManager } from '../components/TournamentManager';
@@ -25,7 +26,7 @@ import {
   clearAdminSession,
   getStoredAdminPin,
 } from '../utils/adminAuth';
-import { Clock, Settings, Plus, Trophy, Lock, LogOut, BookOpen } from 'lucide-react';
+import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen } from 'lucide-react';
 
 export default function SwissTournamentPage() {
   const [store, setStore] = useState(createEmptyStore);
@@ -37,6 +38,7 @@ export default function SwissTournamentPage() {
   const lastPersistedStoreRef = useRef<TournamentStore | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
+  const [isAdminViewingTournament, setIsAdminViewingTournament] = useState<boolean>(false);
 
   // Modals state
   const [isTimerOpen, setIsTimerOpen] = useState<boolean>(false);
@@ -123,6 +125,7 @@ export default function SwissTournamentPage() {
   const handleLogout = () => {
     clearAdminSession();
     setIsAdmin(false);
+    setIsAdminViewingTournament(false);
   };
 
   const requireConnectedAdmin = () => {
@@ -166,7 +169,6 @@ export default function SwissTournamentPage() {
     }
   };
 
-  // Resolve current active tournament
   const activeTournament =
     store.tournaments.find((t) => t.id === store.activeId) ||
     store.tournaments[0] ||
@@ -187,10 +189,9 @@ export default function SwissTournamentPage() {
 
   const isAdminConnected = isAdmin && dbStatus === 'connected';
 
-  // Update matches for active tournament
+  // Keep score entry and round scheduling available to admins on the root dashboard.
   const handleUpdateActiveMatches = (newMatches: SwissMatch[]) => {
-    if (!requireConnectedAdmin()) return;
-    if (!activeTournament) return;
+    if (!requireConnectedAdmin() || !activeTournament) return;
     setStore((prev) => ({
       ...prev,
       tournaments: prev.tournaments.map((t) =>
@@ -219,18 +220,15 @@ export default function SwissTournamentPage() {
   };
 
   const handleUpdateRoundSchedule = (round: number, scheduledAt: string) => {
-    if (!requireConnectedAdmin()) return;
-    if (!activeTournament) return;
+    if (!requireConnectedAdmin() || !activeTournament) return;
 
     setStore((prev) => ({
       ...prev,
       tournaments: prev.tournaments.map((t) => {
         if (t.id !== activeTournament.id) return t;
-
         const roundSchedules = { ...(t.roundSchedules || {}) };
         if (scheduledAt) roundSchedules[round] = scheduledAt;
         else delete roundSchedules[round];
-
         return { ...t, roundSchedules };
       }),
     }));
@@ -353,6 +351,7 @@ export default function SwissTournamentPage() {
   const handleSetActive = (id: string) => {
     if (!requireConnectedAdmin()) return;
     setStore((prev) => ({ ...prev, activeId: id }));
+    setIsAdminViewingTournament(true);
   };
 
   // Roster CRUD
@@ -432,6 +431,14 @@ export default function SwissTournamentPage() {
     }));
   };
 
+  const handleDeleteRosterPlayer = (id: string) => {
+    if (!requireConnectedAdmin()) return;
+    setStore((prev) => ({
+      ...prev,
+      roster: prev.roster.filter((p) => p.id !== id),
+    }));
+  };
+
   const handleUpdatePlayers = (updatedPlayers: Player[]) => {
     if (!requireConnectedAdmin()) return;
     setStore((prev) => {
@@ -445,14 +452,6 @@ export default function SwissTournamentPage() {
       });
       return { ...prev, roster: newRoster };
     });
-  };
-
-  const handleDeleteRosterPlayer = (id: string) => {
-    if (!requireConnectedAdmin()) return;
-    setStore((prev) => ({
-      ...prev,
-      roster: prev.roster.filter((p) => p.id !== id),
-    }));
   };
 
   const openManagerWithTab = (
@@ -589,48 +588,51 @@ export default function SwissTournamentPage() {
           </div>
         </header>
 
-        {/* Main Swiss Dashboard */}
-        {activeTournament ? (
-          <SwissDashboard
-            key={activeTournament.id}
-            players={activePlayers}
-            matches={activeTournament.matches}
-            totalRounds={activeTournament.totalRounds}
-            tournamentName={activeTournament.name}
-            tournamentDate={activeTournament.date}
-            tournamentLocation={activeTournament.location}
-            pairingOverrides={activeTournament.pairingOverrides}
-            roundSchedules={activeTournament.roundSchedules}
-            isAdmin={isAdminConnected}
-            onRequestAdminLogin={() => setIsAdminModalOpen(true)}
-            onUpdateMatches={handleUpdateActiveMatches}
-            onUpdateRoundSchedule={handleUpdateRoundSchedule}
-            onUpdatePlayers={handleUpdatePlayers}
-            onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
-            onOpenRules={() => setIsRulesOpen(true)}
-          />
-        ) : dbStatus === 'checking' ? null : (
-          <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">
-            <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
-            <h3 className="empty-title">Belum ada turnamen yang dipilih</h3>
-            <p className="empty-desc">
-              {dbStatus === 'connected'
-                ? isAdminConnected
-                  ? 'Pilih turnamen dari database atau buat turnamen baru.'
-                  : 'Belum ada turnamen. Hubungi administrator untuk membuat atau memilih turnamen.'
-                : 'Data turnamen belum tersedia karena koneksi ke Neon belum aktif.'}
-            </p>
-            {isAdminConnected && (
+        {dbStatus === 'checking' ? null : dbStatus === 'connected' && isAdminConnected && isAdminViewingTournament && activeTournament ? (
+          <>
+            <div className="tournament-dashboard-toolbar">
               <button
                 type="button"
-                onClick={() => openManagerWithTab('tournaments', true)}
-                className="btn-gold-action"
-                style={{ margin: '1.25rem auto 0' }}
+                onClick={() => setIsAdminViewingTournament(false)}
+                className="btn-glass-secondary"
               >
-                <Plus size={16} />
-                <span>Buat turnamen baru</span>
+                <ArrowLeft size={15} />
+                <span>Daftar turnamen</span>
               </button>
-            )}
+            </div>
+            <SwissDashboard
+              key={activeTournament.id}
+              players={activePlayers}
+              matches={activeTournament.matches}
+              totalRounds={activeTournament.totalRounds}
+              tournamentName={activeTournament.name}
+              tournamentDate={activeTournament.date}
+              tournamentLocation={activeTournament.location}
+              pairingOverrides={activeTournament.pairingOverrides}
+              roundSchedules={activeTournament.roundSchedules}
+              isAdmin={isAdminConnected}
+              onRequestAdminLogin={() => setIsAdminModalOpen(true)}
+              onUpdateMatches={handleUpdateActiveMatches}
+              onUpdateRoundSchedule={handleUpdateRoundSchedule}
+              onUpdatePlayers={handleUpdatePlayers}
+              onEditParticipants={() => openManagerWithTab('tournaments', false, activeTournament.id)}
+              onOpenRules={() => setIsRulesOpen(true)}
+            />
+          </>
+        ) : dbStatus === 'connected' ? (
+          <TournamentDirectory
+            tournaments={store.tournaments}
+            activeId={store.activeId}
+            isAdmin={isAdminConnected}
+            onAdminOpen={handleSetActive}
+          />
+        ) : (
+          <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">
+            <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
+            <h3 className="empty-title">Turnamen belum dapat dimuat</h3>
+            <p className="empty-desc">
+              Data turnamen belum tersedia karena koneksi ke Neon belum aktif.
+            </p>
           </div>
         )}
 
@@ -641,7 +643,7 @@ export default function SwissTournamentPage() {
         </footer>
       </div>
 
-      {!activeTournament && dbStatus === 'checking' && (
+      {dbStatus === 'checking' && (
         <section
           className="chess-loading-state"
           role="status"

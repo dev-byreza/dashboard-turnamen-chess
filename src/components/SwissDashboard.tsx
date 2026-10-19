@@ -393,7 +393,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           </div>
         </div>
 
-        <section className="round-schedule-panel" aria-labelledby="round-schedule-title">
+        {isAdmin && (
+          <section className="round-schedule-panel" aria-labelledby="round-schedule-title">
           <div className="round-schedule-heading">
             <div>
               <h3 id="round-schedule-title" className="round-schedule-title">
@@ -461,7 +462,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               );
             })}
           </div>
-        </section>
+          </section>
+        )}
       </div>
 
       {/* Stat cards */}
@@ -518,9 +520,19 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <span className="section-dot" />
               <h3 className="section-title-text">Daftar Match • Babak {selectedRoundTab}</h3>
             </div>
-            <span className="section-hint">
-              {activeRoundMatches.filter((m) => m.result !== null).length} / {activeRoundMatches.length} laga selesai
-            </span>
+            <div className="matches-header-meta">
+              {!isAdmin && roundSchedules?.[selectedRoundTab] && (
+                <span className="matches-round-date">
+                  <Calendar size={14} aria-hidden="true" />
+                  <time dateTime={roundSchedules[selectedRoundTab]}>
+                    {formatRoundSchedule(roundSchedules[selectedRoundTab])}
+                  </time>
+                </span>
+              )}
+              <span className="section-hint">
+                {activeRoundMatches.filter((m) => m.result !== null).length} / {activeRoundMatches.length} laga selesai
+              </span>
+            </div>
           </div>
 
           <div className="matches-list-wrapper">
