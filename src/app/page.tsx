@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Player, SwissMatch, TournamentFormData } from '../types/chess';
+import React, { useState, useEffect, useRef } from 'react';
+import { Player, SwissMatch, TournamentFormData, TournamentStore } from '../types/chess';
 import {
-  loadStore,
-  saveStore,
-  createDefaultStore,
+  createEmptyStore,
+  countCompletedGamesInOtherTournaments,
   playersForTournament,
   uid,
   sameIds,
@@ -27,9 +26,13 @@ import {
 import { Clock, Settings, Plus, Trophy, Lock, LogOut, BookOpen } from 'lucide-react';
 
 export default function SwissTournamentPage() {
-  const [store, setStore] = useState(createDefaultStore);
+  const [store, setStore] = useState(createEmptyStore);
   const [isHydrated, setIsHydrated] = useState(false);
   const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'offline'>('checking');
+  const dbStatusRef = useRef(dbStatus);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const confirmedStoreRef = useRef(createEmptyStore());
+  const lastPersistedStoreRef = useRef<TournamentStore | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
 
@@ -41,108 +44,123 @@ export default function SwissTournamentPage() {
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
 
-  // Load saved state from LocalStorage on mount, check admin session, then sync with PostgreSQL API
+  // Neon is the only source of tournament and roster data.
   useEffect(() => {
     setIsAdmin(checkIsAdmin());
-    const loaded = loadStore();
-    if (loaded) {
-      const migratedStore = ensureInitialRatings(loaded);
-      setStore(migratedStore);
-      saveStore(migratedStore);
-    }
-    setIsHydrated(true);
-
-    // Check & sync from PostgreSQL on Vercel
+    let cancelled = false;
     fetch('/api/tournament')
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.configured && data.store) {
+        if (cancelled) return;
+        if (data.success && data.configured && data.source === 'postgres' && data.store) {
           setDbStatus('connected');
           const syncedStore = ensureInitialRatings(data.store);
+          confirmedStoreRef.current = data.store;
+          lastPersistedStoreRef.current = data.store;
           setStore(syncedStore);
-          saveStore(syncedStore);
-        } else if (!data.configured) {
-          setDbStatus('unconfigured');
         } else {
-          setDbStatus('offline');
+          setStore(createEmptyStore());
+          setDbStatus(data.configured ? 'offline' : 'unconfigured');
         }
+        setIsHydrated(true);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.warn('PostgreSQL fetch warning:', err);
+        setStore(createEmptyStore());
         setDbStatus('offline');
+        setIsHydrated(true);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Persist store to LocalStorage and PostgreSQL whenever it changes
   useEffect(() => {
-    if (isHydrated) {
-      saveStore(store);
+    dbStatusRef.current = dbStatus;
+  }, [dbStatus]);
 
-      // Persist to PostgreSQL (using admin PIN or default PIN)
+  // Queue writes so rapid edits cannot finish out of order and leave an older snapshot in Neon.
+  useEffect(() => {
+    if (isHydrated && dbStatus === 'connected') {
+      const storeSnapshot = store;
+      if (storeSnapshot === lastPersistedStoreRef.current) return;
       const adminPin = getStoredAdminPin() || 'admin2026';
-      fetch('/api/tournament', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-pin': adminPin,
-        },
-        body: JSON.stringify({ store }),
-      })
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.savedToDb) {
-            setDbStatus('connected');
+      saveQueueRef.current = saveQueueRef.current.then(async () => {
+        if (dbStatusRef.current !== 'connected') return;
+        if (storeSnapshot === lastPersistedStoreRef.current) return;
+        try {
+          const response = await fetch('/api/tournament', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-pin': adminPin,
+            },
+            body: JSON.stringify({ store: storeSnapshot }),
+          });
+          const result = await response.json();
+          if (response.ok && result.savedToDb) {
+            confirmedStoreRef.current = storeSnapshot;
+            lastPersistedStoreRef.current = storeSnapshot;
+            return;
           }
-        })
-        .catch((err) => {
+          dbStatusRef.current = 'offline';
+          setStore(confirmedStoreRef.current);
+          setDbStatus('offline');
+        } catch (err) {
           console.warn('Gagal sync ke PostgreSQL:', err);
-        });
+          dbStatusRef.current = 'offline';
+          setStore(confirmedStoreRef.current);
+          setDbStatus('offline');
+        }
+      });
     }
-  }, [store, isHydrated]);
+  }, [store, isHydrated, dbStatus]);
 
   const handleLogout = () => {
     clearAdminSession();
     setIsAdmin(false);
   };
 
-  // Synchronize or seed data to/from PostgreSQL
-  const handleSyncWithDatabase = async (force = false) => {
+  const requireConnectedAdmin = () => {
+    if (dbStatus !== 'connected') {
+      alert('Neon tidak terhubung. Perubahan ditolak agar data tidak hanya tersimpan lokal.');
+      return false;
+    }
+    if (!isAdmin) {
+      setIsAdminModalOpen(true);
+      return false;
+    }
+    return true;
+  };
+
+  // Ensure the Neon schema exists, then reload the authoritative store from Neon.
+  const handleSyncWithDatabase = async () => {
     const adminPin = getStoredAdminPin() || '';
     try {
-      const res = await fetch(`/api/init-db${force ? '?force=true' : ''}`, {
+      const res = await fetch('/api/init-db', {
         headers: { 'x-admin-pin': adminPin },
       });
       const data = await res.json();
       if (data.success) {
         const tourRes = await fetch('/api/tournament');
         const tourData = await tourRes.json();
-        if (tourData.success && tourData.store) {
+        if (tourData.success && tourData.configured && tourData.source === 'postgres' && tourData.store) {
           const syncedStore = ensureInitialRatings(tourData.store);
+          confirmedStoreRef.current = tourData.store;
+          lastPersistedStoreRef.current = tourData.store;
           setStore(syncedStore);
-          saveStore(syncedStore);
           setDbStatus('connected');
+        } else {
+          setDbStatus(tourData.configured ? 'offline' : 'unconfigured');
         }
         alert(data.message || 'Sinkronisasi database berhasil!');
       } else {
-        if (force) {
-          // If DB not connected locally, still reset local state
-          const fresh = createDefaultStore();
-          setStore(fresh);
-          saveStore(fresh);
-          alert('Data lokal berhasil di-reset ke ROOKIE TOUR CHESS dengan 4 peserta. (Koneksi cloud akan aktif setelah POSTGRES_URL disetel di Vercel).');
-        } else {
-          alert(data.error || 'Gagal sinkronisasi database.');
-        }
+        alert(data.error || 'Gagal menyiapkan database.');
       }
     } catch (err: any) {
-      if (force) {
-        const fresh = createDefaultStore();
-        setStore(fresh);
-        saveStore(fresh);
-        alert('Data lokal berhasil di-reset ke ROOKIE TOUR CHESS dengan 4 peserta.');
-      } else {
-        alert('Terjadi kesalahan koneksi database: ' + (err?.message || err));
-      }
+      alert('Terjadi kesalahan koneksi database: ' + (err?.message || err));
     }
   };
 
@@ -153,15 +171,23 @@ export default function SwissTournamentPage() {
     null;
 
   const activePlayers = activeTournament
-    ? playersForTournament(store.roster, activeTournament)
+    ? (() => {
+        const gamesFromOtherTournaments = countCompletedGamesInOtherTournaments(
+          store.tournaments,
+          activeTournament.id
+        );
+        return playersForTournament(store.roster, activeTournament).map((player) => ({
+          ...player,
+          ratedGames: (player.ratedGames ?? 0) + (gamesFromOtherTournaments.get(player.id) ?? 0),
+        }));
+      })()
     : [];
+
+  const isAdminConnected = isAdmin && dbStatus === 'connected';
 
   // Update matches for active tournament
   const handleUpdateActiveMatches = (newMatches: SwissMatch[]) => {
-    if (!isAdmin) {
-      setIsAdminModalOpen(true);
-      return;
-    }
+    if (!requireConnectedAdmin()) return;
     if (!activeTournament) return;
     setStore((prev) => ({
       ...prev,
@@ -191,10 +217,7 @@ export default function SwissTournamentPage() {
   };
 
   const handleUpdateRoundSchedule = (round: number, scheduledAt: string) => {
-    if (!isAdmin) {
-      setIsAdminModalOpen(true);
-      return;
-    }
+    if (!requireConnectedAdmin()) return;
     if (!activeTournament) return;
 
     setStore((prev) => ({
@@ -213,10 +236,7 @@ export default function SwissTournamentPage() {
 
   // Reset active tournament back to round 1
   const handleResetActive = () => {
-    if (!isAdmin) {
-      setIsAdminModalOpen(true);
-      return;
-    }
+    if (!requireConnectedAdmin()) return;
     if (!activeTournament) return;
     const freshRound1 = generateSwissRound1(activePlayers);
     setStore((prev) => ({
@@ -231,10 +251,7 @@ export default function SwissTournamentPage() {
 
   // Save (create or update) tournament
   const handleSaveTournament = (data: TournamentFormData, editId?: string) => {
-    if (!isAdmin) {
-      setIsAdminModalOpen(true);
-      return;
-    }
+    if (!requireConnectedAdmin()) return;
     if (editId) {
       const current = store.tournaments.find((t) => t.id === editId);
       if (
@@ -308,6 +325,7 @@ export default function SwissTournamentPage() {
 
   // Delete tournament
   const handleDeleteTournament = (id: string) => {
+    if (!requireConnectedAdmin()) return;
     setStore((prev) => {
       const remaining = prev.tournaments.filter((t) => t.id !== id);
       const nextActiveId =
@@ -322,6 +340,7 @@ export default function SwissTournamentPage() {
 
   // Switch active tournament
   const handleSetActive = (id: string) => {
+    if (!requireConnectedAdmin()) return;
     setStore((prev) => ({ ...prev, activeId: id }));
   };
 
@@ -330,6 +349,7 @@ export default function SwissTournamentPage() {
     playerData: Omit<Player, 'id' | 'seed'> & { id?: string },
     addToActiveTournament = true
   ) => {
+    if (!requireConnectedAdmin()) return;
     const newId = playerData.id || uid('pl');
     const newPlayer: Player = {
       ...playerData,
@@ -373,6 +393,7 @@ export default function SwissTournamentPage() {
   };
 
   const handleUpdateRosterPlayer = (id: string, updates: Partial<Player>) => {
+    if (!requireConnectedAdmin()) return;
     const ratingLocked = store.tournaments.some(
       (t) => t.playerIds.includes(id) && hasStarted(t)
     );
@@ -401,10 +422,7 @@ export default function SwissTournamentPage() {
   };
 
   const handleUpdatePlayers = (updatedPlayers: Player[]) => {
-    if (!isAdmin) {
-      setIsAdminModalOpen(true);
-      return;
-    }
+    if (!requireConnectedAdmin()) return;
     setStore((prev) => {
       const idMap = new Map(updatedPlayers.map((p) => [p.id, p]));
       const newRoster = prev.roster.map((p) => {
@@ -419,6 +437,7 @@ export default function SwissTournamentPage() {
   };
 
   const handleDeleteRosterPlayer = (id: string) => {
+    if (!requireConnectedAdmin()) return;
     setStore((prev) => ({
       ...prev,
       roster: prev.roster.filter((p) => p.id !== id),
@@ -430,10 +449,7 @@ export default function SwissTournamentPage() {
     create: boolean = false,
     editId: string | null = null
   ) => {
-    if (!isAdmin) {
-      setIsAdminModalOpen(true);
-      return;
-    }
+    if (!requireConnectedAdmin()) return;
     setManagerTab(tab);
     setManagerCreate(create);
     setManagerEditId(editId);
@@ -494,7 +510,7 @@ export default function SwissTournamentPage() {
               </span>
             </div>
 
-            {isAdmin ? (
+            {isAdminConnected ? (
               <>
                 <div className="admin-status-badge" title="Anda login sebagai Admin Turnamen">
                   <span className="admin-status-dot" />
@@ -586,7 +602,7 @@ export default function SwissTournamentPage() {
             tournamentLocation={activeTournament.location}
             pairingOverrides={activeTournament.pairingOverrides}
             roundSchedules={activeTournament.roundSchedules}
-            isAdmin={isAdmin}
+            isAdmin={isAdminConnected}
             onRequestAdminLogin={() => setIsAdminModalOpen(true)}
             onUpdateMatches={handleUpdateActiveMatches}
             onUpdateRoundSchedule={handleUpdateRoundSchedule}
@@ -651,8 +667,7 @@ export default function SwissTournamentPage() {
           onAddRosterPlayer={handleAddRosterPlayer}
           onUpdateRosterPlayer={handleUpdateRosterPlayer}
           onDeleteRosterPlayer={handleDeleteRosterPlayer}
-          onSyncDb={() => handleSyncWithDatabase(false)}
-          onResetToRookieTour={() => handleSyncWithDatabase(true)}
+          onSyncDb={() => handleSyncWithDatabase()}
         />
       )}
 

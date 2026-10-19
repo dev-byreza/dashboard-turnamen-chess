@@ -3,7 +3,7 @@ export interface Player {
   name: string;
   seed: number;
   rating?: number;
-  /** Lifetime rated games completed before the active tournament. */
+  /** Manually recorded historical rated games; completed matches in other tournaments are added during Elo calculation. */
   ratedGames?: number;
   avatar?: string;
   club?: string;
@@ -109,7 +109,7 @@ export interface Tournament {
   matches: SwissMatch[];
   /** Snapshot of the admin-approved starting Elo, locked once the first result is entered. */
   initialRatings?: Record<string, number>;
-  /** Snapshot of lifetime rated games, used to keep the tournament's K-factor baseline stable. */
+  /** Starting lifetime rated-game count snapshot for stable K-factor calculations. */
   initialRatedGames?: Record<string, number>;
   /** Optional admin-defined pairings for a specific round. */
   pairingOverrides?: Record<number, SwissPairingOverride[]>;

@@ -3,7 +3,7 @@ import { initDb, isDbConfigured } from '../../../lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     if (!isDbConfigured()) {
       return NextResponse.json(
@@ -15,35 +15,14 @@ export async function GET(req: Request) {
       );
     }
 
-    const { searchParams } = new URL(req.url);
-    const force = searchParams.get('force') === 'true' || searchParams.get('reset') === 'true';
-
-    if (force) {
-      const adminPin = req.headers.get('x-admin-pin') || searchParams.get('pin');
-      const serverPin = process.env.ADMIN_PIN || process.env.NEXT_PUBLIC_ADMIN_PIN;
-      const isValidAdmin =
-        (serverPin && adminPin === serverPin) ||
-        adminPin === 'admin2026' ||
-        adminPin === '1234';
-
-      if (!isValidAdmin) {
-        return NextResponse.json(
-          { success: false, error: 'Akses ditolak: PIN Admin diperlukan untuk me-reset database.' },
-          { status: 401 }
-        );
-      }
-    }
-
-    const result = await initDb(force);
+    const result = await initDb();
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message: force
-        ? 'Database PostgreSQL berhasil di-reset dan diisi data: ROOKIE TOUR CHESS & 4 peserta (DEWACAD, Anxiety99, ZiiGanteng, Azazeel03).'
-        : 'Tabel PostgreSQL berhasil disiapkan dan data awal telah terisi.',
+      message: 'Struktur tabel Neon siap. Tidak ada data contoh yang ditambahkan.',
     });
   } catch (error: any) {
     console.error('API /api/init-db GET error:', error);
@@ -54,7 +33,7 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
     if (!isDbConfigured()) {
       return NextResponse.json(
@@ -66,22 +45,14 @@ export async function POST(req: Request) {
       );
     }
 
-    let force = false;
-    try {
-      const body = await req.json();
-      force = Boolean(body?.force || body?.reset);
-    } catch {
-      // Body optional
-    }
-
-    const result = await initDb(force);
+    const result = await initDb();
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Database PostgreSQL berhasil diinisialisasi dan disinkronkan.',
+      message: 'Struktur tabel Neon siap. Tidak ada data contoh yang ditambahkan.',
     });
   } catch (error: any) {
     console.error('API /api/init-db POST error:', error);

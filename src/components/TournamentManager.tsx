@@ -37,7 +37,6 @@ interface TournamentManagerProps {
   onUpdateRosterPlayer: (id: string, updates: Partial<Player>) => void;
   onDeleteRosterPlayer: (id: string) => void;
   onSyncDb?: () => Promise<void> | void;
-  onResetToRookieTour?: () => Promise<void> | void;
 }
 
 const getInitials = (name: string) =>
@@ -64,7 +63,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   onUpdateRosterPlayer,
   onDeleteRosterPlayer,
   onSyncDb,
-  onResetToRookieTour,
 }) => {
   const [activeTab, setActiveTab] = useState<'tournaments' | 'roster'>(initialTab);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(initialCreate || Boolean(initialEditId));

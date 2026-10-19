@@ -3,9 +3,10 @@ import {
   isDbConfigured,
   getStoreFromDb,
   saveStoreToDb,
-  DEFAULT_STORE,
 } from '../../../lib/db';
 import { TournamentStore } from '../../../types/chess';
+
+const EMPTY_STORE: TournamentStore = { roster: [], tournaments: [], activeId: null };
 
 export const dynamic = 'force-dynamic';
 
@@ -13,10 +14,9 @@ export async function GET() {
   try {
     if (!isDbConfigured()) {
       return NextResponse.json({
-        success: true,
+        success: false,
         source: 'unconfigured',
         configured: false,
-        store: DEFAULT_STORE,
         message: 'Variabel POSTGRES_URL / DATABASE_URL belum disetel di Vercel/Environment.',
       });
     }
@@ -24,10 +24,10 @@ export async function GET() {
     const store = await getStoreFromDb();
     if (!store) {
       return NextResponse.json({
-        success: true,
-        source: 'default',
+        success: false,
+        source: 'postgres-error',
         configured: true,
-        store: DEFAULT_STORE,
+        error: 'Data Neon tidak dapat dibaca. Periksa koneksi database.',
       });
     }
 
@@ -43,7 +43,6 @@ export async function GET() {
       {
         success: false,
         error: error?.message || 'Gagal mengambil data dari database.',
-        store: DEFAULT_STORE,
       },
       { status: 500 }
     );
@@ -79,10 +78,10 @@ export async function POST(req: Request) {
 
     if (!isDbConfigured()) {
       return NextResponse.json({
-        success: true,
+        success: false,
         savedToDb: false,
         configured: false,
-        message: 'Data hanya tersimpan lokal (POSTGRES_URL belum disetel di Vercel).',
+        message: 'Penyimpanan ditolak: Neon belum dikonfigurasi.',
       });
     }
 

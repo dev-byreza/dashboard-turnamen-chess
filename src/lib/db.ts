@@ -1,57 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { Player, Tournament, TournamentStore, SwissMatch, SwissPairingOverride } from '../types/chess';
 
-export const DEFAULT_ROSTER: Player[] = [
-  { id: 'p_anxiety99', name: 'Anxiety99', seed: 1, rating: 500, club: 'Politeknik Sorowako' },
-  { id: 'p_ziiganteng', name: 'ZiiGanteng', seed: 2, rating: 500, club: 'Politeknik Sorowako' },
-  { id: 'p_dewacad', name: 'DEWACAD', seed: 3, rating: 500, club: 'Politeknik Sorowako' },
-  { id: 'p_azazeel03', name: 'Azazeel03', seed: 4, rating: 500, club: 'Politeknik Sorowako' },
-];
-
-export const DEFAULT_TOURNAMENT: Tournament = {
-  id: 'tn_rookie_tour_chess',
-  name: 'ROOKIE TOUR CHESS',
-  date: '2026-10-16',
-  location: 'C2 Only',
-  totalRounds: 5,
-  playerIds: ['p_anxiety99', 'p_ziiganteng', 'p_dewacad', 'p_azazeel03'],
-  matches: [
-    {
-      id: 'swiss_r1_b1_rookie',
-      round: 1,
-      boardNumber: 1,
-      whitePlayerId: 'p_ziiganteng',
-      blackPlayerId: 'p_dewacad',
-      result: null,
-    },
-    {
-      id: 'swiss_r1_b2_rookie',
-      round: 1,
-      boardNumber: 2,
-      whitePlayerId: 'p_azazeel03',
-      blackPlayerId: 'p_anxiety99',
-      result: null,
-    },
-  ],
-  pairingOverrides: {
-    2: [
-      { whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_azazeel03' },
-      { whitePlayerId: 'p_dewacad', blackPlayerId: 'p_anxiety99' },
-    ],
-    3: [
-      { whitePlayerId: 'p_ziiganteng', blackPlayerId: 'p_anxiety99' },
-      { whitePlayerId: 'p_dewacad', blackPlayerId: 'p_azazeel03' },
-    ],
-  },
-  createdAt: 1729056000000,
-};
-
-export const DEFAULT_STORE: TournamentStore = {
-  roster: DEFAULT_ROSTER,
-  tournaments: [DEFAULT_TOURNAMENT],
-  activeId: DEFAULT_TOURNAMENT.id,
-};
-
 /** Get the active connection string from environment */
 export function getConnectionString(): string | null {
   return (
@@ -147,9 +96,9 @@ export async function ensureTables(sql: any) {
 }
 
 /**
- * Initialize PostgreSQL schema and seed the initial data if empty or forced.
+ * Initialize only the PostgreSQL schema; tournament/player data must be entered by an administrator.
  */
-export async function initDb(force = false) {
+export async function initDb() {
   const sql = getDb();
   if (!sql) {
     return {
@@ -160,67 +109,6 @@ export async function initDb(force = false) {
 
   // 1. Ensure tables exist
   await ensureTables(sql);
-
-  // 2. Check existing roster count
-  const rosterCountRes = await sql`SELECT COUNT(*)::int as count FROM chess_roster`;
-  const rosterCount = (rosterCountRes[0] as { count: number })?.count || 0;
-
-  if (rosterCount === 0 || force) {
-    for (const p of DEFAULT_ROSTER) {
-      await sql`
-        INSERT INTO chess_roster (id, name, seed, rating, rated_games, club, title)
-        VALUES (${p.id}, ${p.name}, ${p.seed}, ${p.rating ?? 500}, ${p.ratedGames ?? 0}, ${p.club || 'Politeknik Sorowako'}, ${p.title || null})
-        ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          rating = EXCLUDED.rating,
-          club = EXCLUDED.club,
-          seed = EXCLUDED.seed,
-          updated_at = CURRENT_TIMESTAMP;
-      `;
-    }
-  }
-
-  // 3. Check existing tournaments count
-  const tournCountRes = await sql`SELECT COUNT(*)::int as count FROM chess_tournaments`;
-  const tournCount = (tournCountRes[0] as { count: number })?.count || 0;
-
-  if (tournCount === 0 || force) {
-    const playerIdsJson = JSON.stringify(DEFAULT_TOURNAMENT.playerIds);
-    const matchesJson = JSON.stringify(DEFAULT_TOURNAMENT.matches);
-    const pairingOverridesJson = JSON.stringify(DEFAULT_TOURNAMENT.pairingOverrides || {});
-
-    await sql`
-      INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, pairing_overrides, created_at, is_active)
-      VALUES (
-        ${DEFAULT_TOURNAMENT.id},
-        ${DEFAULT_TOURNAMENT.name},
-        ${DEFAULT_TOURNAMENT.date},
-        ${DEFAULT_TOURNAMENT.location},
-        ${DEFAULT_TOURNAMENT.totalRounds},
-        ${playerIdsJson}::jsonb,
-        ${matchesJson}::jsonb,
-        '{}'::jsonb,
-        ${pairingOverridesJson}::jsonb,
-        ${DEFAULT_TOURNAMENT.createdAt},
-        TRUE
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        name = EXCLUDED.name,
-        date = EXCLUDED.date,
-        location = EXCLUDED.location,
-        total_rounds = EXCLUDED.total_rounds,
-        player_ids = EXCLUDED.player_ids,
-        matches = EXCLUDED.matches,
-        is_active = TRUE,
-        updated_at = CURRENT_TIMESTAMP;
-    `;
-
-    await sql`
-      INSERT INTO chess_settings (key, value)
-      VALUES ('active_tournament_id', ${DEFAULT_TOURNAMENT.id})
-      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
-    `;
-  }
 
   return { success: true };
 }
@@ -277,12 +165,6 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
     const settingRows = (await sql`
       SELECT value FROM chess_settings WHERE key = 'active_tournament_id' LIMIT 1
     `) as Array<{ value: string }>;
-
-    if (rosterRows.length === 0 && tourneyRows.length === 0) {
-      // Database exists but is empty -> auto seed
-      await initDb(false);
-      return DEFAULT_STORE;
-    }
 
     const roster: Player[] = rosterRows.map((r, idx) => ({
       id: r.id,
@@ -383,10 +265,11 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
   try {
     // 0. Ensure tables exist before inserting
     await ensureTables(sql);
+    const queries: any[] = [];
 
     // 1. Save roster players
     for (const p of store.roster) {
-      await sql`
+      queries.push(sql`
         INSERT INTO chess_roster (id, name, seed, rating, rated_games, club, title, avatar)
         VALUES (
           ${p.id},
@@ -407,16 +290,18 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           title = EXCLUDED.title,
           avatar = EXCLUDED.avatar,
           updated_at = CURRENT_TIMESTAMP;
-      `;
+      `);
     }
 
-    // Safely delete removed players from roster
-    if (store.roster.length > 0) {
+    // Delete removed players from roster, including all rows for an empty roster.
+    if (store.roster.length === 0) {
+      queries.push(sql`DELETE FROM chess_roster`);
+    } else {
       const activeIdsJson = JSON.stringify(store.roster.map((p) => p.id));
-      await sql`
+      queries.push(sql`
         DELETE FROM chess_roster
         WHERE id NOT IN (SELECT jsonb_array_elements_text(${activeIdsJson}::jsonb));
-      `;
+      `);
     }
 
     // 2. Save tournaments
@@ -429,7 +314,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
       const pairingOverridesJson = JSON.stringify(t.pairingOverrides || {});
       const roundSchedulesJson = JSON.stringify(t.roundSchedules || {});
 
-      await sql`
+      queries.push(sql`
         INSERT INTO chess_tournaments (id, name, date, location, total_rounds, player_ids, matches, initial_ratings, initial_rated_games, pairing_overrides, round_schedules, created_at, is_active)
         VALUES (
           ${t.id},
@@ -459,26 +344,28 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           round_schedules = EXCLUDED.round_schedules,
           is_active = EXCLUDED.is_active,
           updated_at = CURRENT_TIMESTAMP;
-      `;
+      `);
     }
 
-    // Safely delete removed tournaments
-    if (store.tournaments.length > 0) {
+    // Delete removed tournaments, including all rows for an empty tournament list.
+    if (store.tournaments.length === 0) {
+      queries.push(sql`DELETE FROM chess_tournaments`);
+    } else {
       const activeTourneyIdsJson = JSON.stringify(store.tournaments.map((t) => t.id));
-      await sql`
+      queries.push(sql`
         DELETE FROM chess_tournaments
         WHERE id NOT IN (SELECT jsonb_array_elements_text(${activeTourneyIdsJson}::jsonb));
-      `;
+      `);
     }
 
     // 3. Save active tournament ID setting
-    if (store.activeId) {
-      await sql`
-        INSERT INTO chess_settings (key, value)
-        VALUES ('active_tournament_id', ${store.activeId})
-        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
-      `;
-    }
+    queries.push(sql`
+      INSERT INTO chess_settings (key, value)
+      VALUES ('active_tournament_id', ${store.activeId})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
+    `);
+
+    await sql.transaction(queries);
 
     return { success: true };
   } catch (err: any) {
