@@ -243,73 +243,66 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const top3 = standings.rows[2];
 
   const normalizedStatisticsPlayerFilter = statisticsPlayerFilter.trim().toLowerCase();
-  const roundPlayerHistory = matches
-    .flatMap((match) => {
-      const whitePlayer = getPlayer(match.whitePlayerId);
-      if (!whitePlayer) return [];
-
-      const isBye = Boolean(match.isBye || match.blackPlayerId === '__bye__');
-      const blackPlayer = isBye ? null : getPlayer(match.blackPlayerId);
-      const matchElo = standings.eloReport?.matchDetails.get(match.id);
-      const toPlayerResult = (isWhite: boolean) => {
-        if (isBye) return { label: 'Bye', points: 1, tone: 'bye' };
-        if (match.result === null) return { label: 'Menunggu', points: 0, tone: 'pending' };
-        if (match.result === '0.5-0.5') return { label: 'Remis', points: 0.5, tone: 'draw' };
-
-        const won = isWhite ? match.result === '1-0' : match.result === '0-1';
-        return won
-          ? { label: 'Menang', points: 1, tone: 'win' }
-          : { label: 'Kalah', points: 0, tone: 'loss' };
-      };
-
-      const whiteResult = toPlayerResult(true);
-      const rows = [{
-        id: `${match.id}-${whitePlayer.id}`,
-        matchId: match.id,
-        round: match.round,
-        boardNumber: match.boardNumber,
-        playerName: whitePlayer.name,
-        opponentName: isBye ? 'Bye' : blackPlayer?.name || 'TBD',
-        color: 'Putih',
-        result: whiteResult.label,
-        resultTone: whiteResult.tone,
-        points: whiteResult.points,
-        eloDelta: match.result !== null && !isBye ? matchElo?.whiteDelta : undefined,
-      }];
-
-      if (blackPlayer) {
-        const blackResult = toPlayerResult(false);
-        rows.push({
-          id: `${match.id}-${blackPlayer.id}`,
-          matchId: match.id,
-          round: match.round,
-          boardNumber: match.boardNumber,
-          playerName: blackPlayer.name,
-          opponentName: whitePlayer.name,
-          color: 'Hitam',
-          result: blackResult.label,
-          resultTone: blackResult.tone,
-          points: blackResult.points,
-          eloDelta: match.result !== null ? matchElo?.blackDelta : undefined,
-        });
-      }
-
-      return rows;
-    })
-    .filter((row) =>
-      !normalizedStatisticsPlayerFilter ||
-      row.playerName.toLowerCase().includes(normalizedStatisticsPlayerFilter)
-    )
-    .sort((a, b) =>
-      a.round - b.round ||
-      a.boardNumber - b.boardNumber ||
-      a.playerName.localeCompare(b.playerName)
-    );
-
   const filteredPlayerStandings = standings.rows.filter((row) =>
     !normalizedStatisticsPlayerFilter ||
     row.player.name.toLowerCase().includes(normalizedStatisticsPlayerFilter)
   );
+  const statisticsPalette = ['#b8891a', '#315a91', '#4d7c3a', '#b06a30', '#6b63be', '#c2413b', '#178a9a', '#929db0'];
+  const statisticsRoundNumbers = Array.from({ length: totalRounds }, (_, index) => index + 1);
+  const playerPointSeries = filteredPlayerStandings.map((standing, index) => {
+    const pointsByRound = new Map<number, number>();
+
+    matches.forEach((match) => {
+      if (match.result === null) return;
+
+      let earnedPoints = 0;
+      const isBye = Boolean(match.isBye || match.blackPlayerId === '__bye__');
+      if (isBye && match.whitePlayerId === standing.player.id) {
+        earnedPoints = 1;
+      } else if (match.whitePlayerId === standing.player.id) {
+        earnedPoints = match.result === '1-0' ? 1 : match.result === '0.5-0.5' ? 0.5 : 0;
+      } else if (match.blackPlayerId === standing.player.id) {
+        earnedPoints = match.result === '0-1' ? 1 : match.result === '0.5-0.5' ? 0.5 : 0;
+      }
+
+      if (earnedPoints > 0) {
+        pointsByRound.set(match.round, (pointsByRound.get(match.round) || 0) + earnedPoints);
+      }
+    });
+
+    let cumulativePoints = 0;
+    const points = statisticsRoundNumbers.map((round) => {
+      cumulativePoints += pointsByRound.get(round) || 0;
+      return { round, points: cumulativePoints };
+    });
+
+    return {
+      id: standing.player.id,
+      name: standing.player.name,
+      points,
+      color: statisticsPalette[index % statisticsPalette.length],
+    };
+  });
+  const visiblePlayerPointSeries = playerPointSeries.slice(0, 8);
+  const hiddenPlayerSeriesCount = Math.max(0, playerPointSeries.length - visiblePlayerPointSeries.length);
+  const maxChartPoints = Math.max(
+    1,
+    totalRounds,
+    ...visiblePlayerPointSeries.flatMap((series) => series.points.map((point) => point.points))
+  );
+  const chartTicks = Array.from({ length: 5 }, (_, index) => (maxChartPoints * index) / 4);
+  const filteredOutcomeTotals = filteredPlayerStandings.reduce(
+    (totals, row) => ({
+      wins: totals.wins + row.won,
+      draws: totals.draws + row.drawn,
+      losses: totals.losses + row.lost,
+    }),
+    { wins: 0, draws: 0, losses: 0 }
+  );
+  const totalFilteredResults =
+    filteredOutcomeTotals.wins + filteredOutcomeTotals.draws + filteredOutcomeTotals.losses;
+  const hasCompletedStatisticsMatch = matches.some((match) => match.result !== null);
+  const donutCircumference = 2 * Math.PI * 43;
 
   return (
     <div className="stack-page">
@@ -778,10 +771,10 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             <div className="section-panel-header">
               <div className="section-title-wrap">
                 <span className="section-dot" />
-                <h3 className="section-title-text">Statistik Seluruh Babak</h3>
+                <h3 className="section-title-text">Tren Poin Seluruh Babak</h3>
               </div>
               <span className="section-hint">
-                {roundPlayerHistory.length} catatan pertandingan pemain
+                {filteredPlayerStandings.length} pemain sesuai filter
               </span>
             </div>
 
@@ -796,7 +789,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 className="search-input"
                 value={statisticsPlayerFilter}
                 onChange={(event) => setStatisticsPlayerFilter(event.target.value)}
-                placeholder="Cari nama pemain untuk semua babak..."
+                placeholder="Cari nama pemain untuk semua diagram..."
               />
               {statisticsPlayerFilter && (
                 <button
@@ -810,53 +803,96 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               )}
             </div>
             <p className="statistics-filter-hint">
-              Filter yang sama juga diterapkan pada statistik all player di bawah.
+              Garis menunjukkan akumulasi poin pemain pada setiap babak.
             </p>
 
-            {roundPlayerHistory.length === 0 ? (
-              <div className="empty-state statistics-empty-state">
+            {filteredPlayerStandings.length === 0 ? (
+              <div className="empty-state statistics-empty-state" role="status">
                 {normalizedStatisticsPlayerFilter
-                  ? `Tidak ada data pertandingan untuk nama “${statisticsPlayerFilter.trim()}”.`
-                  : 'Belum ada data pertandingan untuk ditampilkan.'}
+                  ? `Tidak ada pemain yang cocok dengan nama “${statisticsPlayerFilter.trim()}”.`
+                  : 'Belum ada pemain untuk divisualisasikan.'}
+              </div>
+            ) : !hasCompletedStatisticsMatch ? (
+              <div className="empty-state statistics-empty-state" role="status">
+                Diagram tren poin akan tampil setelah hasil pertandingan pertama dicatat.
               </div>
             ) : (
-              <div className="swiss-table-responsive statistics-table-scroll">
-                <table className="modern-swiss-table statistics-table">
-                  <thead>
-                    <tr>
-                      <th>Babak</th>
-                      <th className="left">Player</th>
-                      <th className="left">Lawan</th>
-                      <th>Bidak</th>
-                      <th>Hasil</th>
-                      <th>Poin</th>
-                      <th>Δ Elo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {roundPlayerHistory.map((row) => (
-                      <tr key={row.id}>
-                        <td>{row.round}</td>
-                        <td className="left statistics-player-name">{row.playerName}</td>
-                        <td className="left">{row.opponentName}</td>
-                        <td>{row.color}</td>
-                        <td>
-                          <span className={`statistics-result-badge ${row.resultTone}`}>
-                            {row.result}
-                          </span>
-                        </td>
-                        <td>{row.result === 'Menunggu' ? '—' : row.points}</td>
-                        <td>
-                          {typeof row.eloDelta === 'number' ? (
-                            <span className={row.eloDelta > 0 ? 'num-win' : row.eloDelta < 0 ? 'num-loss' : ''}>
-                              {row.eloDelta > 0 ? `+${row.eloDelta}` : row.eloDelta}
-                            </span>
-                          ) : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="statistics-trend-chart-wrap">
+                <svg
+                  className="statistics-trend-chart"
+                  viewBox="0 0 720 290"
+                  role="img"
+                  aria-label="Diagram tren akumulasi poin pemain di setiap babak"
+                >
+                  <text x="18" y="20" className="statistics-chart-axis-title">POIN</text>
+                  {chartTicks.map((tick, index) => {
+                    const y = 232 - (tick / maxChartPoints) * 188;
+                    return (
+                      <g key={`tick-${index}`}>
+                        <line x1="62" x2="700" y1={y} y2={y} className="statistics-chart-gridline" />
+                        <text x="48" y={y + 4} textAnchor="end" className="statistics-chart-tick">
+                          {Number.isInteger(tick) ? tick : tick.toFixed(1)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {statisticsRoundNumbers.map((round, index) => {
+                    const x = statisticsRoundNumbers.length <= 1
+                      ? 381
+                      : 62 + (index * 638) / (statisticsRoundNumbers.length - 1);
+                    return (
+                      <g key={`round-${round}`}>
+                        <line x1={x} x2={x} y1="44" y2="232" className="statistics-chart-v-gridline" />
+                        <text x={x} y="258" textAnchor="middle" className="statistics-chart-tick">
+                          Babak {round}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {visiblePlayerPointSeries.map((series) => {
+                    const path = series.points.map((point, index) => {
+                      const x = statisticsRoundNumbers.length <= 1
+                        ? 381
+                        : 62 + (index * 638) / (statisticsRoundNumbers.length - 1);
+                      const y = 232 - (point.points / maxChartPoints) * 188;
+                      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+                    }).join(' ');
+
+                    return (
+                      <g key={series.id}>
+                        <path d={path} fill="none" stroke={series.color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                        {series.points.map((point, index) => {
+                          const x = statisticsRoundNumbers.length <= 1
+                            ? 381
+                            : 62 + (index * 638) / (statisticsRoundNumbers.length - 1);
+                          const y = 232 - (point.points / maxChartPoints) * 188;
+                          return (
+                            <circle key={`${series.id}-${point.round}`} cx={x} cy={y} r="4" fill={series.color} stroke="white" strokeWidth="2">
+                              <title>{`${series.name} • Babak ${point.round}: ${point.points} poin`}</title>
+                            </circle>
+                          );
+                        })}
+                      </g>
+                    );
+                  })}
+                </svg>
+                <div className="statistics-chart-legend" aria-label="Legenda pemain">
+                  {visiblePlayerPointSeries.map((series) => (
+                    <button
+                      type="button"
+                      key={series.id}
+                      className="statistics-chart-legend-item"
+                      onClick={() => setStatisticsPlayerFilter(series.name)}
+                      title={`Filter diagram ke ${series.name}`}
+                    >
+                      <span style={{ backgroundColor: series.color }} />
+                      {series.name}
+                    </button>
+                  ))}
+                  {hiddenPlayerSeriesCount > 0 && (
+                    <span className="statistics-chart-more">+{hiddenPlayerSeriesCount} pemain lain, cari nama untuk melihat</span>
+                  )}
+                </div>
               </div>
             )}
           </section>
@@ -868,55 +904,109 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 <h3 className="section-title-text">Statistik All Player</h3>
               </div>
               <span className="section-hint">
-                {filteredPlayerStandings.length} dari {standings.rows.length} pemain
+                {filteredPlayerStandings.length} dari {standings.rows.length} pemain ditampilkan
               </span>
             </div>
 
             {filteredPlayerStandings.length === 0 ? (
-              <div className="empty-state statistics-empty-state">
+              <div className="empty-state statistics-empty-state" role="status">
                 Tidak ada player yang cocok dengan filter nama.
               </div>
             ) : (
-              <div className="swiss-table-responsive statistics-table-scroll">
-                <table className="modern-swiss-table statistics-table all-player-statistics-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th className="left">Player</th>
-                      <th>Main</th>
-                      <th>Menang</th>
-                      <th>Remis</th>
-                      <th>Kalah</th>
-                      <th>Poin</th>
-                      <th>Elo Live</th>
-                      <th>Δ Elo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPlayerStandings.map((row) => {
-                      const rank = standings.rows.findIndex((item) => item.player.id === row.player.id) + 1;
-                      return (
-                        <tr key={row.player.id}>
-                          <td>{rank}</td>
-                          <td className="left statistics-player-name">{row.player.name}</td>
-                          <td>{row.played}</td>
-                          <td className="num-win">{row.won}</td>
-                          <td>{row.drawn}</td>
-                          <td className="num-loss">{row.lost}</td>
-                          <td><span className="points-pill">{row.points}</span></td>
-                          <td>{row.currentRating ?? row.player.rating ?? 500}</td>
-                          <td>
-                            {row.ratingChange === undefined ? '—' : (
-                              <span className={row.ratingChange > 0 ? 'num-win' : row.ratingChange < 0 ? 'num-loss' : ''}>
-                                {row.ratingChange > 0 ? `+${row.ratingChange}` : row.ratingChange}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="statistics-player-chart-layout">
+                <div className="statistics-outcome-overview">
+                  <div className="statistics-outcome-donut-wrap">
+                    <svg className="statistics-outcome-donut" viewBox="0 0 112 112" role="img" aria-label="Diagram proporsi hasil pemain yang sedang difilter">
+                      <circle cx="56" cy="56" r="43" className="statistics-donut-track" />
+                      {totalFilteredResults > 0 && (() => {
+                        const segments = [
+                          { key: 'wins', value: filteredOutcomeTotals.wins, color: 'var(--green-bright)' },
+                          { key: 'draws', value: filteredOutcomeTotals.draws, color: 'var(--gold-bright)' },
+                          { key: 'losses', value: filteredOutcomeTotals.losses, color: 'var(--rose)' },
+                        ];
+                        let offset = 0;
+                        return segments.map((segment) => {
+                          const length = (segment.value / totalFilteredResults) * donutCircumference;
+                          const circle = (
+                            <circle
+                              key={segment.key}
+                              cx="56"
+                              cy="56"
+                              r="43"
+                              fill="none"
+                              stroke={segment.color}
+                              strokeWidth="13"
+                              strokeDasharray={`${length} ${donutCircumference - length}`}
+                              strokeDashoffset={-offset}
+                              transform="rotate(-90 56 56)"
+                            >
+                              <title>{`${segment.key === 'wins' ? 'Menang' : segment.key === 'draws' ? 'Remis' : 'Kalah'}: ${segment.value}`}</title>
+                            </circle>
+                          );
+                          offset += length;
+                          return circle;
+                        });
+                      })()}
+                      <text x="56" y="53" textAnchor="middle" className="statistics-donut-total">{totalFilteredResults}</text>
+                      <text x="56" y="69" textAnchor="middle" className="statistics-donut-caption">hasil pemain</text>
+                    </svg>
+                    <span className="statistics-donut-label">Komposisi Hasil</span>
+                  </div>
+                  <div className="statistics-outcome-summary">
+                    <div className="statistics-outcome-summary-heading">Total seluruh pemain terpilih</div>
+                    <div className="statistics-outcome-stat win">
+                      <span><i /> Menang</span><strong>{filteredOutcomeTotals.wins}</strong>
+                    </div>
+                    <div className="statistics-outcome-stat draw">
+                      <span><i /> Remis</span><strong>{filteredOutcomeTotals.draws}</strong>
+                    </div>
+                    <div className="statistics-outcome-stat loss">
+                      <span><i /> Kalah</span><strong>{filteredOutcomeTotals.losses}</strong>
+                    </div>
+                    <p className="statistics-outcome-note">Bye masuk hitungan menang sesuai perhitungan poin turnamen.</p>
+                  </div>
+                </div>
+
+                <div className="statistics-player-bars" aria-label="Grafik performa seluruh pemain">
+                  {filteredPlayerStandings.map((row) => {
+                    const resultCount = row.won + row.drawn + row.lost;
+                    const winWidth = resultCount ? (row.won / resultCount) * 100 : 0;
+                    const drawWidth = resultCount ? (row.drawn / resultCount) * 100 : 0;
+                    const lossWidth = resultCount ? (row.lost / resultCount) * 100 : 0;
+                    return (
+                      <div className="statistics-player-bar-row" key={row.player.id}>
+                        <div className="statistics-player-bar-heading">
+                          <div className="statistics-player-bar-name-wrap">
+                            <span className={`statistics-player-rank ${row.rank <= 3 ? `rank-${row.rank}` : ''}`}>{row.rank}</span>
+                            <span className="statistics-player-bar-name">{row.player.name}</span>
+                          </div>
+                          <div className="statistics-player-bar-metrics">
+                            <span className="statistics-player-points">{row.points} <small>poin</small></span>
+                            <span className="statistics-player-elo">
+                              Elo {row.currentRating ?? row.player.rating ?? 500}
+                              {row.ratingChange !== undefined && (
+                                <b className={row.ratingChange > 0 ? 'up' : row.ratingChange < 0 ? 'down' : ''}>
+                                  {row.ratingChange > 0 ? `+${row.ratingChange}` : row.ratingChange}
+                                </b>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="statistics-player-result-bar" role="img" aria-label={`${row.player.name}: ${row.won} menang, ${row.drawn} remis, ${row.lost} kalah`}>
+                          {row.won > 0 && <span className="win" style={{ width: `${winWidth}%` }} title={`Menang: ${row.won}`} />}
+                          {row.drawn > 0 && <span className="draw" style={{ width: `${drawWidth}%` }} title={`Remis: ${row.drawn}`} />}
+                          {row.lost > 0 && <span className="loss" style={{ width: `${lossWidth}%` }} title={`Kalah: ${row.lost}`} />}
+                          {resultCount === 0 && <span className="empty" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="statistics-result-legend" aria-label="Legenda komposisi hasil">
+                  <span><i className="win" /> Menang</span>
+                  <span><i className="draw" /> Remis</span>
+                  <span><i className="loss" /> Kalah</span>
+                </div>
               </div>
             )}
           </section>
