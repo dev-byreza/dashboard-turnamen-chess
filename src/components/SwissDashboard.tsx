@@ -72,6 +72,25 @@ const formatRoundSchedule = (value: string) => {
   return `${formattedDate}, pukul ${hour}.${minute}`;
 };
 
+const smoothChartPath = (points: Array<{ x: number; y: number }>) => {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[index - 1] || points[index];
+    const start = points[index];
+    const end = points[index + 1];
+    const next = points[index + 2] || end;
+    const controlOneX = start.x + (end.x - previous.x) / 6;
+    const controlOneY = Math.max(44, Math.min(232, start.y + (end.y - previous.y) / 6));
+    const controlTwoX = end.x - (next.x - start.x) / 6;
+    const controlTwoY = Math.max(44, Math.min(232, end.y - (next.y - start.y) / 6));
+    path += ` C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${end.x} ${end.y}`;
+  }
+  return path;
+};
+
 export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   players,
   matches,
@@ -771,7 +790,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
             <div className="section-panel-header">
               <div className="section-title-wrap">
                 <span className="section-dot" />
-                <h3 className="section-title-text">Tren Poin Seluruh Babak</h3>
+                <h3 className="section-title-text">Statistik Turnamen</h3>
               </div>
               <span className="section-hint">
                 {filteredPlayerStandings.length} pemain sesuai filter
@@ -824,7 +843,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   role="img"
                   aria-label="Diagram tren akumulasi poin pemain di setiap babak"
                 >
-                  <text x="18" y="20" className="statistics-chart-axis-title">POIN</text>
+                  <rect x="0" y="0" width="720" height="290" rx="12" className="statistics-chart-background" />
+                  <text x="18" y="22" className="statistics-chart-axis-title">TREN POIN PEMAIN</text>
                   {chartTicks.map((tick, index) => {
                     const y = 232 - (tick / maxChartPoints) * 188;
                     return (
@@ -850,22 +870,29 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                     );
                   })}
                   {visiblePlayerPointSeries.map((series) => {
-                    const path = series.points.map((point, index) => {
+                    const chartPoints = series.points.map((point, index) => {
                       const x = statisticsRoundNumbers.length <= 1
                         ? 381
                         : 62 + (index * 638) / (statisticsRoundNumbers.length - 1);
                       const y = 232 - (point.points / maxChartPoints) * 188;
-                      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-                    }).join(' ');
+                      return { x, y, point };
+                    });
+                    const path = smoothChartPath(chartPoints);
+                    const areaPath = chartPoints.length > 0
+                      ? `${path} L ${chartPoints[chartPoints.length - 1].x} 232 L ${chartPoints[0].x} 232 Z`
+                      : '';
 
                     return (
                       <g key={series.id}>
+                        <defs>
+                          <linearGradient id={`statistics-area-${series.id}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={series.color} stopOpacity="0.28" />
+                            <stop offset="100%" stopColor={series.color} stopOpacity="0.015" />
+                          </linearGradient>
+                        </defs>
+                        <path d={areaPath} fill={`url(#statistics-area-${series.id})`} />
                         <path d={path} fill="none" stroke={series.color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-                        {series.points.map((point, index) => {
-                          const x = statisticsRoundNumbers.length <= 1
-                            ? 381
-                            : 62 + (index * 638) / (statisticsRoundNumbers.length - 1);
-                          const y = 232 - (point.points / maxChartPoints) * 188;
+                        {chartPoints.map(({ x, y, point }) => {
                           return (
                             <circle key={`${series.id}-${point.round}`} cx={x} cy={y} r="4" fill={series.color} stroke="white" strokeWidth="2">
                               <title>{`${series.name} • Babak ${point.round}: ${point.points} poin`}</title>
@@ -895,120 +922,117 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 </div>
               </div>
             )}
-          </section>
-
-          <section className="section-card-panel tournament-statistics-panel">
-            <div className="section-panel-header">
-              <div className="section-title-wrap">
-                <span className="section-dot" />
-                <h3 className="section-title-text">Statistik All Player</h3>
-              </div>
-              <span className="section-hint">
-                {filteredPlayerStandings.length} dari {standings.rows.length} pemain ditampilkan
-              </span>
-            </div>
-
-            {filteredPlayerStandings.length === 0 ? (
-              <div className="empty-state statistics-empty-state" role="status">
-                Tidak ada player yang cocok dengan filter nama.
-              </div>
-            ) : (
-              <div className="statistics-player-chart-layout">
-                <div className="statistics-outcome-overview">
-                  <div className="statistics-outcome-donut-wrap">
-                    <svg className="statistics-outcome-donut" viewBox="0 0 112 112" role="img" aria-label="Diagram proporsi hasil pemain yang sedang difilter">
-                      <circle cx="56" cy="56" r="43" className="statistics-donut-track" />
-                      {totalFilteredResults > 0 && (() => {
-                        const segments = [
-                          { key: 'wins', value: filteredOutcomeTotals.wins, color: 'var(--green-bright)' },
-                          { key: 'draws', value: filteredOutcomeTotals.draws, color: 'var(--gold-bright)' },
-                          { key: 'losses', value: filteredOutcomeTotals.losses, color: 'var(--rose)' },
-                        ];
-                        let offset = 0;
-                        return segments.map((segment) => {
-                          const length = (segment.value / totalFilteredResults) * donutCircumference;
-                          const circle = (
-                            <circle
-                              key={segment.key}
-                              cx="56"
-                              cy="56"
-                              r="43"
-                              fill="none"
-                              stroke={segment.color}
-                              strokeWidth="13"
-                              strokeDasharray={`${length} ${donutCircumference - length}`}
-                              strokeDashoffset={-offset}
-                              transform="rotate(-90 56 56)"
-                            >
-                              <title>{`${segment.key === 'wins' ? 'Menang' : segment.key === 'draws' ? 'Remis' : 'Kalah'}: ${segment.value}`}</title>
-                            </circle>
-                          );
-                          offset += length;
-                          return circle;
-                        });
-                      })()}
-                      <text x="56" y="53" textAnchor="middle" className="statistics-donut-total">{totalFilteredResults}</text>
-                      <text x="56" y="69" textAnchor="middle" className="statistics-donut-caption">hasil pemain</text>
-                    </svg>
-                    <span className="statistics-donut-label">Komposisi Hasil</span>
-                  </div>
-                  <div className="statistics-outcome-summary">
-                    <div className="statistics-outcome-summary-heading">Total seluruh pemain terpilih</div>
-                    <div className="statistics-outcome-stat win">
-                      <span><i /> Menang</span><strong>{filteredOutcomeTotals.wins}</strong>
-                    </div>
-                    <div className="statistics-outcome-stat draw">
-                      <span><i /> Remis</span><strong>{filteredOutcomeTotals.draws}</strong>
-                    </div>
-                    <div className="statistics-outcome-stat loss">
-                      <span><i /> Kalah</span><strong>{filteredOutcomeTotals.losses}</strong>
-                    </div>
-                    <p className="statistics-outcome-note">Bye masuk hitungan menang sesuai perhitungan poin turnamen.</p>
-                  </div>
+            <div className="statistics-all-player">
+              <div className="statistics-subsection-heading">
+                <div>
+                  <h4>Ringkasan Semua Pemain</h4>
+                  <p>{filteredPlayerStandings.length} dari {standings.rows.length} pemain ditampilkan</p>
                 </div>
+                <span className="statistics-subsection-mark">WIN · DRAW · LOSS</span>
+              </div>
 
-                <div className="statistics-player-bars" aria-label="Grafik performa seluruh pemain">
-                  {filteredPlayerStandings.map((row) => {
-                    const resultCount = row.won + row.drawn + row.lost;
-                    const winWidth = resultCount ? (row.won / resultCount) * 100 : 0;
-                    const drawWidth = resultCount ? (row.drawn / resultCount) * 100 : 0;
-                    const lossWidth = resultCount ? (row.lost / resultCount) * 100 : 0;
-                    return (
-                      <div className="statistics-player-bar-row" key={row.player.id}>
-                        <div className="statistics-player-bar-heading">
-                          <div className="statistics-player-bar-name-wrap">
-                            <span className={`statistics-player-rank ${row.rank <= 3 ? `rank-${row.rank}` : ''}`}>{row.rank}</span>
-                            <span className="statistics-player-bar-name">{row.player.name}</span>
-                          </div>
-                          <div className="statistics-player-bar-metrics">
-                            <span className="statistics-player-points">{row.points} <small>poin</small></span>
-                            <span className="statistics-player-elo">
-                              Elo {row.currentRating ?? row.player.rating ?? 500}
-                              {row.ratingChange !== undefined && (
-                                <b className={row.ratingChange > 0 ? 'up' : row.ratingChange < 0 ? 'down' : ''}>
-                                  {row.ratingChange > 0 ? `+${row.ratingChange}` : row.ratingChange}
-                                </b>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="statistics-player-result-bar" role="img" aria-label={`${row.player.name}: ${row.won} menang, ${row.drawn} remis, ${row.lost} kalah`}>
-                          {row.won > 0 && <span className="win" style={{ width: `${winWidth}%` }} title={`Menang: ${row.won}`} />}
-                          {row.drawn > 0 && <span className="draw" style={{ width: `${drawWidth}%` }} title={`Remis: ${row.drawn}`} />}
-                          {row.lost > 0 && <span className="loss" style={{ width: `${lossWidth}%` }} title={`Kalah: ${row.lost}`} />}
-                          {resultCount === 0 && <span className="empty" />}
-                        </div>
+              {filteredPlayerStandings.length === 0 ? (
+                <div className="empty-state statistics-empty-state" role="status">
+                  Tidak ada player yang cocok dengan filter nama.
+                </div>
+              ) : (
+                <div className="statistics-player-chart-layout">
+                  <div className="statistics-outcome-overview">
+                    <div className="statistics-outcome-donut-wrap">
+                      <svg className="statistics-outcome-donut" viewBox="0 0 112 112" role="img" aria-label="Diagram proporsi hasil pemain yang sedang difilter">
+                        <circle cx="56" cy="56" r="43" className="statistics-donut-track" />
+                        {totalFilteredResults > 0 && (() => {
+                          const segments = [
+                            { key: 'wins', value: filteredOutcomeTotals.wins, color: 'var(--green-bright)' },
+                            { key: 'draws', value: filteredOutcomeTotals.draws, color: 'var(--gold-bright)' },
+                            { key: 'losses', value: filteredOutcomeTotals.losses, color: 'var(--rose)' },
+                          ];
+                          let offset = 0;
+                          return segments.map((segment) => {
+                            const length = (segment.value / totalFilteredResults) * donutCircumference;
+                            const circle = (
+                              <circle
+                                key={segment.key}
+                                cx="56"
+                                cy="56"
+                                r="43"
+                                fill="none"
+                                stroke={segment.color}
+                                strokeWidth="13"
+                                strokeDasharray={`${length} ${donutCircumference - length}`}
+                                strokeDashoffset={-offset}
+                                transform="rotate(-90 56 56)"
+                              >
+                                <title>{`${segment.key === 'wins' ? 'Menang' : segment.key === 'draws' ? 'Remis' : 'Kalah'}: ${segment.value}`}</title>
+                              </circle>
+                            );
+                            offset += length;
+                            return circle;
+                          });
+                        })()}
+                        <text x="56" y="53" textAnchor="middle" className="statistics-donut-total">{totalFilteredResults}</text>
+                        <text x="56" y="69" textAnchor="middle" className="statistics-donut-caption">hasil pemain</text>
+                      </svg>
+                      <span className="statistics-donut-label">Komposisi Hasil</span>
+                    </div>
+                    <div className="statistics-outcome-summary">
+                      <div className="statistics-outcome-summary-heading">Total seluruh pemain terpilih</div>
+                      <div className="statistics-outcome-stat win">
+                        <span><i /> Menang</span><strong>{filteredOutcomeTotals.wins}</strong>
                       </div>
-                    );
-                  })}
+                      <div className="statistics-outcome-stat draw">
+                        <span><i /> Remis</span><strong>{filteredOutcomeTotals.draws}</strong>
+                      </div>
+                      <div className="statistics-outcome-stat loss">
+                        <span><i /> Kalah</span><strong>{filteredOutcomeTotals.losses}</strong>
+                      </div>
+                      <p className="statistics-outcome-note">Bye masuk hitungan menang sesuai perhitungan poin turnamen.</p>
+                    </div>
+                  </div>
+
+                  <div className="statistics-player-bars" aria-label="Grafik performa seluruh pemain">
+                    {filteredPlayerStandings.map((row) => {
+                      const resultCount = row.won + row.drawn + row.lost;
+                      const winWidth = resultCount ? (row.won / resultCount) * 100 : 0;
+                      const drawWidth = resultCount ? (row.drawn / resultCount) * 100 : 0;
+                      const lossWidth = resultCount ? (row.lost / resultCount) * 100 : 0;
+                      return (
+                        <div className="statistics-player-bar-row" key={row.player.id}>
+                          <div className="statistics-player-bar-heading">
+                            <div className="statistics-player-bar-name-wrap">
+                              <span className={`statistics-player-rank ${row.rank <= 3 ? `rank-${row.rank}` : ''}`}>{row.rank}</span>
+                              <span className="statistics-player-bar-name">{row.player.name}</span>
+                            </div>
+                            <div className="statistics-player-bar-metrics">
+                              <span className="statistics-player-points">{row.points} <small>poin</small></span>
+                              <span className="statistics-player-elo">
+                                Elo {row.currentRating ?? row.player.rating ?? 500}
+                                {row.ratingChange !== undefined && (
+                                  <b className={row.ratingChange > 0 ? 'up' : row.ratingChange < 0 ? 'down' : ''}>
+                                    {row.ratingChange > 0 ? `+${row.ratingChange}` : row.ratingChange}
+                                  </b>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="statistics-player-result-bar" role="img" aria-label={`${row.player.name}: ${row.won} menang, ${row.drawn} remis, ${row.lost} kalah`}>
+                            {row.won > 0 && <span className="win" style={{ width: `${winWidth}%` }} title={`Menang: ${row.won}`} />}
+                            {row.drawn > 0 && <span className="draw" style={{ width: `${drawWidth}%` }} title={`Remis: ${row.drawn}`} />}
+                            {row.lost > 0 && <span className="loss" style={{ width: `${lossWidth}%` }} title={`Kalah: ${row.lost}`} />}
+                            {resultCount === 0 && <span className="empty" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="statistics-result-legend" aria-label="Legenda komposisi hasil">
+                    <span><i className="win" /> Menang</span>
+                    <span><i className="draw" /> Remis</span>
+                    <span><i className="loss" /> Kalah</span>
+                  </div>
                 </div>
-                <div className="statistics-result-legend" aria-label="Legenda komposisi hasil">
-                  <span><i className="win" /> Menang</span>
-                  <span><i className="draw" /> Remis</span>
-                  <span><i className="loss" /> Kalah</span>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </section>
         </div>
 
