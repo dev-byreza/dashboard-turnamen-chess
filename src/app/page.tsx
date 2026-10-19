@@ -612,21 +612,35 @@ export default function SwissTournamentPage() {
             onOpenRules={() => setIsRulesOpen(true)}
           />
         ) : (
-          <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }}>
-            <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
-            <h3 className="empty-title">Belum ada turnamen yang dipilih</h3>
+          <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">
+            {dbStatus === 'checking' ? (
+              <Clock size={42} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
+            ) : (
+              <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
+            )}
+            <h3 className="empty-title">
+              {dbStatus === 'checking' ? 'Memuat data turnamen' : 'Belum ada turnamen yang dipilih'}
+            </h3>
             <p className="empty-desc">
-              Buat turnamen catur baru atau pilih salah satu turnamen dari database Anda untuk memulai.
+              {dbStatus === 'checking'
+                ? 'Sedang mengambil data dari database Neon...'
+                : dbStatus === 'connected'
+                ? isAdminConnected
+                  ? 'Pilih turnamen dari database atau buat turnamen baru.'
+                  : 'Belum ada turnamen. Hubungi administrator untuk membuat atau memilih turnamen.'
+                : 'Data turnamen belum tersedia karena koneksi ke Neon belum aktif.'}
             </p>
-            <button
-              type="button"
-              onClick={() => openManagerWithTab('tournaments', true)}
-              className="btn-gold-action"
-              style={{ margin: '1.25rem auto 0' }}
-            >
-              <Plus size={16} />
-              <span>Buat turnamen baru</span>
-            </button>
+            {isAdminConnected && (
+              <button
+                type="button"
+                onClick={() => openManagerWithTab('tournaments', true)}
+                className="btn-gold-action"
+                style={{ margin: '1.25rem auto 0' }}
+              >
+                <Plus size={16} />
+                <span>Buat turnamen baru</span>
+              </button>
+            )}
           </div>
         )}
 
