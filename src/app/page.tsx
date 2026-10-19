@@ -637,7 +637,15 @@ export default function SwissTournamentPage() {
           aria-live="polite"
           aria-label="Memuat data pertandingan"
         >
-          <span className="chess-loading-knight" aria-hidden="true">♞</span>
+          <div className="chess-loading-board" aria-hidden="true">
+            {Array.from({ length: 16 }, (_, index) => (
+              <span
+                key={index}
+                className={`chess-loading-square ${(Math.floor(index / 4) + index) % 2 === 0 ? 'is-light' : 'is-dark'}`}
+              />
+            ))}
+            <span className="chess-loading-knight">♞</span>
+          </div>
         </section>
       )}
 

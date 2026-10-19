@@ -867,33 +867,55 @@ body::before {
   backdrop-filter: blur(9px) saturate(0.78);
 }
 
+.chess-loading-board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 36px);
+  grid-template-rows: repeat(4, 36px);
+  width: 144px;
+  height: 144px;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(20, 33, 61, 0.2);
+}
+
+.chess-loading-square.is-light {
+  background: #f5ead0;
+}
+
+.chess-loading-square.is-dark {
+  background: var(--navy-soft);
+}
+
 .chess-loading-knight {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 0;
+  left: 0;
   display: grid;
-  width: 64px;
-  height: 64px;
+  width: 36px;
+  height: 36px;
   place-items: center;
-  color: var(--gold);
+  border-radius: 8px;
+  background: var(--gold-gradient);
+  box-shadow: 0 4px 12px rgba(12, 22, 48, 0.3);
+  color: var(--navy-deep);
   font-family: Georgia, serif;
-  font-size: 3.8rem;
+  font-size: 1.55rem;
   line-height: 1;
-  text-shadow: 0 6px 18px rgba(20, 33, 61, 0.22), 0 0 28px var(--gold-glow);
   animation: chess-knight-route 4.8s ease-in-out infinite;
   will-change: transform;
 }
 
 @keyframes chess-knight-route {
-  0%, 18% { transform: translate(-50%, -50%) translate(-33px, -33px); }
-  20% { transform: translate(-50%, -50%) translate(11px, -11px) translateY(-12px); }
-  22%, 38% { transform: translate(-50%, -50%) translate(11px, -11px); }
-  40% { transform: translate(-50%, -50%) translate(33px, 33px) translateY(-12px); }
-  42%, 58% { transform: translate(-50%, -50%) translate(33px, 33px); }
-  60% { transform: translate(-50%, -50%) translate(-11px, 11px) translateY(-12px); }
-  62%, 78% { transform: translate(-50%, -50%) translate(-11px, 11px); }
-  80% { transform: translate(-50%, -50%) translate(-33px, -33px) translateY(-12px); }
-  82%, 100% { transform: translate(-50%, -50%) translate(-33px, -33px); }
+  0%, 18% { transform: translate(0, 0); }
+  20% { transform: translate(72px, 36px) translateY(-10px); }
+  22%, 38% { transform: translate(72px, 36px); }
+  40% { transform: translate(108px, 108px) translateY(-10px); }
+  42%, 58% { transform: translate(108px, 108px); }
+  60% { transform: translate(36px, 72px) translateY(-10px); }
+  62%, 78% { transform: translate(36px, 72px); }
+  80% { transform: translate(0, 0) translateY(-10px); }
+  82%, 100% { transform: translate(0, 0); }
 }
 
 /* ===== Match board cards ===== */
