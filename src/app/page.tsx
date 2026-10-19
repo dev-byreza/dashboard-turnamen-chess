@@ -641,7 +641,7 @@ export default function SwissTournamentPage() {
             {Array.from({ length: 9 }, (_, index) => (
               <span
                 key={index}
-                className={`chess-loading-square ${(Math.floor(index / 3) + index) % 2 === 0 ? 'is-light' : 'is-dark'}`}
+                className={`chess-loading-square ${(Math.floor(index / 3) + (index % 3)) % 2 === 0 ? 'is-light' : 'is-dark'}`}
               />
             ))}
             <span className="chess-loading-knight">♞</span>
