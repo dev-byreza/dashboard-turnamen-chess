@@ -60,7 +60,7 @@ const formatRoundSchedule = (value: string) => {
   const [year, month, day] = (datePart || '').split('-').map(Number);
   const [hour, minute] = (timePart || '').split(':');
   const date = new Date(year, month - 1, day, 12);
-  if (!datePart || !timePart || Number.isNaN(date.getTime())) return value;
+  if (!datePart || Number.isNaN(date.getTime())) return value;
 
   const formattedDate = date.toLocaleDateString('id-ID', {
     weekday: 'long',
@@ -68,7 +68,7 @@ const formatRoundSchedule = (value: string) => {
     month: 'long',
     year: 'numeric',
   });
-  return `${formattedDate}, pukul ${hour}.${minute}`;
+  return timePart ? `${formattedDate}, pukul ${hour}.${minute}` : formattedDate;
 };
 
 export const SwissDashboard: React.FC<SwissDashboardProps> = ({
@@ -416,6 +416,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               const savedSchedule = roundSchedules?.[roundNumber] || '';
               const draftSchedule = roundScheduleDrafts[roundNumber] ?? savedSchedule;
               const hasUnsavedChanges = draftSchedule !== savedSchedule;
+              const dateOnlySchedule = !draftSchedule.includes('T');
 
               return (
                 <div className="round-schedule-item" key={roundNumber}>
@@ -423,12 +424,12 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                   {isAdmin ? (
                     <>
                       <label className="round-schedule-input-label" htmlFor={`round-schedule-${roundNumber}`}>
-                        Tanggal dan waktu
+                        {dateOnlySchedule ? 'Tanggal' : 'Tanggal dan waktu'}
                       </label>
                       <input
                         id={`round-schedule-${roundNumber}`}
                         className="round-schedule-input"
-                        type="datetime-local"
+                        type={dateOnlySchedule ? 'date' : 'datetime-local'}
                         value={draftSchedule}
                         onChange={(event) =>
                           setRoundScheduleDrafts((current) => ({
