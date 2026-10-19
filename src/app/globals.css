@@ -814,6 +814,293 @@ body::before {
   animation: slideUp 0.6s ease both;
 }
 
+.matches-column {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.round-statistics-panel {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.15rem 1.25rem;
+}
+
+.round-statistics-header {
+  margin-bottom: 0;
+  padding-bottom: 0.65rem;
+}
+
+.round-statistics-heading-icon {
+  flex-shrink: 0;
+  color: #e99500;
+}
+
+.round-statistics-round-chip {
+  padding: 0.28rem 0.65rem;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-soft);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.round-statistics-progress {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #eee4d1;
+  border-radius: 13px;
+  background: #fbf9f5;
+}
+
+.round-statistics-progress-heading,
+.round-statistics-progress-heading > span,
+.round-statistics-progress-value,
+.round-statistics-outcome-legend,
+.round-statistics-outcome-legend > span,
+.round-statistics-legend-heading,
+.round-statistics-legend-heading > strong {
+  display: flex;
+  align-items: center;
+}
+
+.round-statistics-progress-heading {
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.round-statistics-progress-heading > span:first-child {
+  gap: 0.4rem;
+}
+
+.round-statistics-progress-heading > span:first-child svg {
+  color: #d18a00;
+}
+
+.round-statistics-progress-value {
+  justify-content: flex-end;
+  gap: 0.55rem;
+  text-align: right;
+}
+
+.round-statistics-progress-value strong {
+  padding: 0.16rem 0.45rem;
+  border: 1px solid #edc147;
+  border-radius: 7px;
+  color: #604400;
+  background: #fff3c8;
+  font-size: 0.72rem;
+}
+
+.round-statistics-progress-track,
+.round-statistics-outcome-track {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #e4dccd;
+  border-radius: 999px;
+  background: #f0ece4;
+}
+
+.round-statistics-progress-track {
+  height: 9px;
+  margin-top: 0.55rem;
+  padding: 1px;
+}
+
+.round-statistics-progress-track > span {
+  border-radius: inherit;
+  background: linear-gradient(90deg, #e1b83f, #ae7b0c);
+  transition: width 0.35s ease;
+}
+
+.round-statistics-outcome-legend {
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed #e7ddca;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+}
+
+.round-statistics-outcome-legend > span {
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.outcome-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.outcome-dot.white { border: 1px solid #aebbd0; background: #fff; }
+.outcome-dot.draw { background: #e9b638; }
+.outcome-dot.black { background: var(--navy); }
+
+.round-statistics-outcome-track {
+  height: 10px;
+  margin-top: 0.42rem;
+  padding: 1px;
+}
+
+.round-statistics-outcome-track > span { min-width: 0; }
+.round-statistics-outcome-track > span.white { background: #fff; }
+.round-statistics-outcome-track > span.draw { background: #e9b638; }
+.round-statistics-outcome-track > span.black { background: var(--navy); }
+.round-statistics-outcome-track > span.empty { width: 100%; background: #f0ece4; }
+
+.round-statistics-highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.round-statistics-highlight {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid #eee4d1;
+  border-radius: 13px;
+  background: #fbf9f5;
+}
+
+.round-statistics-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+}
+
+.round-statistics-icon.gain {
+  border: 1px solid #a1efd0;
+  color: #00966d;
+  background: #edfff7;
+}
+
+.round-statistics-icon.format {
+  border: 1px solid #edca59;
+  color: #c97900;
+  background: #fff9e8;
+}
+
+.round-statistics-highlight-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+
+.round-statistics-label {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.round-statistics-highlight-copy > strong {
+  overflow: hidden;
+  color: var(--navy);
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.round-statistics-highlight-copy > strong em {
+  display: inline-block;
+  margin-left: 0.18rem;
+  padding: 0.08rem 0.32rem;
+  border: 1px solid #a1efd0;
+  border-radius: 5px;
+  color: #087c50;
+  background: #dff8e9;
+  font-size: 0.65rem;
+  font-style: normal;
+  vertical-align: 1px;
+}
+
+.round-statistics-highlight-copy > span:last-child {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rating-format-highlight .round-statistics-highlight-copy > strong em {
+  color: #805600;
+  border-color: #edca59;
+  background: #fff0b7;
+}
+
+.round-statistics-legend {
+  margin-top: auto;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.round-statistics-legend-heading {
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.63rem;
+}
+
+.round-statistics-legend-heading > strong {
+  gap: 0.35rem;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.round-statistics-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.round-statistics-legend-grid > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.48rem 0.55rem;
+  border: 1px solid #e3e9f2;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.round-statistics-legend-grid strong {
+  overflow: hidden;
+  color: #15578a;
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.round-statistics-legend-grid > div:last-child strong { color: #bd6500; }
+
+.round-statistics-legend-grid span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.59rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tournament-directory {
   margin-bottom: 1.25rem;
 }
@@ -2060,6 +2347,9 @@ body::before {
 
 @media (max-width: 768px) {
   .round-schedule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .matches-column { height: auto; }
+  .round-statistics-panel { flex: 0 0 auto; padding: 1rem; }
+  .round-statistics-legend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .hero-banner-card {
     padding: 1.25rem 1rem;
@@ -2250,6 +2540,19 @@ body::before {
   .stat-label { font-size: 0.6rem; }
 
   .section-card-panel { padding: 0.85rem 0.65rem; border-radius: 14px; min-width: 0; }
+  .round-statistics-panel { gap: 0.65rem; padding: 0.85rem 0.7rem; }
+  .round-statistics-header { align-items: flex-start; }
+  .round-statistics-header .section-title-wrap { gap: 0.4rem; }
+  .round-statistics-header .section-title-text { font-size: 0.9rem; }
+  .round-statistics-round-chip { font-size: 0.62rem; }
+  .round-statistics-progress { padding: 0.7rem; }
+  .round-statistics-progress-heading { align-items: flex-start; flex-direction: column; gap: 0.35rem; }
+  .round-statistics-progress-value { width: 100%; justify-content: space-between; text-align: left; }
+  .round-statistics-outcome-legend { flex-wrap: wrap; justify-content: flex-start; gap: 0.4rem 0.7rem; }
+  .round-statistics-highlights { grid-template-columns: minmax(0, 1fr); }
+  .round-statistics-legend-heading { align-items: flex-start; flex-direction: column; }
+  .round-statistics-legend-grid { gap: 0.35rem; }
+  .round-statistics-legend-grid > div { padding: 0.42rem; }
   .board-match-card { padding: 0.65rem 0.5rem; border-radius: 12px; }
   .match-action-grid { gap: 0.2rem; }
   .player-unit { gap: 0.25rem; padding: 0.3rem 0.15rem; }
@@ -2299,6 +2602,8 @@ body::before {
    PRINT — Page 1: Matches | Page 2: Standings
    ======================================================== */
 @media print {
+  .round-statistics-panel { display: none !important; }
+
   /* Hide background decorative texture, bulky hero card, and interactive controls */
   body::before,
   .hero-banner-card,
