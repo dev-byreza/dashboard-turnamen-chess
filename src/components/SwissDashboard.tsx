@@ -33,7 +33,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { fetchRecentGameBetween } from '../utils/chessComApi';
+import { fetchRecentGameBetween, fetchChessComProfile } from '../utils/chessComApi';
 import { ChessComProfileModal } from './ChessComProfileModal';
 
 interface SwissDashboardProps {
@@ -141,6 +141,34 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   } | null>(null);
   const [profileModalUsername, setProfileModalUsername] = useState<string | null>(null);
   const [profileModalName, setProfileModalName] = useState<string | undefined>(undefined);
+
+  // Sync avatar to player when fetched from Chess.com
+  const handleAvatarSync = (username: string, avatarUrl: string) => {
+    if (!onUpdatePlayers) return;
+    const clean = username.trim().toLowerCase();
+    const target = players.find(
+      (p) => p.chessComUsername?.toLowerCase() === clean
+    );
+    if (target && target.avatar !== avatarUrl) {
+      const updated = players.map((p) =>
+        p.id === target.id ? { ...p, avatar: avatarUrl } : p
+      );
+      onUpdatePlayers(updated);
+    }
+  };
+
+  // Background auto-fetch real Chess.com avatar if player has username but no avatar yet
+  useEffect(() => {
+    players.forEach((p) => {
+      if (p.chessComUsername && !p.avatar) {
+        fetchChessComProfile(p.chessComUsername).then((profile) => {
+          if (profile?.avatar) {
+            handleAvatarSync(p.chessComUsername!, profile.avatar);
+          }
+        });
+      }
+    });
+  }, [players]);
 
   useEffect(() => {
     setRoundScheduleDrafts(roundSchedules || {});
@@ -717,12 +745,26 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                         className={`player-unit player-unit-white ${whiteWon ? 'is-winner' : ''} ${blackWon ? 'is-loser' : ''}`}
                       >
                         <div className="pawn-avatar white-piece" title="Bidak Putih">
-                          ♟
+                          {whiteP?.avatar ? (
+                            <img
+                              src={whiteP.avatar}
+                              alt={whiteP.name}
+                              referrerPolicy="no-referrer"
+                              className="match-player-avatar-img"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            '♟'
+                          )}
                         </div>
                         <div className="player-info-meta">
                           <div className="player-name-line">
                             {whiteP?.title && <span className="title-tag">{whiteP.title}</span>}
                             <span className="player-name-text">{whiteP?.name || 'TBD'}</span>
+                          </div>
+                          <div className="player-elo-row">
                             {whiteP?.chessComUsername && (
                               <button
                                 type="button"
@@ -737,8 +779,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                 <span>@{whiteP.chessComUsername}</span>
                               </button>
                             )}
-                          </div>
-                          <div className="player-elo-row">
                             <span className="player-elo-text">
                               Elo {matchElo ? matchElo.whiteBefore : (whiteP?.rating ?? 500)}
                             </span>
@@ -829,24 +869,10 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       >
                         <div className="player-info-meta">
                           <div className="player-name-line">
+                            {blackP?.title && <span className="title-tag">{blackP.title}</span>}
                             <span className="player-name-text">
                               {isBye ? 'Bye (libur)' : blackP?.name || 'TBD'}
                             </span>
-                            {blackP?.title && <span className="title-tag">{blackP.title}</span>}
-                            {blackP?.chessComUsername && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setProfileModalUsername(blackP.chessComUsername!);
-                                  setProfileModalName(blackP.name);
-                                }}
-                                className="chesscom-card-chip"
-                                title={`Lihat profil Chess.com @${blackP.chessComUsername}`}
-                              >
-                                <span className="chesscom-chip-pawn">♟</span>
-                                <span>@{blackP.chessComUsername}</span>
-                              </button>
-                            )}
                           </div>
                           <div className="player-elo-row">
                             <span className="player-elo-text">
@@ -868,10 +894,36 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                 {matchElo.blackDelta > 0 ? `+${matchElo.blackDelta}` : matchElo.blackDelta}
                               </span>
                             )}
+                            {blackP?.chessComUsername && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProfileModalUsername(blackP.chessComUsername!);
+                                  setProfileModalName(blackP.name);
+                                }}
+                                className="chesscom-card-chip"
+                                title={`Lihat profil Chess.com @${blackP.chessComUsername}`}
+                              >
+                                <span className="chesscom-chip-pawn">♟</span>
+                                <span>@{blackP.chessComUsername}</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="pawn-avatar black-piece" title="Bidak Hitam">
-                          ♙
+                          {blackP?.avatar ? (
+                            <img
+                              src={blackP.avatar}
+                              alt={blackP.name}
+                              referrerPolicy="no-referrer"
+                              className="match-player-avatar-img"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            '♙'
+                          )}
                         </div>
                       </div>
                     </div>
@@ -894,10 +946,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                   <span>Mencari game di Chess.com...</span>
                                 </>
                               ) : (
-                                <>
-                                  <Zap size={12} />
-                                  <span>⚡ Tarik Hasil Chess.com</span>
-                                </>
+                                <span>⚡ Tarik Hasil Chess.com</span>
                               )}
                             </button>
                           ) : null}
@@ -1320,6 +1369,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           setProfileModalName(undefined);
         }}
         localPlayerName={profileModalName}
+        onAvatarSync={handleAvatarSync}
       />
     </div>
   );

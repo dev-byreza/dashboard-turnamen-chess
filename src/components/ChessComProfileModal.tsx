@@ -26,6 +26,8 @@ interface ChessComProfileModalProps {
   onClose: () => void;
   /** Optional fallback display name (e.g. from local tournament roster) */
   localPlayerName?: string;
+  /** Callback when real Chess.com avatar is fetched so parent can save it locally */
+  onAvatarSync?: (username: string, avatarUrl: string) => void;
 }
 
 export const ChessComProfileModal: React.FC<ChessComProfileModalProps> = ({
@@ -33,6 +35,7 @@ export const ChessComProfileModal: React.FC<ChessComProfileModalProps> = ({
   username,
   onClose,
   localPlayerName,
+  onAvatarSync,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<ChessComPlayerDetails | null>(null);
@@ -59,6 +62,9 @@ export const ChessComProfileModal: React.FC<ChessComProfileModalProps> = ({
           setError(`Akun Chess.com "${cleanUser}" tidak ditemukan atau berstatus privat.`);
         } else {
           setData(res);
+          if (res.profile.avatar && onAvatarSync) {
+            onAvatarSync(cleanUser, res.profile.avatar);
+          }
         }
       })
       .catch((err) => {
@@ -150,6 +156,7 @@ export const ChessComProfileModal: React.FC<ChessComProfileModalProps> = ({
                     <img
                       src={profile.avatar}
                       alt={profile.username}
+                      referrerPolicy="no-referrer"
                       className="chesscom-avatar-img"
                     />
                   ) : (

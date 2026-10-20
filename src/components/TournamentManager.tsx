@@ -318,16 +318,37 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setEditPlayerChessCom(p.chessComUsername || '');
   };
 
+  const handleRosterAvatarSync = (username: string, avatarUrl: string) => {
+    const clean = username.trim().toLowerCase();
+    const target = roster.find(
+      (p) => p.chessComUsername?.toLowerCase() === clean
+    );
+    if (target && target.avatar !== avatarUrl) {
+      onUpdateRosterPlayer(target.id, { avatar: avatarUrl });
+    }
+  };
+
   const handleSaveEditPlayer = () => {
     if (!editingPlayerId || !editPlayerName.trim()) return;
-    onUpdateRosterPlayer(editingPlayerId, {
+    const cleanUser = editPlayerChessCom.trim();
+    const playerId = editingPlayerId;
+    onUpdateRosterPlayer(playerId, {
       name: editPlayerName.trim(),
       rating: parseInt(editPlayerRating, 10) || 500,
       ratedGames: Math.max(0, parseInt(editPlayerRatedGames, 10) || 0),
       club: editPlayerClub.trim() || undefined,
       title: (editPlayerTitle as Player['title']) || undefined,
-      chessComUsername: editPlayerChessCom.trim() || undefined,
+      chessComUsername: cleanUser || undefined,
     });
+
+    if (cleanUser) {
+      fetchFullChessComPlayer(cleanUser).then((data) => {
+        if (data?.profile.avatar) {
+          onUpdateRosterPlayer(playerId, { avatar: data.profile.avatar });
+        }
+      });
+    }
+
     setEditingPlayerId(null);
   };
 
@@ -1252,6 +1273,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
         isOpen={Boolean(viewProfileUsername)}
         username={viewProfileUsername}
         onClose={() => setViewProfileUsername(null)}
+        onAvatarSync={handleRosterAvatarSync}
       />
     </div>
   );

@@ -448,7 +448,14 @@ export default function SwissTournamentPage() {
         const ratingLocked = prev.tournaments.some(
           (t) => t.playerIds.includes(p.id) && hasStarted(t)
         );
-        return u && !ratingLocked ? { ...p, rating: u.rating } : p;
+        return u
+          ? {
+              ...p,
+              rating: !ratingLocked ? (u.rating ?? p.rating) : p.rating,
+              avatar: u.avatar || p.avatar,
+              chessComUsername: u.chessComUsername || p.chessComUsername,
+            }
+          : p;
       });
       return { ...prev, roster: newRoster };
     });
