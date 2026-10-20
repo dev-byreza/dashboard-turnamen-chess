@@ -4760,6 +4760,627 @@ button, input, select, textarea {
   color: var(--text-muted);
 }
 
+/* ========================================================
+   CHESS.COM INTEGRATION STYLES
+   ======================================================== */
+
+/* Quick Sync Card in Roster Form */
+.chesscom-sync-card {
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg, rgba(129, 182, 76, 0.06) 0%, rgba(20, 33, 61, 0.03) 100%);
+  border: 1px solid rgba(129, 182, 76, 0.25);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chesscom-sync-card:focus-within {
+  border-color: #81b64c;
+  box-shadow: 0 0 0 3px rgba(129, 182, 76, 0.12);
+}
+
+.chesscom-sync-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.chesscom-sync-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--navy);
+}
+
+.chesscom-pawn-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #81b64c;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.chesscom-sync-hint {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.chesscom-sync-input-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.chesscom-input-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.chesscom-input-prefix {
+  position: absolute;
+  left: 0.85rem;
+  font-weight: 700;
+  color: #81b64c;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.chesscom-input {
+  padding-left: 2rem !important;
+  font-weight: 600;
+}
+
+.btn-sync-chesscom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1.1rem;
+  background: #81b64c;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.84rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(129, 182, 76, 0.28);
+}
+
+.btn-sync-chesscom:hover:not(:disabled) {
+  background: #6e9d41;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(129, 182, 76, 0.35);
+}
+
+.btn-sync-chesscom:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.chesscom-feedback-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.chesscom-feedback-banner.success {
+  background: rgba(129, 182, 76, 0.12);
+  color: #4d7a27;
+  border: 1px solid rgba(129, 182, 76, 0.3);
+}
+
+.chesscom-feedback-banner.error {
+  background: rgba(220, 53, 69, 0.1);
+  color: #c92a2a;
+  border: 1px solid rgba(220, 53, 69, 0.25);
+}
+
+/* Chips in Roster & Match & Table */
+.chesscom-user-chip,
+.chesscom-card-chip,
+.chesscom-table-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(129, 182, 76, 0.1);
+  color: #4f802a;
+  border: 1px solid rgba(129, 182, 76, 0.3);
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.chesscom-user-chip:hover,
+.chesscom-card-chip:hover,
+.chesscom-table-chip:hover {
+  background: #81b64c;
+  color: #ffffff;
+  border-color: #81b64c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(129, 182, 76, 0.3);
+}
+
+.chesscom-chip-pawn {
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.mini-avatar-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+/* Match Board Card Bottom Bar */
+.board-card-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  margin-top: 0.45rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.015);
+  border-radius: 0 0 10px 10px;
+  font-size: 0.76rem;
+}
+
+.bottom-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bottom-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.btn-chesscom-match-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: rgba(129, 182, 76, 0.12);
+  color: #4f802a;
+  border: 1px solid rgba(129, 182, 76, 0.35);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-chesscom-match-sync:hover:not(:disabled) {
+  background: #81b64c;
+  color: #ffffff;
+  border-color: #81b64c;
+}
+
+.btn-chesscom-match-sync:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-watch-chesscom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.6rem;
+  background: rgba(20, 33, 61, 0.05);
+  color: var(--navy);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.btn-watch-chesscom.active {
+  background: rgba(129, 182, 76, 0.15);
+  border-color: rgba(129, 182, 76, 0.4);
+  color: #4d7a27;
+  font-weight: 700;
+}
+
+.btn-watch-chesscom:hover {
+  background: var(--navy);
+  color: #ffffff;
+  border-color: var(--navy);
+}
+
+.btn-watch-chesscom.active:hover {
+  background: #81b64c;
+  color: #ffffff;
+  border-color: #81b64c;
+}
+
+.match-sync-notice {
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.match-sync-notice.success {
+  background: rgba(129, 182, 76, 0.15);
+  color: #4d7a27;
+}
+
+.match-sync-notice.info {
+  background: rgba(20, 33, 61, 0.06);
+  color: var(--navy);
+}
+
+.match-sync-notice.error {
+  background: rgba(220, 53, 69, 0.1);
+  color: #c92a2a;
+}
+
+/* Chess.com Modal Styles */
+.chesscom-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 18, 36, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.18s ease-out;
+}
+
+.chesscom-modal-content {
+  background: #ffffff;
+  width: 100%;
+  max-width: 480px;
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.chesscom-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.25rem;
+  background: #14213d;
+  color: #ffffff;
+}
+
+.chesscom-brand-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #e0a82e;
+}
+
+.chesscom-pawn-icon {
+  font-size: 1rem;
+  color: #81b64c;
+}
+
+.chesscom-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.chesscom-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.chesscom-modal-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.chesscom-loading-state,
+.chesscom-error-state {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.chesscom-spinner {
+  color: #81b64c;
+  animation: spin 1s linear infinite;
+}
+
+.chesscom-error-icon {
+  color: #dc3545;
+}
+
+.chesscom-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(20, 33, 61, 0.03) 0%, rgba(129, 182, 76, 0.05) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.chesscom-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.chesscom-avatar-img {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.chesscom-avatar-placeholder {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #14213d;
+  color: #ffffff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.chesscom-title-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: #c92a2a;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  border: 2px solid #ffffff;
+}
+
+.chesscom-profile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.chesscom-name-heading {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chesscom-username-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.chesscom-country-badge,
+.chesscom-joined-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+  font-size: 0.7rem;
+}
+
+.chesscom-stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.chesscom-stats-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chesscom-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+
+.chesscom-rating-card {
+  padding: 0.75rem 0.6rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: center;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.chesscom-rating-card.rapid {
+  background: rgba(43, 138, 62, 0.05);
+  border-color: rgba(43, 138, 62, 0.2);
+}
+
+.chesscom-rating-card.blitz {
+  background: rgba(240, 140, 0, 0.05);
+  border-color: rgba(240, 140, 0, 0.2);
+}
+
+.chesscom-rating-card.bullet {
+  background: rgba(224, 49, 49, 0.05);
+  border-color: rgba(224, 49, 49, 0.2);
+}
+
+.rating-card-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.rating-type {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.rating-number {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--navy);
+  line-height: 1.1;
+  font-family: var(--font-code);
+}
+
+.rating-record-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
+}
+
+.rec-win { color: #2b8a3e; }
+.rec-draw { color: #868e96; }
+.rec-loss { color: #e03131; }
+.rec-rate {
+  width: 100%;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.65rem;
+}
+
+.chesscom-modal-footer {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.chesscom-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.84rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.chesscom-action-btn.primary {
+  background: #81b64c;
+  color: #ffffff;
+}
+
+.chesscom-action-btn.primary:hover {
+  background: #6e9d41;
+  transform: translateY(-1px);
+}
+
+.chesscom-action-btn.secondary {
+  background: rgba(20, 33, 61, 0.08);
+  color: var(--navy);
+}
+
+.chesscom-action-btn.secondary:hover {
+  background: rgba(20, 33, 61, 0.15);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
 
 
 

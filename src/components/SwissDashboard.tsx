@@ -28,8 +28,13 @@ import {
   Save,
   Lock,
   Info,
+  Zap,
+  ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { fetchRecentGameBetween } from '../utils/chessComApi';
+import { ChessComProfileModal } from './ChessComProfileModal';
 
 interface SwissDashboardProps {
   players: Player[];
@@ -126,6 +131,16 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     roundSchedules || {}
   );
   const celebratedRef = useRef(false);
+
+  // Chess.com Match Sync & Profile Modal states
+  const [syncingMatchId, setSyncingMatchId] = useState<string | null>(null);
+  const [matchSyncMessage, setMatchSyncMessage] = useState<{
+    matchId: string;
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
+  const [profileModalUsername, setProfileModalUsername] = useState<string | null>(null);
+  const [profileModalName, setProfileModalName] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     setRoundScheduleDrafts(roundSchedules || {});
@@ -239,6 +254,68 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     if (!match || !canEditMatchScore(match)) return;
     const updated = matches.map((m) => (m.id === matchId ? { ...m, result } : m));
     onUpdateMatches(updated);
+  };
+
+  // Sync match score automatically from Chess.com recent mutual games
+  const handleSyncMatchChessCom = async (match: SwissMatch) => {
+    if (!canEditMatchScore(match)) return;
+    const whiteP = getPlayer(match.whitePlayerId);
+    const blackP = match.isBye ? null : getPlayer(match.blackPlayerId);
+
+    if (!whiteP?.chessComUsername || !blackP?.chessComUsername) {
+      setMatchSyncMessage({
+        matchId: match.id,
+        type: 'error',
+        text: 'Kedua pemain harus memiliki username Chess.com di database untuk sinkronisasi otomatis.',
+      });
+      return;
+    }
+
+    setSyncingMatchId(match.id);
+    setMatchSyncMessage(null);
+
+    try {
+      const recentGame = await fetchRecentGameBetween(
+        whiteP.chessComUsername,
+        blackP.chessComUsername
+      );
+
+      if (!recentGame) {
+        setMatchSyncMessage({
+          matchId: match.id,
+          type: 'info',
+          text: `Belum ditemukan game antara @${whiteP.chessComUsername} & @${blackP.chessComUsername} di Chess.com bulan ini.`,
+        });
+        return;
+      }
+
+      // Update match result & store the chess.com URL
+      const updated = matches.map((m) =>
+        m.id === match.id
+          ? {
+              ...m,
+              result: recentGame.tournamentScore,
+              chessComUrl: recentGame.url,
+              chessComSyncedAt: Date.now(),
+            }
+          : m
+      );
+      onUpdateMatches(updated);
+
+      setMatchSyncMessage({
+        matchId: match.id,
+        type: 'success',
+        text: `Game terdeteksi! Skor otomatis terisi: ${recentGame.tournamentScore}`,
+      });
+    } catch {
+      setMatchSyncMessage({
+        matchId: match.id,
+        type: 'error',
+        text: 'Gagal menghubungi Chess.com. Periksa koneksi internet.',
+      });
+    } finally {
+      setSyncingMatchId(null);
+    }
   };
 
   const handleGenerateNextRound = () => {
@@ -646,6 +723,20 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           <div className="player-name-line">
                             {whiteP?.title && <span className="title-tag">{whiteP.title}</span>}
                             <span className="player-name-text">{whiteP?.name || 'TBD'}</span>
+                            {whiteP?.chessComUsername && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProfileModalUsername(whiteP.chessComUsername!);
+                                  setProfileModalName(whiteP.name);
+                                }}
+                                className="chesscom-card-chip"
+                                title={`Lihat profil Chess.com @${whiteP.chessComUsername}`}
+                              >
+                                <span className="chesscom-chip-pawn">♟</span>
+                                <span>@{whiteP.chessComUsername}</span>
+                              </button>
+                            )}
                           </div>
                           <div className="player-elo-row">
                             <span className="player-elo-text">
@@ -742,6 +833,20 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                               {isBye ? 'Bye (libur)' : blackP?.name || 'TBD'}
                             </span>
                             {blackP?.title && <span className="title-tag">{blackP.title}</span>}
+                            {blackP?.chessComUsername && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProfileModalUsername(blackP.chessComUsername!);
+                                  setProfileModalName(blackP.name);
+                                }}
+                                className="chesscom-card-chip"
+                                title={`Lihat profil Chess.com @${blackP.chessComUsername}`}
+                              >
+                                <span className="chesscom-chip-pawn">♟</span>
+                                <span>@{blackP.chessComUsername}</span>
+                              </button>
+                            )}
                           </div>
                           <div className="player-elo-row">
                             <span className="player-elo-text">
@@ -770,6 +875,67 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* Match Card Bottom Bar: Chess.com Sync & Watch Link */}
+                    {!isBye && (
+                      <div className="board-card-bottom-bar">
+                        <div className="bottom-bar-left">
+                          {canEditMatchScore(match) && whiteP?.chessComUsername && blackP?.chessComUsername ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSyncMatchChessCom(match)}
+                              disabled={syncingMatchId === match.id}
+                              className="btn-chesscom-match-sync"
+                              title="Tarik hasil pertandingan terbaru kedua pemain langsung dari Chess.com"
+                            >
+                              {syncingMatchId === match.id ? (
+                                <>
+                                  <Loader2 size={12} className="spin-icon" />
+                                  <span>Mencari game di Chess.com...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Zap size={12} />
+                                  <span>⚡ Tarik Hasil Chess.com</span>
+                                </>
+                              )}
+                            </button>
+                          ) : null}
+
+                          {matchSyncMessage?.matchId === match.id && (
+                            <span className={`match-sync-notice ${matchSyncMessage.type}`}>
+                              {matchSyncMessage.text}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="bottom-bar-right">
+                          {match.chessComUrl ? (
+                            <a
+                              href={match.chessComUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-watch-chesscom active"
+                              title="Tonton replay game pertandingan ini di Chess.com"
+                            >
+                              <span>🎮 Tonton di Chess.com</span>
+                              <ExternalLink size={12} />
+                            </a>
+                          ) : whiteP?.chessComUsername || blackP?.chessComUsername ? (
+                            <a
+                              href={`https://www.chess.com/member/${whiteP?.chessComUsername || blackP?.chessComUsername}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-watch-chesscom"
+                              title="Buka profil catur di Chess.com"
+                            >
+                              <span>Papan Chess.com</span>
+                              <ExternalLink size={11} />
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -990,9 +1156,36 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       </td>
                       <td className="left">
                         <div className="player-cell">
-                          <span className="mini-avatar">{getInitials(row.player.name)}</span>
+                          {row.player.avatar ? (
+                            <img
+                              src={row.player.avatar}
+                              alt={row.player.name}
+                              className="mini-avatar-img"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span className="mini-avatar">{getInitials(row.player.name)}</span>
+                          )}
                           <div style={{ minWidth: 0 }}>
-                            <div className="player-cell-name">{row.player.name}</div>
+                            <div className="player-cell-name">
+                              <span>{row.player.name}</span>
+                              {row.player.chessComUsername && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProfileModalUsername(row.player.chessComUsername!);
+                                    setProfileModalName(row.player.name);
+                                  }}
+                                  className="chesscom-table-chip"
+                                  title={`Lihat profil Chess.com @${row.player.chessComUsername}`}
+                                >
+                                  <span className="chesscom-chip-pawn">♟</span>
+                                  <span>@{row.player.chessComUsername}</span>
+                                </button>
+                              )}
+                            </div>
                             {row.player.club && (
                               <div className="player-cell-club">{row.player.club}</div>
                             )}
@@ -1117,6 +1310,17 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Chess.com Player Profile Preview Modal */}
+      <ChessComProfileModal
+        isOpen={Boolean(profileModalUsername)}
+        username={profileModalUsername}
+        onClose={() => {
+          setProfileModalUsername(null);
+          setProfileModalName(undefined);
+        }}
+        localPlayerName={profileModalName}
+      />
     </div>
   );
 };

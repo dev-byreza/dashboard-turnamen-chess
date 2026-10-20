@@ -19,12 +19,17 @@ import {
   RotateCcw,
   Award,
   Layers,
+  Loader2,
+  Zap,
+  ExternalLink,
 } from 'lucide-react';
 import {
   createUniqueTournamentSlug,
   hasStarted,
   normalizeTournamentSlug,
 } from '../utils/tournamentStore';
+import { fetchFullChessComPlayer } from '../utils/chessComApi';
+import { ChessComProfileModal } from './ChessComProfileModal';
 
 interface TournamentManagerProps {
   roster: Player[];
@@ -97,6 +102,10 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [rosterClub, setRosterClub] = useState<string>('');
   const [rosterTitle, setRosterTitle] = useState<string>('');
   const [rosterSearch, setRosterSearch] = useState<string>('');
+  const [rosterChessCom, setRosterChessCom] = useState<string>('');
+  const [rosterAvatar, setRosterAvatar] = useState<string>('');
+  const [isFetchingChessCom, setIsFetchingChessCom] = useState<boolean>(false);
+  const [chessComFeedback, setChessComFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Roster editing inline state
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
@@ -105,6 +114,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [editPlayerRatedGames, setEditPlayerRatedGames] = useState<string>('0');
   const [editPlayerClub, setEditPlayerClub] = useState<string>('');
   const [editPlayerTitle, setEditPlayerTitle] = useState<string>('');
+  const [editPlayerChessCom, setEditPlayerChessCom] = useState<string>('');
+  const [viewProfileUsername, setViewProfileUsername] = useState<string | null>(null);
 
   const activeTournament = tournaments.find((t) => t.id === activeId);
   const activeTournamentStarted = Boolean(activeTournament && hasStarted(activeTournament));
@@ -221,6 +232,47 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setIsFormOpen(false);
   };
 
+  // Chess.com player sync
+  const handleSyncChessCom = async () => {
+    if (!rosterChessCom.trim()) return;
+    setIsFetchingChessCom(true);
+    setChessComFeedback(null);
+    try {
+      const data = await fetchFullChessComPlayer(rosterChessCom);
+      if (!data) {
+        setChessComFeedback({
+          type: 'error',
+          text: `Akun Chess.com "${rosterChessCom.trim()}" tidak ditemukan.`,
+        });
+        return;
+      }
+
+      if (data.profile.name && !rosterName.trim()) {
+        setRosterName(data.profile.name);
+      }
+      if (data.recommendedRating) {
+        setRosterRating(String(data.recommendedRating));
+      }
+      if (data.bestTitle) {
+        setRosterTitle(data.bestTitle);
+      }
+      if (data.profile.avatar) {
+        setRosterAvatar(data.profile.avatar);
+      }
+      setChessComFeedback({
+        type: 'success',
+        text: `Data @${data.profile.username} terhubung! Elo: ${data.recommendedRating}${data.bestTitle ? ` • Gelar: ${data.bestTitle}` : ''}`,
+      });
+    } catch {
+      setChessComFeedback({
+        type: 'error',
+        text: 'Gagal menghubungi Chess.com. Periksa koneksi internet.',
+      });
+    } finally {
+      setIsFetchingChessCom(false);
+    }
+  };
+
   // Roster addition
   const handleAddRosterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,6 +289,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
         ratedGames: Math.max(0, parseInt(rosterRatedGames, 10) || 0),
         club: rosterClub.trim() || undefined,
         title: (rosterTitle as Player['title']) || undefined,
+        avatar: rosterAvatar || undefined,
+        chessComUsername: rosterChessCom.trim() || undefined,
       },
       shouldAutoEnroll
     );
@@ -248,6 +302,9 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setRosterRatedGames('0');
     setRosterClub('');
     setRosterTitle('');
+    setRosterChessCom('');
+    setRosterAvatar('');
+    setChessComFeedback(null);
   };
 
   // Roster edit helpers
@@ -258,6 +315,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setEditPlayerRatedGames(String(p.ratedGames ?? 0));
     setEditPlayerClub(p.club || '');
     setEditPlayerTitle(p.title || '');
+    setEditPlayerChessCom(p.chessComUsername || '');
   };
 
   const handleSaveEditPlayer = () => {
@@ -268,6 +326,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       ratedGames: Math.max(0, parseInt(editPlayerRatedGames, 10) || 0),
       club: editPlayerClub.trim() || undefined,
       title: (editPlayerTitle as Player['title']) || undefined,
+      chessComUsername: editPlayerChessCom.trim() || undefined,
     });
     setEditingPlayerId(null);
   };
@@ -830,6 +889,69 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                 </div>
 
                 <form onSubmit={handleAddRosterSubmit} className="roster-add-form">
+                  {/* Quick Chess.com Sync Card */}
+                  <div className="chesscom-sync-card">
+                    <div className="chesscom-sync-label-row">
+                      <div className="chesscom-sync-title">
+                        <span className="chesscom-pawn-symbol">♟</span>
+                        <span>Sinkronisasi Otomatis Chess.com (Opsional)</span>
+                      </div>
+                      <span className="chesscom-sync-hint">
+                        Tarik avatar & rating resmi pemain langsung dari Chess.com
+                      </span>
+                    </div>
+                    <div className="chesscom-sync-input-row">
+                      <div className="chesscom-input-wrapper">
+                        <span className="chesscom-input-prefix">@</span>
+                        <input
+                          type="text"
+                          value={rosterChessCom}
+                          onChange={(e) => {
+                            setRosterChessCom(e.target.value);
+                            setChessComFeedback(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSyncChessCom();
+                            }
+                          }}
+                          placeholder="Username Chess.com (contoh: hikaru)"
+                          className="form-input-text chesscom-input"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSyncChessCom}
+                        disabled={isFetchingChessCom || !rosterChessCom.trim()}
+                        className="btn-sync-chesscom"
+                        title="Tarik data profil & rating dari Chess.com"
+                      >
+                        {isFetchingChessCom ? (
+                          <>
+                            <Loader2 size={14} className="spin-icon" />
+                            <span>Menghubungkan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={14} />
+                            <span>Tarik Data</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    {chessComFeedback && (
+                      <div className={`chesscom-feedback-banner ${chessComFeedback.type}`}>
+                        {chessComFeedback.type === 'success' ? (
+                          <Check size={14} />
+                        ) : (
+                          <AlertCircle size={14} />
+                        )}
+                        <span>{chessComFeedback.text}</span>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="roster-form-grid">
                     <div className="form-field flex-2">
                       <label className="form-label">
@@ -1018,6 +1140,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                               placeholder="Klub / Instansi"
                               className="form-input-text"
                             />
+                            <input
+                              type="text"
+                              value={editPlayerChessCom}
+                              onChange={(e) => setEditPlayerChessCom(e.target.value)}
+                              placeholder="Username Chess.com"
+                              className="form-input-text"
+                            />
                           </div>
                           <div className="roster-edit-actions">
                             <button
@@ -1043,12 +1172,34 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                     return (
                       <div key={p.id} className="roster-row">
                         <div className="roster-row-main">
-                          <span className="mini-avatar">{getInitials(p.name)}</span>
+                          {p.avatar ? (
+                            <img
+                              src={p.avatar}
+                              alt={p.name}
+                              className="mini-avatar-img"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span className="mini-avatar">{getInitials(p.name)}</span>
+                          )}
                           <div className="roster-player-info">
                             <div className="roster-name-line">
                               <span className="roster-name">{p.name}</span>
                               {p.title && <span className="title-tag">{p.title}</span>}
                               <span className="roster-elo-chip">{p.rating || 500} Elo • {p.ratedGames ?? 0} laga</span>
+                              {p.chessComUsername && (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewProfileUsername(p.chessComUsername!)}
+                                  className="chesscom-user-chip"
+                                  title="Klik untuk melihat statistik Chess.com"
+                                >
+                                  <span className="chesscom-chip-pawn">♟</span>
+                                  <span>@{p.chessComUsername}</span>
+                                </button>
+                              )}
                             </div>
                             <div className="roster-meta-line">
                               <span>{p.club || 'Politeknik Sorowako'}</span>
@@ -1095,6 +1246,13 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Chess.com Profile Preview Modal */}
+      <ChessComProfileModal
+        isOpen={Boolean(viewProfileUsername)}
+        username={viewProfileUsername}
+        onClose={() => setViewProfileUsername(null)}
+      />
     </div>
   );
 };

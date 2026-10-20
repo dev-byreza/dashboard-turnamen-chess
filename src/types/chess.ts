@@ -8,6 +8,7 @@ export interface Player {
   avatar?: string;
   club?: string;
   title?: 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM';
+  chessComUsername?: string;
 }
 
 export type MatchResult = '1-0' | '0-1' | '0.5-0.5' | null;
@@ -80,6 +81,8 @@ export interface SwissMatch {
   blackPlayerId: string; // '__bye__' if bye
   result: MatchResult;
   isBye?: boolean;
+  chessComUrl?: string;
+  chessComSyncedAt?: number;
 }
 
 export interface SwissPairingOverride {

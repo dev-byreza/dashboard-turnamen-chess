@@ -49,6 +49,11 @@ export async function ensureTables(sql: any) {
   `;
 
   await sql`
+    ALTER TABLE chess_roster
+    ADD COLUMN IF NOT EXISTS chess_com_username VARCHAR(100);
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS chess_tournaments (
       id VARCHAR(64) PRIMARY KEY,
       slug VARCHAR(255),
@@ -139,7 +144,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
 
     // 1. Fetch roster
     const rosterRows = (await sql`
-      SELECT id, name, seed, rating, rated_games, club, title, avatar
+      SELECT id, name, seed, rating, rated_games, club, title, avatar, chess_com_username
       FROM chess_roster
       ORDER BY rating DESC NULLS LAST, seed ASC
     `) as Array<{
@@ -151,6 +156,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       club?: string;
       title?: Player['title'];
       avatar?: string;
+      chess_com_username?: string;
     }>;
 
     // 2. Fetch tournaments
@@ -189,6 +195,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       club: r.club || 'Politeknik Sorowako',
       title: r.title || undefined,
       avatar: r.avatar || undefined,
+      chessComUsername: r.chess_com_username || undefined,
     }));
 
     const tournaments: Tournament[] = tourneyRows.map((t) => {
@@ -285,7 +292,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
     // 1. Save roster players
     for (const p of store.roster) {
       queries.push(sql`
-        INSERT INTO chess_roster (id, name, seed, rating, rated_games, club, title, avatar)
+        INSERT INTO chess_roster (id, name, seed, rating, rated_games, club, title, avatar, chess_com_username)
         VALUES (
           ${p.id},
           ${p.name},
@@ -294,7 +301,8 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           ${p.ratedGames ?? 0},
           ${p.club || 'Politeknik Sorowako'},
           ${p.title || null},
-          ${p.avatar || null}
+          ${p.avatar || null},
+          ${p.chessComUsername || null}
         )
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
@@ -304,6 +312,7 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
           club = EXCLUDED.club,
           title = EXCLUDED.title,
           avatar = EXCLUDED.avatar,
+          chess_com_username = EXCLUDED.chess_com_username,
           updated_at = CURRENT_TIMESTAMP;
       `);
     }
