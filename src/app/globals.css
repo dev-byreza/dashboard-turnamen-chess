@@ -5114,14 +5114,16 @@ button, input, select, textarea {
 .board-card-bottom-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.65rem;
   padding: 0.5rem 0.9rem;
   margin-top: 0.45rem;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   background: rgba(0, 0, 0, 0.015);
   border-radius: 0 0 10px 10px;
   font-size: 0.76rem;
+  flex-wrap: wrap;
+  text-align: center;
 }
 
 .bottom-bar-left {
@@ -5129,13 +5131,14 @@ button, input, select, textarea {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
+.bottom-bar-center,
 .bottom-bar-right {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  margin-left: auto;
+  justify-content: center;
 }
 
 .btn-chesscom-match-sync {

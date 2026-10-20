@@ -941,60 +941,69 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
 
                     {/* Match Card Bottom Bar: Chess.com Sync & Watch Link */}
                     {!isBye && (
-                      <div className="board-card-bottom-bar">
-                        <div className="bottom-bar-left">
-                          {canEditMatchScore(match) && whiteP?.chessComUsername && blackP?.chessComUsername ? (
-                            <button
-                              type="button"
-                              onClick={() => handleSyncMatchChessCom(match)}
-                              disabled={syncingMatchId === match.id}
-                              className="btn-chesscom-match-sync"
-                              title="Tarik hasil pertandingan terbaru kedua pemain langsung dari Chess.com"
-                            >
-                              {syncingMatchId === match.id ? (
-                                <>
-                                  <Loader2 size={12} className="spin-icon" />
-                                  <span>Mencari game di Chess.com...</span>
-                                </>
-                              ) : (
-                                <span>⚡ Tarik Hasil Chess.com</span>
+                      ((canEditMatchScore(match) && whiteP?.chessComUsername && blackP?.chessComUsername) ||
+                        matchSyncMessage?.matchId === match.id ||
+                        match.chessComUrl ||
+                        whiteP?.chessComUsername ||
+                        blackP?.chessComUsername) && (
+                        <div className="board-card-bottom-bar">
+                          {((canEditMatchScore(match) && whiteP?.chessComUsername && blackP?.chessComUsername) ||
+                            matchSyncMessage?.matchId === match.id) && (
+                            <div className="bottom-bar-left">
+                              {canEditMatchScore(match) && whiteP?.chessComUsername && blackP?.chessComUsername ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSyncMatchChessCom(match)}
+                                  disabled={syncingMatchId === match.id}
+                                  className="btn-chesscom-match-sync"
+                                  title="Tarik hasil pertandingan terbaru kedua pemain langsung dari Chess.com"
+                                >
+                                  {syncingMatchId === match.id ? (
+                                    <>
+                                      <Loader2 size={12} className="spin-icon" />
+                                      <span>Mencari game di Chess.com...</span>
+                                    </>
+                                  ) : (
+                                    <span>⚡ Tarik Hasil Chess.com</span>
+                                  )}
+                                </button>
+                              ) : null}
+
+                              {matchSyncMessage?.matchId === match.id && (
+                                <span className={`match-sync-notice ${matchSyncMessage.type}`}>
+                                  {matchSyncMessage.text}
+                                </span>
                               )}
-                            </button>
-                          ) : null}
-
-                          {matchSyncMessage?.matchId === match.id && (
-                            <span className={`match-sync-notice ${matchSyncMessage.type}`}>
-                              {matchSyncMessage.text}
-                            </span>
+                            </div>
                           )}
-                        </div>
 
-                        <div className="bottom-bar-right">
-                          {match.chessComUrl ? (
-                            <a
-                              href={match.chessComUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn-watch-chesscom active"
-                              title="Tonton replay game pertandingan ini di Chess.com"
-                            >
-                              <span>🎮 Tonton di Chess.com</span>
-                              <ExternalLink size={12} />
-                            </a>
-                          ) : whiteP?.chessComUsername || blackP?.chessComUsername ? (
-                            <a
-                              href={`https://www.chess.com/member/${whiteP?.chessComUsername || blackP?.chessComUsername}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn-watch-chesscom"
-                              title="Buka profil catur di Chess.com"
-                            >
-                              <span>Papan Chess.com</span>
-                              <ExternalLink size={11} />
-                            </a>
-                          ) : null}
+                          <div className="bottom-bar-center">
+                            {match.chessComUrl ? (
+                              <a
+                                href={match.chessComUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-watch-chesscom active"
+                                title="Tonton replay game pertandingan ini di Chess.com"
+                              >
+                                <span>🎮 Tonton di Chess.com</span>
+                                <ExternalLink size={12} />
+                              </a>
+                            ) : whiteP?.chessComUsername || blackP?.chessComUsername ? (
+                              <a
+                                href={`https://www.chess.com/member/${whiteP?.chessComUsername || blackP?.chessComUsername}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-watch-chesscom"
+                                title="Buka profil catur di Chess.com"
+                              >
+                                <span>Papan Chess.com</span>
+                                <ExternalLink size={11} />
+                              </a>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
+                      )
                     )}
                   </div>
                 );
