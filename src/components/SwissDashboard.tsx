@@ -761,25 +761,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           )}
                         </div>
                         <div className="player-info-meta">
-                          <div className="player-name-line">
-                            {whiteP?.title && <span className="title-tag">{whiteP.title}</span>}
-                            <span className="player-name-text">{whiteP?.name || 'TBD'}</span>
-                          </div>
-                          <div className="player-elo-row">
-                            {whiteP?.chessComUsername && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setProfileModalUsername(whiteP.chessComUsername!);
-                                  setProfileModalName(whiteP.name);
-                                }}
-                                className="chesscom-card-chip"
-                                title={`Lihat profil Chess.com @${whiteP.chessComUsername}`}
-                              >
-                                <span className="chesscom-chip-pawn">♟</span>
-                                <span>@{whiteP.chessComUsername}</span>
-                              </button>
-                            )}
+                          {/* Baris 1: Elo Rating & Delta (Di atas nama) */}
+                          <div className="player-elo-header-line">
                             <span className="player-elo-text">
                               Elo {matchElo ? matchElo.whiteBefore : (whiteP?.rating ?? 500)}
                             </span>
@@ -798,6 +781,28 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                               </span>
                             )}
                           </div>
+                          {/* Baris 2: Gelar & Nama Pemain */}
+                          <div className="player-name-line">
+                            {whiteP?.title && <span className="title-tag">{whiteP.title}</span>}
+                            <span className="player-name-text">{whiteP?.name || 'TBD'}</span>
+                          </div>
+                          {/* Baris 3: Chip Chess.com */}
+                          {whiteP?.chessComUsername && (
+                            <div className="player-chip-row">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProfileModalUsername(whiteP.chessComUsername!);
+                                  setProfileModalName(whiteP.name);
+                                }}
+                                className="chesscom-card-chip"
+                                title={`Lihat profil Chess.com @${whiteP.chessComUsername}`}
+                              >
+                                <span className="chesscom-chip-pawn">♟</span>
+                                <span>@{whiteP.chessComUsername}</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -869,18 +874,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                         className={`player-unit is-black player-unit-black ${blackWon ? 'is-winner' : ''} ${whiteWon ? 'is-loser' : ''}`}
                       >
                         <div className="player-info-meta">
-                          <div className="player-name-line">
-                            {blackP?.title && <span className="title-tag">{blackP.title}</span>}
-                            <span className="player-name-text">
-                              {isBye ? 'Bye (libur)' : blackP?.name || 'TBD'}
-                            </span>
-                          </div>
-                          <div className="player-elo-row">
-                            <span className="player-elo-text">
-                              {isBye
-                                ? 'Poin penuh'
-                                : `Elo ${matchElo ? matchElo.blackBefore : (blackP?.rating ?? 500)}`}
-                            </span>
+                          {/* Baris 1: Elo Rating & Delta (Di atas nama) */}
+                          <div className="player-elo-header-line">
                             {matchElo && match.result !== null && !isBye && (
                               <span
                                 className={`elo-delta-tag ${
@@ -895,7 +890,22 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                 {matchElo.blackDelta > 0 ? `+${matchElo.blackDelta}` : matchElo.blackDelta}
                               </span>
                             )}
-                            {blackP?.chessComUsername && (
+                            <span className="player-elo-text">
+                              {isBye
+                                ? 'Poin penuh'
+                                : `Elo ${matchElo ? matchElo.blackBefore : (blackP?.rating ?? 500)}`}
+                            </span>
+                          </div>
+                          {/* Baris 2: Gelar & Nama Pemain */}
+                          <div className="player-name-line">
+                            {blackP?.title && <span className="title-tag">{blackP.title}</span>}
+                            <span className="player-name-text">
+                              {isBye ? 'Bye (libur)' : blackP?.name || 'TBD'}
+                            </span>
+                          </div>
+                          {/* Baris 3: Chip Chess.com */}
+                          {blackP?.chessComUsername && (
+                            <div className="player-chip-row">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -908,8 +918,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                 <span className="chesscom-chip-pawn">♟</span>
                                 <span>@{blackP.chessComUsername}</span>
                               </button>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                         <div className="pawn-avatar black-piece" title="Bidak Hitam">
                           {blackP?.avatar ? (
