@@ -746,19 +746,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                         className={`player-unit player-unit-white ${whiteWon ? 'is-winner' : ''} ${blackWon ? 'is-loser' : ''}`}
                       >
                         <div className="pawn-avatar white-piece" title="Bidak Putih">
-                          {whiteP?.avatar ? (
-                            <img
-                              src={whiteP.avatar}
-                              alt={whiteP.name}
-                              referrerPolicy="no-referrer"
-                              className="match-player-avatar-img"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            '♟'
-                          )}
+                          ♟
                         </div>
                         <div className="player-info-meta">
                           {/* Baris 1: Elo Rating & Delta (Di atas nama) */}
@@ -922,19 +910,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           )}
                         </div>
                         <div className="pawn-avatar black-piece" title="Bidak Hitam">
-                          {blackP?.avatar ? (
-                            <img
-                              src={blackP.avatar}
-                              alt={blackP.name}
-                              referrerPolicy="no-referrer"
-                              className="match-player-avatar-img"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            '♙'
-                          )}
+                          ♟
                         </div>
                       </div>
                     </div>
