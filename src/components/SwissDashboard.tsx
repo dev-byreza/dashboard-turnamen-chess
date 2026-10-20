@@ -62,6 +62,23 @@ const getInitials = (name: string) =>
     .map((w) => w[0]?.toUpperCase())
     .join('');
 
+const getPlayerInitialLabel = (player: Player) => {
+  const user = (player.chessComUsername || '').toLowerCase().trim();
+  const name = (player.name || '').trim();
+  if (!name) return '-';
+  // If player name is identical to chess.com username (e.g. "Anxiety99" and "Anxiety99")
+  if (user && name.toLowerCase() === user) {
+    const init = getInitials(name) || name[0]?.toUpperCase() || 'P';
+    return `Inisial: ${init}.`;
+  }
+  // If player name is already an initial (e.g. "A." or "Z" or "Reza")
+  if (name.length <= 4) {
+    return `Inisial: ${name.endsWith('.') ? name : `${name}.`}`;
+  }
+  // If full name is given (e.g. "Andi Reza")
+  return `Inisial: ${getInitials(name)}. (${name})`;
+};
+
 const formatRoundSchedule = (value: string) => {
   const [datePart, timePart] = value.split('T');
   const [year, month, day] = (datePart || '').split('-').map(Number);
@@ -1190,9 +1207,9 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                 {standings.rows.map((row, index) => {
                   const isLeader = index === 0 && row.points > 0;
                   let rankBadgeClass = 'rank-badge';
-                  if (index === 0 && row.points > 0) rankBadgeClass += ' gold';
-                  else if (index === 1 && row.points > 0) rankBadgeClass += ' silver';
-                  else if (index === 2 && row.points > 0) rankBadgeClass += ' bronze';
+                  if (index === 0) rankBadgeClass += ' gold';
+                  else if (index === 1) rankBadgeClass += ' silver';
+                  else if (index === 2) rankBadgeClass += ' bronze';
 
                   return (
                     <tr
@@ -1205,39 +1222,83 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       </td>
                       <td className="left">
                         <div className="player-cell">
-                          {row.player.avatar ? (
-                            <img
-                              src={row.player.avatar}
-                              alt={row.player.name}
-                              className="mini-avatar-img"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <span className="mini-avatar">{getInitials(row.player.name)}</span>
-                          )}
-                          <div style={{ minWidth: 0 }}>
-                            <div className="player-cell-name">
-                              <span>{row.player.name}</span>
-                              {row.player.chessComUsername && (
+                          <div
+                            className={`table-player-avatar-wrap ${row.player.chessComUsername ? 'clickable' : ''}`}
+                            onClick={() => {
+                              if (row.player.chessComUsername) {
+                                setProfileModalUsername(row.player.chessComUsername);
+                                setProfileModalName(row.player.name);
+                              }
+                            }}
+                            title={
+                              row.player.chessComUsername
+                                ? `Lihat profil Chess.com @${row.player.chessComUsername}`
+                                : row.player.name
+                            }
+                          >
+                            {row.player.avatar ? (
+                              <img
+                                src={row.player.avatar}
+                                alt={row.player.name}
+                                referrerPolicy="no-referrer"
+                                className={`mini-avatar-img ${
+                                  index === 0
+                                    ? 'gold-ring'
+                                    : index === 1
+                                    ? 'silver-ring'
+                                    : index === 2
+                                    ? 'bronze-ring'
+                                    : ''
+                                }`}
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span
+                                className={`mini-avatar ${
+                                  index === 0
+                                    ? 'gold-ring'
+                                    : index === 1
+                                    ? 'silver-ring'
+                                    : index === 2
+                                    ? 'bronze-ring'
+                                    : ''
+                                }`}
+                              >
+                                {getInitials(row.player.name)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="player-cell-content" style={{ minWidth: 0 }}>
+                            {/* Baris 1: Username & Gelar */}
+                            <div className="table-player-top-line">
+                              {row.player.title && (
+                                <span className="title-tag">{row.player.title}</span>
+                              )}
+                              {row.player.chessComUsername ? (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setProfileModalUsername(row.player.chessComUsername!);
                                     setProfileModalName(row.player.name);
                                   }}
-                                  className="chesscom-table-chip"
-                                  title={`Lihat profil Chess.com @${row.player.chessComUsername}`}
+                                  className="table-chesscom-user-btn"
+                                  title={`Buka profil Chess.com @${row.player.chessComUsername}`}
                                 >
                                   <span className="chesscom-chip-pawn">♟</span>
-                                  <span>@{row.player.chessComUsername}</span>
+                                  <span className="table-user-name">@{row.player.chessComUsername}</span>
                                 </button>
+                              ) : (
+                                <span className="table-player-direct-name">{row.player.name}</span>
                               )}
                             </div>
-                            {row.player.club && (
-                              <div className="player-cell-club">{row.player.club}</div>
-                            )}
+                            {/* Baris 2: Inisial Pemain (tanpa institusi) */}
+                            <div className="table-player-initial-line">
+                              <span className="player-initial-text">
+                                {getPlayerInitialLabel(row.player)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </td>

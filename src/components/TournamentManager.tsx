@@ -287,7 +287,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
         name,
         rating: parseInt(rosterRating, 10) || 500,
         ratedGames: Math.max(0, parseInt(rosterRatedGames, 10) || 0),
-        club: rosterClub.trim() || undefined,
+        club: 'Politeknik Sorowako',
         title: (rosterTitle as Player['title']) || undefined,
         avatar: rosterAvatar || undefined,
         chessComUsername: rosterChessCom.trim() || undefined,
@@ -336,7 +336,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       name: editPlayerName.trim(),
       rating: parseInt(editPlayerRating, 10) || 500,
       ratedGames: Math.max(0, parseInt(editPlayerRatedGames, 10) || 0),
-      club: editPlayerClub.trim() || undefined,
+      club: 'Politeknik Sorowako',
       title: (editPlayerTitle as Player['title']) || undefined,
       chessComUsername: cleanUser || undefined,
     });
@@ -676,7 +676,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                                     {p.title && <span className="title-tag">{p.title}</span>}
                                   </div>
                                   <div className="picker-meta">
-                                    {p.club || 'Politeknik Sorowako'} • {p.rating || 500} Elo
+                                    {p.rating || 500} Elo
                                   </div>
                                 </div>
                               </div>
@@ -1031,17 +1031,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                         <option value="WGM">WGM (Wanita GM)</option>
                       </select>
                     </div>
-
-                    <div className="form-field flex-2">
-                      <label className="form-label">Klub / Jurusan / Instansi</label>
-                      <input
-                        type="text"
-                        value={rosterClub}
-                        onChange={(e) => setRosterClub(e.target.value)}
-                        placeholder="Contoh: Politeknik Sorowako"
-                        className="form-input-text"
-                      />
-                    </div>
                   </div>
 
                   <div className="roster-add-actions">
@@ -1156,13 +1145,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                             </select>
                             <input
                               type="text"
-                              value={editPlayerClub}
-                              onChange={(e) => setEditPlayerClub(e.target.value)}
-                              placeholder="Klub / Instansi"
-                              className="form-input-text"
-                            />
-                            <input
-                              type="text"
                               value={editPlayerChessCom}
                               onChange={(e) => setEditPlayerChessCom(e.target.value)}
                               placeholder="Username Chess.com"
@@ -1223,8 +1205,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                               )}
                             </div>
                             <div className="roster-meta-line">
-                              <span>{p.club || 'Politeknik Sorowako'}</span>
-                              <span className="dot-sep">•</span>
                               <span className="usage-info">
                                 Terdaftar di {usedCount} turnamen
                               </span>
