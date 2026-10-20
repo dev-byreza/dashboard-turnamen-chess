@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statistik &amp; Info Turnamen</title>
+<style>
+  :root{
+    --bg:#f3ecdd; --bg-checker:#ece2cf;
+    --card:#ffffff; --panel:#faf6ec; --panel-border:#f0dfb6;
+    --ink:#24303e; --muted:#7a8291;
+    --gold:#d99a2b; --gold-soft:#f0b429;
+    --navy:#203a5e; --green:#3f9a5e;
+    --track:#e8e0d0; --white-line:#b9c0c9; --draw-line:#e8a322;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",system-ui,sans-serif;
+    background:
+      linear-gradient(135deg,var(--bg-checker) 12px,transparent 0),
+      linear-gradient(225deg,var(--bg-checker) 12px,transparent 0),
+      linear-gradient(45deg,var(--bg-checker) 12px,transparent 0),
+      linear-gradient(315deg,var(--bg-checker) 12px,transparent 0),
+      var(--bg);
+    background-size:24px 24px;
+    background-position:0 0,12px 0,0 12px,12px 12px;
+    color:var(--ink);
+    display:flex;justify-content:center;padding:28px 16px;min-height:100vh;
+  }
+  .card{
+    width:100%;max-width:660px;background:var(--card);
+    border-radius:20px;box-shadow:0 16px 40px rgba(60,50,20,.13),0 2px 6px rgba(60,50,20,.08);
+    padding:20px 22px;
+  }
+  .head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .head .mark{color:var(--gold)}
+  .head h1{font-size:18px;font-weight:800;letter-spacing:.05em}
+  .pill{margin-left:auto;display:flex;align-items:center;gap:8px;border:1px solid #e3e0d7;
+    border-radius:999px;padding:5px 12px;background:#fdfcf9}
+  .round-dots{display:flex;gap:5px}
+  .rdot{width:8px;height:8px;border-radius:50%;background:var(--track);position:relative}
+  .rdot.done{background:var(--gold-soft);box-shadow:0 0 0 3px rgba(240,180,41,.2)}
+  .rdot.now{background:var(--gold-soft);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.45)}}
+
+  .panel{background:var(--panel);border:1px solid var(--panel-border);
+    border-radius:16px;padding:14px 16px 10px}
+  .panel-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .panel-head svg.play{color:var(--gold)}
+  .ttl{font-size:12.5px;font-weight:700;color:#5d6470}
+
+  .seg{margin-left:auto;display:flex;background:#f1ead9;border-radius:999px;padding:3px}
+  .seg button{
+    display:flex;align-items:center;justify-content:center;
+    width:30px;height:26px;border:none;border-radius:999px;
+    background:transparent;color:#9aa0ab;cursor:pointer;transition:all .2s;
+  }
+  .seg button:hover{color:#5d6470}
+  .seg button.on{background:var(--gold-soft);color:#fff;box-shadow:0 2px 6px rgba(217,154,43,.4)}
+  .seg button + button{margin-left:2px}
+
+  .stack{display:flex;height:9px;border-radius:999px;overflow:hidden;background:var(--track)}
+  .stack i{display:block;height:100%;transition:width .8s cubic-bezier(.2,.7,.2,1)}
+  .stack .w{background:var(--white-line)}
+  .stack .d{background:var(--draw-line)}
+  .stack .b{background:var(--navy)}
+  .stack-wrap{margin:6px 0 12px}
+
+  .legend{display:flex;justify-content:space-between;margin:2px 4px 10px}
+  .legend.center{justify-content:center;gap:18px}
+  .chip{display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .dot.w{background:var(--white-line);box-shadow:inset 0 0 0 2px #98a1ad}
+  .dot.d{background:var(--draw-line)}
+  .dot.b{background:var(--navy)}
+
+  .chart{width:100%;display:block}
+  .grid-l{stroke:#e9e2d2;stroke-width:1}
+  .axis{fill:#a7adb8;font-size:9.5px;font-weight:600;font-family:"Segoe UI",sans-serif}
+  .axlab{fill:#8a909c;font-size:9.8px;font-weight:700;font-family:"Segoe UI",sans-serif}
+  .guide{stroke:#c9b98a;stroke-width:1;stroke-dasharray:4 4;opacity:0;transition:opacity .15s}
+  .hover-pad{cursor:crosshair}
+
+  .foot{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px}
+  .tick{width:5px;height:5px;border-radius:50%;background:var(--track)}
+  .foot .lbl{font-size:11px;color:var(--muted)}
+
+  #tip{position:fixed;z-index:9;pointer-events:none;background:#24303e;color:#fff;
+    border-radius:9px;padding:7px 10px;font-size:11.5px;line-height:1.6;
+    box-shadow:0 8px 20px rgba(0,0,0,.25);opacity:0;transform:translate(-50%,-115%);
+    transition:opacity .12s;white-space:nowrap}
+  #tip .row{display:flex;align-items:center;gap:6px}
+  #tip b{font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="head">
+    <svg class="mark" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M7 20h10M9 20c0-4-4-5-4-9a7 7 0 0 1 14 0c0 4-4 5-4 9"/><path d="M10 8l2 3 2-3"/>
+    </svg>
+    <h1>STATISTIK &amp; INFO TURNAMEN</h1>
+    <div class="pill"><span class="round-dots" id="roundDots"></span></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <svg class="play" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l6 3-6 3V5zm7 0l6 3-6 3V5z"/></svg>
+      <span class="ttl">Progres laga babak ini</span>
+      <span class="seg" id="seg"></span>
+    </div>
+
+    <div class="stack-wrap" id="stackWrap">
+      <div class="stack" id="stackBar"><i class="w"></i><i class="d"></i><i class="b"></i></div>
+    </div>
+    <div class="legend" id="legend"></div>
+
+    <svg id="mainChart" class="chart" viewBox="0 0 620 196"></svg>
+
+    <div class="foot" id="foot"></div>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+/* ── konstanta & data (sumbu-x = BABAK) ───────────── */
+const TOTAL=6, PLAYED=2;
+const LAGA={ // hasil per babak (sudah dimainkan 2 babak) + proyeksi 4 babak
+  whites:[50,57], draws:[19,17], blacks:[31,26],
+  pw:[55,53,52,52], pd:[18,18,17,18], pb:[27,29,31,30]
+};
+const PEMAIN=[ // elo per babak + proyeksi
+  {name:"ZiiGantengg", c:"#d99a2b", v:[520,536], p:[538,541,544,546]},
+  {name:"Ada",         c:"#3f9a5e", v:[500,509], p:[512,514,517,519]},
+  {name:"Bram",        c:"#c9cdd4", v:[480,481], p:[479,480,482,484]},
+  {name:"Cak Pius",    c:"#7a8291", v:[500,474], p:[471,470,471,472]},
+];
+const RERATA={
+  v:PEMAIN[0].v.map((_,i)=>PEMAIN.reduce((a,p)=>a+p.v[i],0)/4),
+  p:PEMAIN[0].p.map((_,i)=>PEMAIN.reduce((a,p)=>a+p.p[i],0)/4),
+};
+
+/* ── helpers ──────────────────────────────────────── */
+const NS="http://www.w3.org/2000/svg";
+function el(t,a,p){const n=document.createElementNS(NS,t);for(const k in a)n.setAttribute(k,a[k]);(p||null)&&p.appendChild(n);return n;}
+function segsOf(pts){
+  const all=[];
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(pts.length-1,i+2)];
+    all.push(` C ${(p1.x+(p2.x-p0.x)/6).toFixed(1)} ${(p1.y+(p2.y-p0.y)/6).toFixed(1)},`+
+       ` ${(p2.x-(p3.x-p1.x)/6).toFixed(1)} ${(p2.y-(p3.y-p1.y)/6).toFixed(1)},`+
+       ` ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`);
+  }
+  return all;
+}
+const pathOf=pts=>`M ${pts[0].x} ${pts[0].y}`+segsOf(pts).join("");
+function splinePair(pts,split){ // split = jumlah titik bagian "dimainkan"
+  const s=segsOf(pts);
+  const main=`M ${pts[0].x} ${pts[0].y}`+s.slice(0,split-1).join("");
+  const proj=`M ${pts[split-1].x} ${pts[split-1].y}`+s.slice(split-1).join("");
+  return {main,proj};
+}
+function drawAnim(path,delay=0,ms=900){
+  const len=path.getTotalLength();
+  path.style.strokeDasharray=len;path.style.strokeDashoffset=len;path.getBoundingClientRect();
+  path.style.transition=`stroke-dashoffset ${ms}ms cubic-bezier(.3,.7,.3,1) ${delay}ms`;
+  path.style.strokeDashoffset=0;
+  setTimeout(()=>{path.style.strokeDasharray="";},delay+ms+40);
+}
+
+/* ── tooltip ──────────────────────────────────────── */
+const tip=document.getElementById("tip");
+const showTip=(h,x,y)=>{tip.innerHTML=h;tip.style.opacity=1;tip.style.left=x+"px";tip.style.top=y+"px";};
+const hideTip=()=>tip.style.opacity=0;
+function bindTip(n,html){
+  n.addEventListener("mousemove",e=>showTip(html,e.clientX,e.clientY));
+  n.addEventListener("mouseleave",hideTip);
+}
+
+/* ── round dots pill ──────────────────────────────── */
+(function(){
+  const node=document.getElementById("roundDots");
+  for(let r=1;r<=TOTAL;r++){
+    const d=document.createElement("span");d.className="rdot";
+    if(r<=PLAYED)d.classList.add("done");
+    if(r===PLAYED+1)d.classList.add("now");
+    bindTip(d,`<b>Babak ${r} — ${r<=PLAYED?"selesai":r===PLAYED+1?"berlangsung":"belum"}</b>`);
+    node.appendChild(d);
+  }
+})();
+
+/* ── switcher ─────────────────────────────────────── */
+const ICONS={
+  laga:'<path d="M5 5l6 3-6 3V5zm7 0l6 3-6 3V5z"/>',
+  pemain:'<circle cx="9" cy="8" r="3.4"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 7h5M16 11h5" />',
+  rerata:'<path d="M3 17l5-6 4 4 8-9"/><path d="M15 6h5v5"/>'
+};
+const MODES=[
+  {id:"laga",   tip:"Hasil laga tiap babak — Putih / Remis / Hitam"},
+  {id:"pemain", tip:"Elo per peserta tiap babak"},
+  {id:"rerata", tip:"Rerata Elo peserta tiap babak"},
+];
+(function(){
+  const seg=document.getElementById("seg");
+  MODES.forEach(m=>{
+    const b=document.createElement("button");
+    b.innerHTML=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[m.id]}</svg>`;
+    bindTip(b,`<b>${m.tip}</b>`);
+    b.onclick=()=>render(m.id);
+    b.dataset.mode=m.id;seg.appendChild(b);
+  });
+})();
+
+/* ── legend ───────────────────────────────────────── */
+function legend(items,center=false){
+  const n=document.getElementById("legend");
+  n.innerHTML="";n.classList.toggle("center",center);
+  items.forEach(it=>{
+    const c=document.createElement("span");c.className="chip";
+    c.innerHTML=`<span class="dot" style="background:${it.c}${it.ring?";box-shadow:inset 0 0 0 2px rgba(0,0,0,.18)":""}"></span>`+
+      (it.l?`<span style="font-size:12px;color:var(--muted)">${it.l}</span>`:"");
+    if(it.tip)bindTip(c,`<b>${it.tip}</b>`);
+    n.appendChild(c);
+  });
+}
+
+/* ── chart renderer ───────────────────────────────── */
+function render(mode){
+  document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===mode));
+  const svg=document.getElementById("mainChart");svg.innerHTML="";
+  const W=620,H=196,mL=30,mR=92,mT=12,mB=26,iw=W-mL-mR,ih=H-mT-mB;
+
+  let series=[], stacked=false, yMin=0, yMax=100, suffix="%";
+  if(mode==="laga"){
+    stacked=true;
+    series=[
+      {c:"#b9c0c9",v:LAGA.whites,p:LAGA.pw,cls:"Putih"},
+      {c:"#e8a322",v:LAGA.draws,p:LAGA.pd,cls:"Remis"},
+      {c:"#203a5e",v:LAGA.blacks,p:LAGA.pb,cls:"Hitam"},
+    ];
+    yMin=0;yMax=100;suffix="%";
+  }else if(mode==="pemain"){
+    series=PEMAIN.map(p=>({c:p.c,v:p.v,p:p.p,cls:p.name}));
+    const all=series.flatMap(s=>[...s.v,...s.p]);
+    yMin=Math.min(...all)-8;yMax=Math.max(...all)+6;suffix=" Elo";
+  }else{
+    series=[{c:"#d99a2b",v:RERATA.v,p:RERATA.p,cls:"Rerata"}];
+    yMin=Math.min(...RERATA.v)-8;yMax=Math.max(...RERATA.v)+6;suffix=" Elo";
+  }
+
+  const x=i=>mL+(i/(TOTAL-1))*iw;
+  const y=v=>mT+ih-((v-yMin)/(yMax-yMin))*ih;
+  const valAt=(s,i)=>i<PLAYED?s.v[i]:s.p[i-PLAYED];
+
+  // grid + sumbu babak
+  const ticks=5;
+  for(let t=0;t<ticks;t++){
+    const val=yMin+(yMax-yMin)*t/(ticks-1);
+    el("line",{x1:mL,x2:W-mR,y1:y(val),y2:y(val),class:"grid-l"},svg);
+    el("text",{x:2,y:y(val)+3,class:"axis"},svg).textContent=Math.round(val);
+  }
+  for(let i=0;i<TOTAL;i++){
+    el("line",{x1:x(i),x2:x(i),y1:mT,y2:H-mB,stroke:"#efe8d8","stroke-width":1},svg);
+    el("text",{x:x(i)-4,y:H-7,class:"axlab"},svg).textContent=i+1;
+  }
+  el("text",{x:W-mR-60,y:H-7,class:"axlab",style:"font-size:9px;font-style:italic;fill:#b4a98c"},svg).textContent="← proyeksi";
+  // pemisah babak dimainkan vs proyeksi
+  el("line",{x1:(x(PLAYED-1)+x(PLAYED))/2,x2:(x(PLAYED-1)+x(PLAYED))/2,y1:mT,y2:H-mB,
+    stroke:"#c9b98a","stroke-width":1.3,"stroke-dasharray":"5 4",opacity:.7},svg);
+
+  const mats=series.map(s=>{
+    const mv=s.v.map((v,i)=>({x:x(i),y:y(v)}));
+    const mp=s.p.map((v,j)=>({x:x(PLAYED+j),y:y(v)}));
+    return {mv,full:mv.concat(mp)};
+  });
+
+  // gradasi di bawah garis
+  mats.forEach((m,si)=>{
+    const s=series[si];
+    const gid="gl"+si;
+    const defs=el("defs",{},svg);
+    const lg=el("linearGradient",{id:gid,x1:0,y1:mT,x2:0,y2:H-mB,gradientUnits:"userSpaceOnUse"},defs);
+    el("stop",{offset:"0%","stop-color":s.c,"stop-opacity":mode==="laga"?0.2:0.32},lg);
+    el("stop",{offset:"55%","stop-color":s.c,"stop-opacity":0.08},lg);
+    el("stop",{offset:"100%","stop-color":s.c,"stop-opacity":0},lg);
+    el("path",{d:pathOf(m.full)+` L ${m.full[m.full.length-1].x} ${H-mB} L ${m.mv[0].x} ${H-mB} Z`,fill:`url(#${gid})`},svg);
+  });
+
+  // garis spline: babak dimainkan (penuh) + proyeksi (dashed)
+  mats.forEach((m,si)=>{
+    const s=series[si];
+    const sp=splinePair(m.full,PLAYED);
+    const pMain=el("path",{d:sp.main,stroke:s.c,"stroke-width":2.5,fill:"none","stroke-linecap":"round","stroke-linejoin":"round",
+      opacity:mode==="pemain"&&si!==0?0.85:1},svg);
+    drawAnim(pMain,si*140,750);
+    const pProj=el("path",{d:sp.proj,stroke:s.c,"stroke-width":2,fill:"none","stroke-linecap":"round","stroke-dasharray":"6 6",opacity:0},svg);
+    pProj.getBoundingClientRect();
+    pProj.style.transition=`opacity .8s ease ${si*140+550}ms`;
+    pProj.style.opacity=.55;
+    // titik di tiap babak yang dimainkan
+    m.mv.forEach((pt,i)=>{
+      const c=el("circle",{cx:pt.x,cy:pt.y,r:4.2,fill:s.c,stroke:"#fff","stroke-width":1.8,class:"pt"},svg);
+      bindTip(c,`<span class="row"><span class="dot" style="background:${s.c}"></span><b>Babak ${i+1}</b> · ${s.cls} ${Math.round(s.v[i])}${suffix}</span>`);
+    });
+  });
+
+  // label nama di ujung garis (+ anti-tabrakan)
+  const ends=mats.map((m,si)=>({t:series[si].cls,c:series[si].c,x:m.full[m.full.length-1].x,y:m.full[m.full.length-1].y}))
+    .sort((a,b)=>a.y-b.y);
+  ends.forEach((e2,i)=>{if(i>0&&e2.y-ends[i-1].y<12)e2.y=ends[i-1].y+12;});
+  const over=ends[ends.length-1].y-(H-mB-4);
+  if(over>0)ends.forEach(e2=>e2.y-=over);
+  ends.forEach(e2=>{
+    el("text",{x:e2.x+7,y:e2.y+3.5,fill:e2.c,style:"font:700 10.5px 'Segoe UI',sans-serif"},svg).textContent=e2.t;
+  });
+
+  // hover guide
+  const guide=el("line",{class:"guide",y1:mT,y2:H-mB},svg);
+  const gPts=el("g",{},svg);
+  const pad=el("rect",{x:mL,y:mT,width:iw,height:ih,fill:"transparent",class:"hover-pad"},svg);
+  pad.addEventListener("mousemove",e=>{
+    const r=svg.getBoundingClientRect();
+    const mx=(e.clientX-r.left)*(W/r.width);
+    let i=Math.max(0,Math.min(TOTAL-1,Math.round((mx-mL)/((x(1)-x(0))||1))));
+    guide.setAttribute("x1",x(i));guide.setAttribute("x2",x(i));guide.style.opacity=1;
+    gPts.innerHTML="";
+    series.forEach(s=>el("circle",{cx:x(i),cy:y(valAt(s,i)),r:6.5,fill:"none",stroke:s.c,"stroke-width":1.6},gPts));
+    const rows=series.map(s=>
+      `<span class="row"><span class="dot" style="background:${s.c}"></span>${s.cls} <b>${Math.round(valAt(s,i))}${suffix}</b></span>`).join("");
+    showTip(`<span class="row"><b>Babak ${i+1}</b>${i>=PLAYED?' <span style="opacity:.65">(proyeksi)</span>':""}</span>${rows}`,e.clientX,e.clientY);
+  });
+  pad.addEventListener("mouseleave",()=>{guide.style.opacity=0;gPts.innerHTML="";hideTip();});
+
+  // stacked bar & legend & footer
+  const sw=document.getElementById("stackWrap");
+  sw.style.display=stacked?"block":"none";
+  if(stacked){
+    const bar=document.getElementById("stackBar").children;
+    requestAnimationFrame(()=>{bar[0].style.width=LAGA.whites[PLAYED-1]+"%";bar[1].style.width=LAGA.draws[PLAYED-1]+"%";bar[2].style.width=LAGA.blacks[PLAYED-1]+"%";});
+    const avg=a=>Math.round(a.reduce((x,y)=>x+y,0)/a.length);
+    const tW=avg(LAGA.whites),tD=avg(LAGA.draws),tB=avg(LAGA.blacks);
+    legend([
+      {c:"#b9c0c9",l:`Putih · ${tW}%`,tip:`Rata-rata hasil putih dari ${PLAYED} babak dimainkan:<br><b>${tW}%</b> (${LAGA.whites.join(", ")})`},
+      {c:"#e8a322",l:`Remis · ${tD}%`,tip:`Rata-rata remis dari ${PLAYED} babak dimainkan:<br><b>${tD}%</b> (${LAGA.draws.join(", ")})`},
+      {c:"#203a5e",l:`Hitam · ${tB}%`,tip:`Rata-rata hasil hitam dari ${PLAYED} babak dimainkan:<br><b>${tB}%</b> (${LAGA.blacks.join(", ")})`},
+    ]);
+  }else if(mode==="pemain"){
+    legend(PEMAIN.map(p=>({c:p.c,tip:p.name})),true);
+  }else{
+    legend([{c:"#d99a2b",tip:"Rerata Elo 4 peserta"}],true);
+  }
+  const foot=document.getElementById("foot");foot.innerHTML="";
+  for(let r=0;r<TOTAL;r++){
+    const d=document.createElement("span");d.className="rdot";
+    if(r<PLAYED)d.classList.add("done");if(r===PLAYED)d.classList.add("now");
+    foot.appendChild(d);
+  }
+}
+render("laga");
+</script>
+</body>
+</html>

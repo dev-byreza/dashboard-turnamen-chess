@@ -35,6 +35,7 @@ import {
 import confetti from 'canvas-confetti';
 import { fetchRecentGameBetween, fetchChessComProfile } from '../utils/chessComApi';
 import { ChessComProfileModal } from './ChessComProfileModal';
+import { TournamentStatistics } from './TournamentStatistics';
 
 interface SwissDashboardProps {
   players: Player[];
@@ -988,90 +989,17 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
           </div>
         </div>
 
-        <section className="section-card-panel round-statistics-panel" aria-labelledby="round-statistics-title">
-          <div className="section-panel-header round-statistics-header">
-            <div className="section-title-wrap">
-              <Sparkles size={17} className="round-statistics-heading-icon" aria-hidden="true" />
-              <h3 id="round-statistics-title" className="section-title-text">Statistik & Info Turnamen</h3>
-            </div>
-            <span className="round-statistics-round-chip">Babak {selectedRoundTab} dari {totalRounds}</span>
-          </div>
-
-          <div className="round-statistics-progress">
-            <div className="round-statistics-progress-heading">
-              <span><Swords size={14} /> Progres laga babak ini</span>
-              <span className="round-statistics-progress-value">
-                {roundCompletedCount}/{activeRoundMatches.length} laga selesai
-                <strong>{roundProgressPct}%</strong>
-              </span>
-            </div>
-            <div
-              className="round-statistics-progress-track"
-              role="progressbar"
-              aria-label="Progres laga babak ini"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={roundProgressPct}
-            >
-              <span style={{ width: `${roundProgressPct}%` }} />
-            </div>
-            <div className="round-statistics-outcome-legend">
-              <span><i className="outcome-dot white" /> Putih: {outcomePercent(roundOutcomes.white)}% ({roundOutcomes.white})</span>
-              <span><i className="outcome-dot draw" /> Remis: {outcomePercent(roundOutcomes.draw)}% ({roundOutcomes.draw})</span>
-              <span><i className="outcome-dot black" /> Hitam: {outcomePercent(roundOutcomes.black)}% ({roundOutcomes.black})</span>
-            </div>
-            <div className="round-statistics-outcome-track" aria-label="Distribusi hasil babak ini">
-              {outcomeTotal > 0 ? (
-                <>
-                  <span className="white" style={{ width: `${(roundOutcomes.white / outcomeTotal) * 100}%` }} />
-                  <span className="draw" style={{ width: `${(roundOutcomes.draw / outcomeTotal) * 100}%` }} />
-                  <span className="black" style={{ width: `${(roundOutcomes.black / outcomeTotal) * 100}%` }} />
-                </>
-              ) : <span className="empty" />}
-            </div>
-          </div>
-
-          <div className="round-statistics-highlights">
-            <article className="round-statistics-highlight elo-gain-highlight">
-              <span className="round-statistics-icon gain"><TrendingUp size={19} /></span>
-              <div className="round-statistics-highlight-copy">
-                <span className="round-statistics-label">Lonjakan Elo tertinggi</span>
-                {biggestEloGain ? (
-                  <>
-                    <strong>{biggestEloGain.player.name} <em>+{biggestEloGain.ratingChange} Elo</em></strong>
-                    <span>Elo baru: {biggestEloGain.currentRating ?? biggestEloGain.player.rating ?? 500}{biggestEloGain.player.title ? ` (${biggestEloGain.player.title})` : ''}</span>
-                  </>
-                ) : (
-                  <>
-                    <strong>Belum ada kenaikan</strong>
-                    <span>Perubahan muncul setelah hasil tercatat</span>
-                  </>
-                )}
-              </div>
-            </article>
-            <article className="round-statistics-highlight rating-format-highlight">
-              <span className="round-statistics-icon format"><Swords size={19} /></span>
-              <div className="round-statistics-highlight-copy">
-                <span className="round-statistics-label">Rata-rata Elo & format</span>
-                <strong>{avgElo} Elo <em>Swiss / RR</em></strong>
-                <span>{players.length} peserta • {tournamentLocation || 'Politeknik Sorowako'}</span>
-              </div>
-            </article>
-          </div>
-
-          <div className="round-statistics-legend">
-            <div className="round-statistics-legend-heading">
-              <strong><Info size={13} /> Keterangan indikator klasemen</strong>
-              <span>Menang = 1 • Remis = ½ • Kalah = 0</span>
-            </div>
-            <div className="round-statistics-legend-grid">
-              <div><strong>M / R / K</strong><span>Menang / Remis / Kalah</span></div>
-              <div><strong>BH (Buchholz)</strong><span>Total poin seluruh lawan</span></div>
-              <div><strong>SB (Sonneborn)</strong><span>Skor lawan yang dikalahkan</span></div>
-              <div><strong>GM / FM / CM</strong><span>Gelar Master kehormatan</span></div>
-            </div>
-          </div>
-        </section>
+        <TournamentStatistics
+          players={players}
+          matches={matches}
+          totalRounds={totalRounds}
+          currentActiveRound={currentActiveRound}
+          selectedRoundTab={selectedRoundTab}
+          standings={standings}
+          biggestEloGain={biggestEloGain}
+          avgElo={avgElo}
+          tournamentLocation={tournamentLocation}
+        />
       </div>
 
       {/* Bottom Full-Width Row: Podium & Standings */}
