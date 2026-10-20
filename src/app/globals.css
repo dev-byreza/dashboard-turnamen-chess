@@ -1565,9 +1565,10 @@ body::before {
 
 .player-elo-text {
   font-family: var(--font-code);
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  font-weight: 700;
+  font-size: 0.70rem;
+  color: #64748b;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -2643,8 +2644,9 @@ body::before {
   .player-elo-text {
     font-size: 0.65rem;
     flex-shrink: 0;
-    color: var(--text-sub);
-    font-weight: 700;
+    color: #64748b;
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
 
   .player-chip-row {
