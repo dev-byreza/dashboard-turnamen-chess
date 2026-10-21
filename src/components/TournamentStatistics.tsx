@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Player, SwissMatch, StandingRow } from '../types/chess';
 import { SwissStandingsResult } from '../utils/swissEngine';
-import { TrendingUp, Swords, Info } from 'lucide-react';
+import { TrendingUp, Swords, Info, Zap } from 'lucide-react';
 
 export interface TournamentStatisticsProps {
   players: Player[];
@@ -274,6 +274,87 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       },
     };
   }, [matches, totalRounds, standings, players, avgElo]);
+
+  // ---- 1.5 Calculate Dynamic Highest Elo Gain for Active / Selected Round ----
+  const bestRoundEloGain = useMemo(() => {
+    const matchDetails = standings.eloReport?.matchDetails;
+    if (!matchDetails) return null;
+
+    // Target round: prefer selectedRoundTab, fallback to currentActiveRound or latest completed round
+    const targetRound = selectedRoundTab || currentActiveRound || 1;
+    let roundToUse = targetRound;
+
+    let roundCompletedMatches = matches.filter(
+      (m) => m.round === roundToUse && !m.isBye && m.result !== null
+    );
+
+    // If selected round has no completed matches, fallback to latest round with results
+    if (roundCompletedMatches.length === 0) {
+      for (let r = totalRounds; r >= 1; r--) {
+        const testMatches = matches.filter(
+          (m) => m.round === r && !m.isBye && m.result !== null
+        );
+        if (testMatches.length > 0) {
+          roundToUse = r;
+          roundCompletedMatches = testMatches;
+          break;
+        }
+      }
+    }
+
+    if (roundCompletedMatches.length === 0) {
+      return {
+        round: targetRound,
+        player: null as Player | null,
+        delta: 0,
+        ratingAfter: 0,
+      };
+    }
+
+    interface Candidate {
+      player: Player;
+      delta: number;
+      ratingAfter: number;
+    }
+
+    const candidates: Candidate[] = [];
+
+    roundCompletedMatches.forEach((match) => {
+      const detail = matchDetails.get(match.id);
+      if (!detail) return;
+
+      if (detail.whiteDelta > 0) {
+        const whitePlayer = players.find((p) => p.id === detail.whiteId);
+        if (whitePlayer) {
+          candidates.push({
+            player: whitePlayer,
+            delta: detail.whiteDelta,
+            ratingAfter: detail.whiteAfter,
+          });
+        }
+      }
+
+      if (detail.blackDelta > 0) {
+        const blackPlayer = players.find((p) => p.id === detail.blackId);
+        if (blackPlayer) {
+          candidates.push({
+            player: blackPlayer,
+            delta: detail.blackDelta,
+            ratingAfter: detail.blackAfter,
+          });
+        }
+      }
+    });
+
+    candidates.sort((a, b) => b.delta - a.delta);
+
+    return {
+      round: roundToUse,
+      player: candidates[0]?.player ?? null,
+      delta: candidates[0]?.delta ?? 0,
+      ratingAfter: candidates[0]?.ratingAfter ?? 0,
+    };
+  }, [matches, players, standings, selectedRoundTab, currentActiveRound, totalRounds]);
 
   // ---- 2. Chart Layout & Coordinate Calculations ----
   const W = 620;
@@ -898,7 +979,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
             <TrendingUp size={19} />
           </span>
           <div className="round-statistics-highlight-copy">
-            <span className="round-statistics-label">Lonjakan Elo tertinggi</span>
+            <span className="round-statistics-label">Lonjakan Elo (Total Turnamen)</span>
             {biggestEloGain ? (
               <>
                 <strong>
@@ -919,18 +1000,35 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
           </div>
         </article>
 
-        <article className="round-statistics-highlight rating-format-highlight">
+        <article className="round-statistics-highlight round-gain-highlight">
           <span className="round-statistics-icon format">
-            <Swords size={19} />
+            <Zap size={19} />
           </span>
           <div className="round-statistics-highlight-copy">
-            <span className="round-statistics-label">Rata-rata Elo & format</span>
-            <strong>
-              {avgElo} Elo <em>Swiss / RR</em>
-            </strong>
-            <span>
-              {players.length} peserta • {tournamentLocation || 'Politeknik Sorowako'}
+            <span className="round-statistics-label">
+              Lonjakan Elo Babak {bestRoundEloGain?.round || currentActiveRound}
             </span>
+            {bestRoundEloGain?.player && bestRoundEloGain.delta > 0 ? (
+              <>
+                <strong>
+                  {bestRoundEloGain.player.name}{' '}
+                  <em>+{bestRoundEloGain.delta} Elo</em>
+                </strong>
+                <span>
+                  Elo baru: {bestRoundEloGain.ratingAfter}
+                  {bestRoundEloGain.player.title ? ` (${bestRoundEloGain.player.title})` : ''} • Laga Babak {bestRoundEloGain.round}
+                </span>
+              </>
+            ) : (
+              <>
+                <strong>Belum ada kenaikan</strong>
+                <span>
+                  {bestRoundEloGain?.round
+                    ? `Menunggu laga Babak ${bestRoundEloGain.round} selesai`
+                    : 'Perubahan tampil setelah hasil dicatat'}
+                </span>
+              </>
+            )}
           </div>
         </article>
       </div>
