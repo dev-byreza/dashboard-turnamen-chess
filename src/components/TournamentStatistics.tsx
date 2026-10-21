@@ -440,16 +440,43 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       const latestAvg = Math.round(
         avgEloSeries.all[playedRoundsCount - 1] ?? avgEloSeries.all[0] ?? avgElo
       );
+
+      // Top Leaders Average
+      const topCount = Math.min(3, topPlayerSeries.length);
+      const topLeaders = topPlayerSeries.slice(0, topCount);
+      const topLeadersV: number[] = [];
+      const topLeadersP: number[] = [];
+      const roundsCount = Math.max(1, totalRounds);
+      for (let r = 0; r < roundsCount; r++) {
+        const sum = topLeaders.reduce((acc, p) => acc + (p.all[r] ?? 500), 0);
+        const avg = Math.round(sum / Math.max(1, topLeaders.length));
+        if (r < playedRoundsCount) {
+          topLeadersV.push(avg);
+        } else {
+          topLeadersP.push(avg);
+        }
+      }
+      const latestTopLeaders = Math.round(
+        topLeadersV[topLeadersV.length - 1] ?? 500
+      );
+
       seriesList = [
         {
           color: '#d99a2b',
           v: avgEloSeries.v,
           p: avgEloSeries.p,
-          label: 'Rerata',
+          label: 'Rerata Turnamen',
           endLabel: `${latestAvg}`,
         },
+        {
+          color: '#1d6fa5',
+          v: topLeadersV,
+          p: topLeadersP,
+          label: 'Rerata Papan Atas',
+          endLabel: `${latestTopLeaders}`,
+        },
       ];
-      const allVals = [...avgEloSeries.v, ...avgEloSeries.p];
+      const allVals = seriesList.flatMap((s) => [...s.v, ...s.p]);
       const minVal = allVals.length ? Math.min(...allVals) : 480;
       const maxVal = allVals.length ? Math.max(...allVals) : 540;
       yMin = Math.max(0, minVal - 8);
@@ -782,7 +809,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
               className="stat-chip"
               onMouseEnter={(e) =>
                 setActiveTooltip({
-                  text: `Rerata Elo seluruh peserta saat ini: ${avgElo} Elo`,
+                  text: `Rerata Elo seluruh peserta saat ini: ${avgEloSeries.all[playedRoundsCount - 1] ?? avgElo} Elo`,
                   x: e.clientX,
                   y: e.clientY,
                 })
@@ -790,7 +817,21 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
               onMouseLeave={() => setActiveTooltip(null)}
             >
               <span className="stat-dot" style={{ background: '#d99a2b' }} />
-              <span>Rerata Elo Peserta Turnamen ({avgElo} Elo)</span>
+              <span>Rerata Turnamen ({avgEloSeries.all[playedRoundsCount - 1] ?? avgElo} Elo)</span>
+            </span>
+            <span
+              className="stat-chip"
+              onMouseEnter={(e) =>
+                setActiveTooltip({
+                  text: `Rerata Elo 3 papan atas terkemuka saat ini`,
+                  x: e.clientX,
+                  y: e.clientY,
+                })
+              }
+              onMouseLeave={() => setActiveTooltip(null)}
+            >
+              <span className="stat-dot" style={{ background: '#1d6fa5' }} />
+              <span>Rerata Papan Atas</span>
             </span>
           </div>
         )}

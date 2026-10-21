@@ -23,13 +23,22 @@ export const NEW_PLAYER_K_FACTOR = 40;
 export const ESTABLISHED_PLAYER_K_FACTOR = 20;
 export const ELITE_PLAYER_K_FACTOR = 10;
 export const NEW_PLAYER_RATED_GAME_LIMIT = 30;
+export const RATING_FLOOR = 100;
 
-/** FIDE-style K selection using the player's rating and lifetime rated-game count. */
-export function getKFactor(rating: number, ratedGames: number): number {
+/** FIDE-style K selection using the player's rating, lifetime rated-game count, and titles. */
+export function getKFactor(rating: number, ratedGames: number, title?: string): number {
   const completedGames = Number.isFinite(ratedGames) ? Math.max(0, Math.floor(ratedGames)) : 0;
-  if (completedGames < NEW_PLAYER_RATED_GAME_LIMIT) return NEW_PLAYER_K_FACTOR;
-  if (rating >= 2400) return ELITE_PLAYER_K_FACTOR;
-  return ESTABLISHED_PLAYER_K_FACTOR;
+  if (title === 'GM' || title === 'IM') return ELITE_PLAYER_K_FACTOR; // 10
+  if (title === 'FM' || title === 'CM' || rating >= 2400) return 16;
+  if (completedGames >= NEW_PLAYER_RATED_GAME_LIMIT) {
+    if (rating >= 2000) return 16;
+    return ESTABLISHED_PLAYER_K_FACTOR; // 20
+  }
+  // Emerging / Provisional Tier:
+  // Pemain dengan rating berkembang di atas 530 memiliki stabilitas K=32,
+  // sedangkan pemain pemula memiliki K=40 agar lonjakan awal cepat.
+  if (rating >= 530) return 32;
+  return NEW_PLAYER_K_FACTOR; // 40
 }
 
 export interface MatchEloDetail {
@@ -50,6 +59,8 @@ export interface MatchEloDetail {
   lossWhiteDelta: number;
   whiteKFactor: number;
   blackKFactor: number;
+  whiteBonus?: number;
+  blackBonus?: number;
 }
 
 export interface PlayerEloSummary {
@@ -76,9 +87,9 @@ export function calculateExpectedScore(ratingA: number, ratingB: number): number
 }
 
 /**
- * Calculates rating change for a single game.
+ * Calculates rating change for a single game using Asymmetric K and USCF Performance Bonus.
  * scoreA: 1 for win, 0.5 for draw, 0 for loss.
- * R' = R + K(S - E)
+ * Non-zero sum: Underdogs and outstanding performances earn bonus rating without overly penalizing opponents.
  */
 export function calculateMatchEloChange(
   ratingA: number,
@@ -86,7 +97,14 @@ export function calculateMatchEloChange(
   scoreA: number,
   kFactorA: number = DEFAULT_K_FACTOR,
   kFactorB: number = DEFAULT_K_FACTOR
-): { deltaA: number; deltaB: number; expectedA: number; expectedB: number } {
+): {
+  deltaA: number;
+  deltaB: number;
+  expectedA: number;
+  expectedB: number;
+  bonusA: number;
+  bonusB: number;
+} {
   // Expected score pemain A berdasarkan selisih rating (R_B - R_A)
   const expectedA = calculateExpectedScore(ratingA, ratingB);
   // Expected score pemain B berdasarkan selisih rating (R_A - R_B)
@@ -94,11 +112,42 @@ export function calculateMatchEloChange(
 
   const scoreB = 1 - scoreA;
 
-  // Rumus FIDE: R' = R + K * (S - E) => Delta = round(K * (S - E))
-  const deltaA = Math.round(kFactorA * (scoreA - expectedA));
-  const deltaB = Math.round(kFactorB * (scoreB - expectedB));
+  // Rumus FIDE: R' = R + K * (S - E)
+  const rawDeltaA = Math.round(kFactorA * (scoreA - expectedA));
+  const rawDeltaB = Math.round(kFactorB * (scoreB - expectedB));
 
-  return { deltaA, deltaB, expectedA, expectedB };
+  // USCF Performance & Underdog / Upset Bonus (Sistem Non-Zero Sum):
+  let bonusA = 0;
+  let bonusB = 0;
+
+  if (scoreA === 1) {
+    if (expectedA < 0.5) {
+      // Underdog win: bonus sebanding dengan tingkat kejutan
+      bonusA = Math.max(1, Math.round((0.5 - expectedA) * 14));
+    } else {
+      // Dominant win
+      bonusA = Math.max(0, Math.round((1 - expectedA) * 2));
+    }
+  } else if (scoreA === 0.5) {
+    // Remis: underdog yang mampu menahan imbang unggulan mendapat bonus apresiasi
+    if (expectedA < 0.45) {
+      bonusA = Math.max(1, Math.round((0.45 - expectedA) * 10));
+    }
+    if (expectedB < 0.45) {
+      bonusB = Math.max(1, Math.round((0.45 - expectedB) * 10));
+    }
+  } else if (scoreA === 0) {
+    if (expectedB < 0.5) {
+      bonusB = Math.max(1, Math.round((0.5 - expectedB) * 14));
+    } else {
+      bonusB = Math.max(0, Math.round((1 - expectedB) * 2));
+    }
+  }
+
+  const deltaA = rawDeltaA + bonusA;
+  const deltaB = rawDeltaB + bonusB;
+
+  return { deltaA, deltaB, expectedA, expectedB, bonusA, bonusB };
 }
 
 /**
@@ -141,10 +190,12 @@ export function calculateTournamentEloReport(
     const blackBefore = isBye
       ? whiteBefore
       : (runningRatings.get(blackId) ?? DEFAULT_PLAYER_RATING);
+    const whitePlayer = playerMap.get(whiteId);
+    const blackPlayer = isBye ? undefined : playerMap.get(blackId);
     const whiteGamesBefore = (ratedGamesBeforeTournament.get(whiteId) || 0) + (matchesRatedCount.get(whiteId) || 0);
     const blackGamesBefore = (ratedGamesBeforeTournament.get(blackId) || 0) + (matchesRatedCount.get(blackId) || 0);
-    const whiteKFactor = getKFactor(whiteBefore, whiteGamesBefore);
-    const blackKFactor = isBye ? whiteKFactor : getKFactor(blackBefore, blackGamesBefore);
+    const whiteKFactor = getKFactor(whiteBefore, whiteGamesBefore, whitePlayer?.title);
+    const blackKFactor = isBye ? whiteKFactor : getKFactor(blackBefore, blackGamesBefore, blackPlayer?.title);
 
     // Calculate potential projections for pending match
     const projWin = calculateMatchEloChange(whiteBefore, blackBefore, 1, whiteKFactor, blackKFactor).deltaA;
@@ -179,7 +230,7 @@ export function calculateTournamentEloReport(
     else if (match.result === '0-1') scoreWhite = 0;
     else if (match.result === '0.5-0.5') scoreWhite = 0.5;
 
-    const { deltaA: deltaWhite, deltaB: deltaBlack } = calculateMatchEloChange(
+    const { deltaA: deltaWhite, deltaB: deltaBlack, bonusA: bonusWhite, bonusB: bonusBlack } = calculateMatchEloChange(
       whiteBefore,
       blackBefore,
       scoreWhite,
@@ -187,8 +238,12 @@ export function calculateTournamentEloReport(
       blackKFactor
     );
 
-    const whiteAfter = Math.max(100, whiteBefore + deltaWhite);
-    const blackAfter = Math.max(100, blackBefore + deltaBlack);
+    // Apply Rating Floor (minimum 100)
+    const whiteAfter = Math.max(RATING_FLOOR, whiteBefore + deltaWhite);
+    const blackAfter = Math.max(RATING_FLOOR, blackBefore + deltaBlack);
+
+    const effectiveDeltaWhite = whiteAfter - whiteBefore;
+    const effectiveDeltaBlack = blackAfter - blackBefore;
 
     // Update running ratings
     runningRatings.set(whiteId, whiteAfter);
@@ -204,8 +259,8 @@ export function calculateTournamentEloReport(
       blackId,
       whiteBefore,
       blackBefore,
-      whiteDelta: deltaWhite,
-      blackDelta: deltaBlack,
+      whiteDelta: effectiveDeltaWhite,
+      blackDelta: effectiveDeltaBlack,
       whiteAfter,
       blackAfter,
       isBye: false,
@@ -214,6 +269,8 @@ export function calculateTournamentEloReport(
       lossWhiteDelta: projLoss,
       whiteKFactor,
       blackKFactor,
+      whiteBonus: bonusWhite,
+      blackBonus: bonusBlack,
     });
   }
 

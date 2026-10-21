@@ -1119,7 +1119,9 @@ body::before {
 .stat-legend-rerata {
   display: flex;
   justify-content: center;
+  gap: 18px;
   margin: 4px 4px 10px;
+  flex-wrap: wrap;
 }
 
 .stat-chip {
