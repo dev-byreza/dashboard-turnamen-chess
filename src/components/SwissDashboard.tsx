@@ -36,6 +36,7 @@ import confetti from 'canvas-confetti';
 import { fetchRecentGameBetween, fetchChessComProfile } from '../utils/chessComApi';
 import { ChessComProfileModal } from './ChessComProfileModal';
 import { TournamentStatistics } from './TournamentStatistics';
+import { TournamentRulesModal } from './TournamentRulesModal';
 import { getPlayerBadge } from '../utils/eloRating';
 
 interface SwissDashboardProps {
@@ -128,8 +129,17 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
 
   const [selectedRoundTab, setSelectedRoundTab] = useState<number>(currentActiveRound);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [isInternalRulesOpen, setIsInternalRulesOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerRating, setNewPlayerRating] = useState('500');
+
+  const handleOpenRules = () => {
+    if (onOpenRules) {
+      onOpenRules();
+    } else {
+      setIsInternalRulesOpen(true);
+    }
+  };
   const [roundScheduleDrafts, setRoundScheduleDrafts] = useState<Record<number, string>>(
     roundSchedules || {}
   );
@@ -1033,18 +1043,16 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <h3 className="section-title-text">Klasemen Sementara</h3>
             </div>
             <div className="flex-row-center gap-2 no-print">
-              {onOpenRules && (
-                <button
-                  type="button"
-                  className="btn-glass-secondary"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', gap: '0.35rem' }}
-                  onClick={onOpenRules}
-                  title="Lihat Formula Elo dengan K dinamis (40, 20, atau 10)"
-                >
-                  <BookOpen size={13} style={{ color: 'var(--gold)' }} />
-                  <span>Aturan & Elo</span>
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn-glass-secondary"
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', gap: '0.35rem' }}
+                onClick={handleOpenRules}
+                title="Lihat Regulasi Turnamen, Aturan Swiss, dan Mekanisme Elo K-Factor"
+              >
+                <BookOpen size={13} style={{ color: 'var(--gold)' }} />
+                <span>Mekanisme</span>
+              </button>
               <button
                 className="btn-glass-secondary"
                 style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
@@ -1309,6 +1317,14 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         localPlayerName={profileModalName}
         onAvatarSync={handleAvatarSync}
       />
+
+      {/* Tournament Rules Modal (Fallback jika onOpenRules tidak disediakan dari luar) */}
+      {!onOpenRules && (
+        <TournamentRulesModal
+          isOpen={isInternalRulesOpen}
+          onClose={() => setIsInternalRulesOpen(false)}
+        />
+      )}
     </div>
   );
 };
