@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Player, SwissMatch, StandingRow } from '../types/chess';
 import { SwissStandingsResult } from '../utils/swissEngine';
-import { TrendingUp, Users, Zap } from 'lucide-react';
+import { TrendingUp, Users, ChevronDown, X, Zap } from 'lucide-react';
 
 export interface TournamentStatisticsProps {
   players: Player[];
@@ -369,6 +369,14 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
   const iw = W - mL - mR;
   const ih = H - mT - mB;
 
+  const activePlayers = useMemo(() => {
+    if (selectedPlayerId === 'all') {
+      return topPlayerSeries.slice(0, Math.min(topPlayerSeries.length, 6));
+    }
+    const found = topPlayerSeries.filter((p) => p.id === selectedPlayerId);
+    return found.length > 0 ? found : topPlayerSeries.slice(0, 5);
+  }, [selectedPlayerId, topPlayerSeries]);
+
   const chartData = useMemo(() => {
     let seriesList: Array<{
       color: string;
@@ -409,14 +417,6 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       yMax = 100;
       suffix = '%';
     } else if (mode === 'pemain') {
-      const filtered =
-        selectedPlayerId === 'all'
-          ? topPlayerSeries.slice(0, Math.min(topPlayerSeries.length, 6))
-          : topPlayerSeries.filter((p) => p.id === selectedPlayerId);
-
-      const activePlayers =
-        filtered.length > 0 ? filtered : topPlayerSeries.slice(0, 5);
-
       seriesList = activePlayers.map((p) => {
         const latestRating = Math.round(
           p.all[playedRoundsCount - 1] ?? p.all[0] ?? 500
@@ -512,10 +512,9 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
     };
   }, [
     mode,
-    selectedPlayerId,
+    activePlayers,
     roundStats,
     playedRoundsCount,
-    topPlayerSeries,
     avgEloSeries,
     totalRounds,
     iw,
@@ -677,44 +676,60 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
           </span>
         </div>
 
-        {/* ── Subheader Controls / Filters (Replaces old diagram batang) ── */}
+        {/* ── Subheader Controls / Filters (Minimalist Dropdown & Clean Legend) ── */}
         {mode === 'pemain' ? (
-          <div className="stat-filter-wrap" role="region" aria-label="Filter Peserta">
-            <div className="stat-filter-label">
-              <Users size={13} />
-              <span>Filter Peserta:</span>
-            </div>
-            <div className="stat-filter-chips">
-              <button
-                type="button"
-                className={`stat-filter-chip ${selectedPlayerId === 'all' ? 'active' : ''}`}
-                onClick={() => setSelectedPlayerId('all')}
-                title="Tampilkan semua peserta teratas"
+          <div className="stat-filter-bar" role="region" aria-label="Filter Peserta">
+            <div className="stat-filter-select-wrap">
+              <Users size={12} className="stat-filter-icon" aria-hidden="true" />
+              <select
+                className="stat-filter-select"
+                value={selectedPlayerId}
+                onChange={(e) => setSelectedPlayerId(e.target.value)}
+                aria-label="Filter peserta"
               >
-                <span>Semua ({topPlayerSeries.length})</span>
-              </button>
-              {topPlayerSeries.map((p) => {
-                const isSelected = selectedPlayerId === p.id;
-                return (
+                <option value="all">Semua Peserta ({topPlayerSeries.length})</option>
+                {topPlayerSeries.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.fullName} ({p.currentRating} Elo)
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="stat-filter-chevron" aria-hidden="true" />
+            </div>
+
+            {selectedPlayerId === 'all' ? (
+              <div className="stat-legend-inline" aria-label="Legenda Peserta">
+                {activePlayers.map((p) => (
                   <button
                     key={p.id}
                     type="button"
-                    className={`stat-filter-chip ${isSelected ? 'active' : ''}`}
-                    onClick={() => setSelectedPlayerId(isSelected ? 'all' : p.id)}
-                    title={`${p.fullName} — Rating terkini: ${p.currentRating} Elo`}
-                    style={
-                      isSelected
-                        ? { borderColor: p.color, background: `${p.color}18`, color: p.color }
-                        : undefined
-                    }
+                    className="stat-legend-chip-btn"
+                    onClick={() => setSelectedPlayerId(p.id)}
+                    title={`Klik untuk fokus ke ${p.fullName} (${p.currentRating} Elo)`}
                   >
                     <span className="stat-dot" style={{ background: p.color }} />
-                    <span className="stat-filter-name">{p.name}</span>
-                    <span className="stat-filter-elo">{p.currentRating}</span>
+                    <span>{p.name}</span>
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="stat-legend-inline">
+                <span className="stat-selected-badge">
+                  <span className="stat-dot" style={{ background: activePlayers[0]?.color }} />
+                  <strong>{activePlayers[0]?.name}</strong>
+                  <span className="stat-badge-elo">{activePlayers[0]?.currentRating} Elo</span>
+                </span>
+                <button
+                  type="button"
+                  className="stat-reset-btn"
+                  onClick={() => setSelectedPlayerId('all')}
+                  title="Kembali ke tampilan semua peserta"
+                >
+                  <X size={11} />
+                  <span>Semua</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : mode === 'laga' ? (
           <div className="stat-legend-laga">
