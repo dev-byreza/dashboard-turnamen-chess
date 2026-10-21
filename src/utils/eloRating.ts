@@ -28,24 +28,26 @@ export const RATING_FLOOR = 100;
 export type PlayerClubLevel = 'L1' | 'L2' | 'L3' | null;
 
 /**
- * Menentukan level pemain berdasarkan rating Elo dan/atau gelar resmi klub:
- * - L3: Rating >= 1000 Elo (atau gelar L3 / GM / WGM)
- * - L2: Rating 800 - 999 Elo (atau gelar L2 / FM / IM / WIM)
- * - L1: Rating 600 - 799 Elo (atau gelar L1 / CM / NM / WFM / WCM)
- * - null (Rookie): Rating < 600 Elo -> Tanpa badge!
+ * Menentukan level pemain murni berdasarkan perolehan rating Elo klub:
+ * - L3: Rating >= 1000 Elo
+ * - L2: Rating 800 - 999 Elo
+ * - L1: Rating 600 - 799 Elo
+ * - null (Rookie): Rating < 600 Elo -> Tanpa badge sama sekali!
  */
 export function getPlayerLevel(rating?: number, explicitTitle?: string): PlayerClubLevel {
   const r = rating ?? DEFAULT_PLAYER_RATING;
   const t = explicitTitle?.trim().toUpperCase();
 
-  if (t === 'L3' || t === 'GM' || t === 'WGM') return 'L3';
-  if (t === 'L2' || t === 'FM' || t === 'IM' || t === 'WIM') return 'L2';
-  if (t === 'L1' || t === 'CM' || t === 'NM' || t === 'WFM' || t === 'WCM') return 'L1';
+  // Hanya jika secara eksplisit disetel bergelar level klub resmi L1 / L2 / L3
+  if (t === 'L3') return 'L3';
+  if (t === 'L2') return 'L2';
+  if (t === 'L1') return 'L1';
 
+  // Penentuan otomatis level klub murni berdasarkan perolehan rating Elo saat ini:
   if (r >= 1000) return 'L3';
   if (r >= 800) return 'L2';
   if (r >= 600) return 'L1';
-  return null;
+  return null; // Rookie (< 600 Elo)
 }
 
 /**
