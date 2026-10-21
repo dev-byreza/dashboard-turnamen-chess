@@ -25,20 +25,94 @@ export const ELITE_PLAYER_K_FACTOR = 10;
 export const NEW_PLAYER_RATED_GAME_LIMIT = 30;
 export const RATING_FLOOR = 100;
 
-/** FIDE-style K selection using the player's rating, lifetime rated-game count, and titles. */
-export function getKFactor(rating: number, ratedGames: number, title?: string): number {
-  const completedGames = Number.isFinite(ratedGames) ? Math.max(0, Math.floor(ratedGames)) : 0;
-  if (title === 'GM' || title === 'IM') return ELITE_PLAYER_K_FACTOR; // 10
-  if (title === 'FM' || title === 'CM' || rating >= 2400) return 16;
-  if (completedGames >= NEW_PLAYER_RATED_GAME_LIMIT) {
-    if (rating >= 2000) return 16;
-    return ESTABLISHED_PLAYER_K_FACTOR; // 20
+export type PlayerClubLevel = 'L1' | 'L2' | 'L3' | null;
+
+/**
+ * Menentukan level pemain berdasarkan rating Elo dan/atau gelar resmi klub:
+ * - L3: Rating >= 1000 Elo (atau gelar L3 / GM / WGM)
+ * - L2: Rating 800 - 999 Elo (atau gelar L2 / FM / IM / WIM)
+ * - L1: Rating 600 - 799 Elo (atau gelar L1 / CM / NM / WFM / WCM)
+ * - null (Rookie): Rating < 600 Elo -> Tanpa badge!
+ */
+export function getPlayerLevel(rating?: number, explicitTitle?: string): PlayerClubLevel {
+  const r = rating ?? DEFAULT_PLAYER_RATING;
+  const t = explicitTitle?.trim().toUpperCase();
+
+  if (t === 'L3' || t === 'GM' || t === 'WGM') return 'L3';
+  if (t === 'L2' || t === 'FM' || t === 'IM' || t === 'WIM') return 'L2';
+  if (t === 'L1' || t === 'CM' || t === 'NM' || t === 'WFM' || t === 'WCM') return 'L1';
+
+  if (r >= 1000) return 'L3';
+  if (r >= 800) return 'L2';
+  if (r >= 600) return 'L1';
+  return null;
+}
+
+/**
+ * Menghasilkan informasi badge dan styling nama pemain:
+ * - Rookie: badgeText = null, isGoldGlowName = false (nama hitam polos tanpa badge)
+ * - L1: badgeText = 'L1', badge warna biru muda/langit, nama hitam
+ * - L2: badgeText = 'L2', badge warna biru royal solid, nama hitam
+ * - L3: badgeText = 'L3', badge emas Clash Royale, nama emas menyala (glow gold)
+ */
+export function getPlayerBadge(rating?: number, explicitTitle?: string): {
+  level: PlayerClubLevel;
+  badgeText: string | null;
+  badgeClass: string;
+  isGoldGlowName: boolean;
+} {
+  const level = getPlayerLevel(rating, explicitTitle);
+  if (level === 'L3') {
+    return {
+      level: 'L3',
+      badgeText: 'L3',
+      badgeClass: 'title-tag title-tag-l3',
+      isGoldGlowName: true,
+    };
   }
-  // Emerging / Provisional Tier:
-  // Pemain dengan rating berkembang di atas 530 memiliki stabilitas K=32,
-  // sedangkan pemain pemula memiliki K=40 agar lonjakan awal cepat.
-  if (rating >= 530) return 32;
-  return NEW_PLAYER_K_FACTOR; // 40
+  if (level === 'L2') {
+    return {
+      level: 'L2',
+      badgeText: 'L2',
+      badgeClass: 'title-tag title-tag-l2',
+      isGoldGlowName: false,
+    };
+  }
+  if (level === 'L1') {
+    return {
+      level: 'L1',
+      badgeText: 'L1',
+      badgeClass: 'title-tag title-tag-l1',
+      isGoldGlowName: false,
+    };
+  }
+  return {
+    level: null,
+    badgeText: null,
+    badgeClass: '',
+    isGoldGlowName: false,
+  };
+}
+
+/**
+ * Pemilihan K-factor dinamis berdasarkan level gelar klub:
+ * - L3 (1000+ Elo): K = 10 (kasta tertinggi, sangat kokoh)
+ * - L2 (800 - 999 Elo): K = 16 (veteran/elit)
+ * - L1 (600 - 799 Elo): K = 24 (teruji)
+ * - Rookie (< 600 Elo): K = 32 (fleksibel & berkembang cepat)
+ */
+export function getKFactor(rating: number, ratedGames?: number, explicitTitle?: string): number {
+  const level = getPlayerLevel(rating, explicitTitle);
+  switch (level) {
+    case 'L3':
+      return 10;
+    case 'L2':
+      return 16;
+    case 'L1':
+      return 24;
+    default:
+      return 32;
+  }
 }
 
 export interface MatchEloDetail {

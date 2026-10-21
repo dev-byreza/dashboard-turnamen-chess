@@ -36,6 +36,7 @@ import confetti from 'canvas-confetti';
 import { fetchRecentGameBetween, fetchChessComProfile } from '../utils/chessComApi';
 import { ChessComProfileModal } from './ChessComProfileModal';
 import { TournamentStatistics } from './TournamentStatistics';
+import { getPlayerBadge } from '../utils/eloRating';
 
 interface SwissDashboardProps {
   players: Player[];
@@ -771,10 +772,17 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                             )}
                           </div>
                           {/* Baris 2: Gelar & Nama Pemain */}
-                          <div className="player-name-line">
-                            {whiteP?.title && <span className="title-tag">{whiteP.title}</span>}
-                            <span className="player-name-text">{whiteP?.name || 'TBD'}</span>
-                          </div>
+                          {(() => {
+                            const badge = getPlayerBadge(matchElo ? matchElo.whiteBefore : (whiteP?.rating ?? 500), whiteP?.title);
+                            return (
+                              <div className="player-name-line">
+                                {badge.badgeText && <span className={badge.badgeClass}>{badge.badgeText}</span>}
+                                <span className={`player-name-text ${badge.isGoldGlowName ? 'player-name-gold-glow' : ''}`}>
+                                  {whiteP?.name || 'TBD'}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           {/* Baris 3: Chip Chess.com */}
                           {whiteP?.chessComUsername && (
                             <div className="player-chip-row">
@@ -886,12 +894,19 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                             </span>
                           </div>
                           {/* Baris 2: Gelar & Nama Pemain */}
-                          <div className="player-name-line">
-                            {blackP?.title && <span className="title-tag">{blackP.title}</span>}
-                            <span className="player-name-text">
-                              {isBye ? 'Bye (libur)' : blackP?.name || 'TBD'}
-                            </span>
-                          </div>
+                          {(() => {
+                            const badge = isBye
+                              ? { badgeText: null, badgeClass: '', isGoldGlowName: false }
+                              : getPlayerBadge(matchElo ? matchElo.blackBefore : (blackP?.rating ?? 500), blackP?.title);
+                            return (
+                              <div className="player-name-line">
+                                {badge.badgeText && <span className={badge.badgeClass}>{badge.badgeText}</span>}
+                                <span className={`player-name-text ${badge.isGoldGlowName ? 'player-name-gold-glow' : ''}`}>
+                                  {isBye ? 'Bye (libur)' : blackP?.name || 'TBD'}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           {/* Baris 3: Chip Chess.com */}
                           {blackP?.chessComUsername && (
                             <div className="player-chip-row">
@@ -1131,12 +1146,19 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                         <div className="player-cell">
                           <div className="player-cell-content" style={{ minWidth: 0 }}>
                             {/* Baris 1: Gelar & Nama Pemain Lengkap (persis seperti di match card) */}
-                            <div className="table-player-top-line">
-                              {row.player.title && (
-                                <span className="title-tag">{row.player.title}</span>
-                              )}
-                              <span className="table-player-direct-name">{row.player.name}</span>
-                            </div>
+                            {(() => {
+                              const badge = getPlayerBadge(row.player.rating, row.player.title);
+                              return (
+                                <div className="table-player-top-line">
+                                  {badge.badgeText && (
+                                    <span className={badge.badgeClass}>{badge.badgeText}</span>
+                                  )}
+                                  <span className={`table-player-direct-name ${badge.isGoldGlowName ? 'player-name-gold-glow' : ''}`}>
+                                    {row.player.name}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                             {/* Baris 2: Chip Hijau Username Chess.com (persis seperti di match card) */}
                             {row.player.chessComUsername && (
                               <div className="table-player-chip-line">

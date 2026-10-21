@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Player, SwissMatch, StandingRow } from '../types/chess';
 import { SwissStandingsResult } from '../utils/swissEngine';
+import { getPlayerBadge } from '../utils/eloRating';
 import { TrendingUp, Users, ChevronDown, X, Zap } from 'lucide-react';
 
 export interface TournamentStatisticsProps {
@@ -1085,7 +1086,10 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
                 </strong>
                 <span>
                   Elo baru: {biggestEloGain.currentRating ?? biggestEloGain.player.rating ?? 500}
-                  {biggestEloGain.player.title ? ` (${biggestEloGain.player.title})` : ''}
+                  {(() => {
+                    const b = getPlayerBadge(biggestEloGain.currentRating ?? biggestEloGain.player.rating ?? 500, biggestEloGain.player.title);
+                    return b.badgeText ? ` (${b.badgeText})` : '';
+                  })()}
                 </span>
               </>
             ) : (
@@ -1113,7 +1117,10 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
                 </strong>
                 <span>
                   Elo baru: {bestRoundEloGain.ratingAfter}
-                  {bestRoundEloGain.player.title ? ` (${bestRoundEloGain.player.title})` : ''} • Laga Babak {bestRoundEloGain.round}
+                  {(() => {
+                    const b = getPlayerBadge(bestRoundEloGain.ratingAfter, bestRoundEloGain.player.title);
+                    return b.badgeText ? ` (${b.badgeText})` : '';
+                  })()} • Laga Babak {bestRoundEloGain.round}
                 </span>
               </>
             ) : (

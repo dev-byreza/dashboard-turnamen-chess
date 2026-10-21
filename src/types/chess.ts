@@ -7,7 +7,7 @@ export interface Player {
   ratedGames?: number;
   avatar?: string;
   club?: string;
-  title?: 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM';
+  title?: 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM' | 'L1' | 'L2' | 'L3' | string;
   chessComUsername?: string;
 }
 

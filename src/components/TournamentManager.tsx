@@ -29,6 +29,7 @@ import {
   normalizeTournamentSlug,
 } from '../utils/tournamentStore';
 import { fetchFullChessComPlayer } from '../utils/chessComApi';
+import { getPlayerBadge } from '../utils/eloRating';
 import { ChessComProfileModal } from './ChessComProfileModal';
 
 interface TournamentManagerProps {
@@ -100,7 +101,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [rosterRating, setRosterRating] = useState<string>('500');
   const [rosterRatedGames, setRosterRatedGames] = useState<string>('0');
   const [rosterClub, setRosterClub] = useState<string>('');
-  const [rosterTitle, setRosterTitle] = useState<string>('');
   const [rosterSearch, setRosterSearch] = useState<string>('');
   const [rosterChessCom, setRosterChessCom] = useState<string>('');
   const [rosterAvatar, setRosterAvatar] = useState<string>('');
@@ -113,7 +113,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [editPlayerRating, setEditPlayerRating] = useState<string>('500');
   const [editPlayerRatedGames, setEditPlayerRatedGames] = useState<string>('0');
   const [editPlayerClub, setEditPlayerClub] = useState<string>('');
-  const [editPlayerTitle, setEditPlayerTitle] = useState<string>('');
   const [editPlayerChessCom, setEditPlayerChessCom] = useState<string>('');
   const [viewProfileUsername, setViewProfileUsername] = useState<string | null>(null);
 
@@ -253,15 +252,12 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       if (data.recommendedRating) {
         setRosterRating(String(data.recommendedRating));
       }
-      if (data.bestTitle) {
-        setRosterTitle(data.bestTitle);
-      }
       if (data.profile.avatar) {
         setRosterAvatar(data.profile.avatar);
       }
       setChessComFeedback({
         type: 'success',
-        text: `Data @${data.profile.username} terhubung! Elo: ${data.recommendedRating}${data.bestTitle ? ` • Gelar: ${data.bestTitle}` : ''}`,
+        text: `Data @${data.profile.username} terhubung! Elo: ${data.recommendedRating}`,
       });
     } catch {
       setChessComFeedback({
@@ -288,7 +284,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
         rating: parseInt(rosterRating, 10) || 500,
         ratedGames: Math.max(0, parseInt(rosterRatedGames, 10) || 0),
         club: 'Politeknik Sorowako',
-        title: (rosterTitle as Player['title']) || undefined,
         avatar: rosterAvatar || undefined,
         chessComUsername: rosterChessCom.trim() || undefined,
       },
@@ -301,7 +296,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setRosterRating('500');
     setRosterRatedGames('0');
     setRosterClub('');
-    setRosterTitle('');
     setRosterChessCom('');
     setRosterAvatar('');
     setChessComFeedback(null);
@@ -314,7 +308,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setEditPlayerRating(String(p.rating || 500));
     setEditPlayerRatedGames(String(p.ratedGames ?? 0));
     setEditPlayerClub(p.club || '');
-    setEditPlayerTitle(p.title || '');
     setEditPlayerChessCom(p.chessComUsername || '');
   };
 
@@ -337,7 +330,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
       rating: parseInt(editPlayerRating, 10) || 500,
       ratedGames: Math.max(0, parseInt(editPlayerRatedGames, 10) || 0),
       club: 'Politeknik Sorowako',
-      title: (editPlayerTitle as Player['title']) || undefined,
       chessComUsername: cleanUser || undefined,
     });
 
@@ -383,23 +375,29 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const filteredPickerRoster = useMemo(() => {
     const q = pickerSearch.toLowerCase().trim();
     if (!q) return roster;
-    return roster.filter(
-      (p) =>
+    return roster.filter((p) => {
+      const badge = getPlayerBadge(p.rating, p.title);
+      return (
         p.name.toLowerCase().includes(q) ||
         (p.club && p.club.toLowerCase().includes(q)) ||
+        (badge.badgeText && badge.badgeText.toLowerCase().includes(q)) ||
         (p.title && p.title.toLowerCase().includes(q))
-    );
+      );
+    });
   }, [roster, pickerSearch]);
 
   const filteredRoster = useMemo(() => {
     const q = rosterSearch.toLowerCase().trim();
     if (!q) return roster;
-    return roster.filter(
-      (p) =>
+    return roster.filter((p) => {
+      const badge = getPlayerBadge(p.rating, p.title);
+      return (
         p.name.toLowerCase().includes(q) ||
         (p.club && p.club.toLowerCase().includes(q)) ||
+        (badge.badgeText && badge.badgeText.toLowerCase().includes(q)) ||
         (p.title && p.title.toLowerCase().includes(q))
-    );
+      );
+    });
   }, [roster, rosterSearch]);
 
   return (
@@ -671,10 +669,19 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                                 </div>
                                 <span className="mini-avatar">{getInitials(p.name)}</span>
                                 <div className="picker-info">
-                                  <div className="picker-name-row">
-                                    <span className="picker-name">{p.name}</span>
-                                    {p.title && <span className="title-tag">{p.title}</span>}
-                                  </div>
+                                  {(() => {
+                                    const badge = getPlayerBadge(p.rating, p.title);
+                                    return (
+                                      <div className="picker-name-row">
+                                        <span className={`picker-name ${badge.isGoldGlowName ? 'player-name-gold-glow' : ''}`}>
+                                          {p.name}
+                                        </span>
+                                        {badge.badgeText && (
+                                          <span className={badge.badgeClass}>{badge.badgeText}</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="picker-meta">
                                     {p.rating || 500} Elo
                                   </div>
@@ -1011,26 +1018,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                         className="form-input-text"
                       />
                     </div>
-
-                    <div className="form-field">
-                      <label className="form-label">Gelar catur</label>
-                      <select
-                        value={rosterTitle}
-                        onChange={(e) => setRosterTitle(e.target.value)}
-                        className="form-input-text"
-                      >
-                        <option value="">Non-Gelar</option>
-                        <option value="NM">NM (Master Nasional)</option>
-                        <option value="CM">CM (Candidate Master)</option>
-                        <option value="FM">FM (FIDE Master)</option>
-                        <option value="IM">IM (International Master)</option>
-                        <option value="GM">GM (Grandmaster)</option>
-                        <option value="WNM">WNM (Wanita MN)</option>
-                        <option value="WFM">WFM (Wanita FM)</option>
-                        <option value="WIM">WIM (Wanita IM)</option>
-                        <option value="WGM">WGM (Wanita GM)</option>
-                      </select>
-                    </div>
                   </div>
 
                   <div className="roster-add-actions">
@@ -1068,7 +1055,7 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                     type="text"
                     value={rosterSearch}
                     onChange={(e) => setRosterSearch(e.target.value)}
-                    placeholder="Cari nama peserta, klub, atau gelar..."
+                    placeholder="Cari nama peserta, klub, atau level..."
                     className="search-input"
                   />
                   {rosterSearch && (
@@ -1127,22 +1114,6 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                               className="form-input-text"
                               disabled={isRatedGamesLocked(p.id)}
                             />
-                            <select
-                              value={editPlayerTitle}
-                              onChange={(e) => setEditPlayerTitle(e.target.value)}
-                              className="form-input-text"
-                            >
-                              <option value="">Non-Gelar</option>
-                              <option value="NM">NM</option>
-                              <option value="CM">CM</option>
-                              <option value="FM">FM</option>
-                              <option value="IM">IM</option>
-                              <option value="GM">GM</option>
-                              <option value="WNM">WNM</option>
-                              <option value="WFM">WFM</option>
-                              <option value="WIM">WIM</option>
-                              <option value="WGM">WGM</option>
-                            </select>
                             <input
                               type="text"
                               value={editPlayerChessCom}
@@ -1189,8 +1160,19 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                           )}
                           <div className="roster-player-info">
                             <div className="roster-name-line">
-                              <span className="roster-name">{p.name}</span>
-                              {p.title && <span className="title-tag">{p.title}</span>}
+                              {(() => {
+                                const badge = getPlayerBadge(p.rating, p.title);
+                                return (
+                                  <>
+                                    <span className={`roster-name ${badge.isGoldGlowName ? 'player-name-gold-glow' : ''}`}>
+                                      {p.name}
+                                    </span>
+                                    {badge.badgeText && (
+                                      <span className={badge.badgeClass}>{badge.badgeText}</span>
+                                    )}
+                                  </>
+                                );
+                              })()}
                               <span className="roster-elo-chip">{p.rating || 500} Elo • {p.ratedGames ?? 0} laga</span>
                               {p.chessComUsername && (
                                 <button

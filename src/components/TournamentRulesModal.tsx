@@ -243,7 +243,7 @@ export const TournamentRulesModal: React.FC<TournamentRulesModalProps> = ({
                     <div><strong>K</strong> = Faktor perkembangan Elo yang dipilih sesuai rating dan jumlah laga berating</div>
                   </div>
                   <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.55rem' }}>
-                    K = 40 untuk kurang dari 30 laga berating, K = 20 setelah 30 laga jika rating di bawah 2400, dan K = 10 pada rating 2400 ke atas.
+                    K-Factor dinamis klub: Rookie (&lt; 600 Elo) K = 32, Level 1 / L1 (600–799 Elo) K = 24, Level 2 / L2 (800–999 Elo) K = 16, dan Level 3 / L3 (&ge; 1000 Elo) K = 10.
                   </div>
                 </div>
 
