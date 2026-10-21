@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Player, SwissMatch, StandingRow } from '../types/chess';
 import { SwissStandingsResult } from '../utils/swissEngine';
-import { TrendingUp, Swords, Info, Zap } from 'lucide-react';
+import { TrendingUp, Users, Zap } from 'lucide-react';
 
 export interface TournamentStatisticsProps {
   players: Player[];
@@ -75,6 +75,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
   tournamentLocation,
 }) => {
   const [mode, setMode] = useState<StatMode>('laga');
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | 'all'>('all');
   const [hoverInfo, setHoverInfo] = useState<{
     x: number;
     roundIndex: number;
@@ -199,9 +200,9 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       ? Math.max(0, 100 - overallW - overallD)
       : (blacks[0] ?? 30);
 
-    // Player Elo trajectories for top 4-6 players
-    const rankedPlayers = standings.rows.slice(0, 5).map((row) => row.player);
-    const candidatePlayers = rankedPlayers.length > 0 ? rankedPlayers : players.slice(0, 5);
+    // Player Elo trajectories for all tournament players
+    const rankedPlayers = standings.rows.map((row) => row.player);
+    const candidatePlayers = rankedPlayers.length > 0 ? rankedPlayers : players;
 
     const matchDetails = standings.eloReport?.matchDetails;
 
@@ -229,12 +230,14 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       }
 
       return {
+        id: player.id,
         name: player.name.split(' ')[0] || player.name,
         fullName: player.name,
         color: PLAYER_COLORS[pIdx % PLAYER_COLORS.length],
         v: v.slice(0, played),
         p: v.slice(played),
         all: v,
+        currentRating: Math.round(v[played - 1] ?? baseRating),
       };
     });
 
@@ -356,13 +359,13 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
     };
   }, [matches, players, standings, selectedRoundTab, currentActiveRound, totalRounds]);
 
-  // ---- 2. Chart Layout & Coordinate Calculations ----
+  // ---- 2. Chart Layout & Coordinate Calculations (Enhanced Height & Dimensions) ----
   const W = 620;
-  const H = 196;
-  const mL = 32;
-  const mR = 92;
-  const mT = 14;
-  const mB = 26;
+  const H = 260; // Taller frame so curves and data points have ample breathing room
+  const mL = 34;
+  const mR = 64; // Compact right margin for latest Elo rating numbers
+  const mT = 18;
+  const mB = 28;
   const iw = W - mL - mR;
   const ih = H - mT - mB;
 
@@ -372,6 +375,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       v: number[];
       p: number[];
       label: string;
+      endLabel?: string;
     }> = [];
     let yMin = 0;
     let yMax = 100;
@@ -384,30 +388,48 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
           v: roundStats.whites.slice(0, playedRoundsCount),
           p: roundStats.whites.slice(playedRoundsCount),
           label: 'Putih',
+          endLabel: 'Putih',
         },
         {
           color: '#e8a322',
           v: roundStats.draws.slice(0, playedRoundsCount),
           p: roundStats.draws.slice(playedRoundsCount),
           label: 'Remis',
+          endLabel: 'Remis',
         },
         {
           color: '#203a5e',
           v: roundStats.blacks.slice(0, playedRoundsCount),
           p: roundStats.blacks.slice(playedRoundsCount),
           label: 'Hitam',
+          endLabel: 'Hitam',
         },
       ];
       yMin = 0;
       yMax = 100;
       suffix = '%';
     } else if (mode === 'pemain') {
-      seriesList = topPlayerSeries.map((p) => ({
-        color: p.color,
-        v: p.v,
-        p: p.p,
-        label: p.name,
-      }));
+      const filtered =
+        selectedPlayerId === 'all'
+          ? topPlayerSeries.slice(0, Math.min(topPlayerSeries.length, 6))
+          : topPlayerSeries.filter((p) => p.id === selectedPlayerId);
+
+      const activePlayers =
+        filtered.length > 0 ? filtered : topPlayerSeries.slice(0, 5);
+
+      seriesList = activePlayers.map((p) => {
+        const latestRating = Math.round(
+          p.all[playedRoundsCount - 1] ?? p.all[0] ?? 500
+        );
+        return {
+          color: p.color,
+          v: p.v,
+          p: p.p,
+          label: p.name,
+          endLabel: `${latestRating}`,
+        };
+      });
+
       const allVals = seriesList.flatMap((s) => [...s.v, ...s.p]);
       const minVal = allVals.length ? Math.min(...allVals) : 480;
       const maxVal = allVals.length ? Math.max(...allVals) : 540;
@@ -415,12 +437,16 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       yMax = maxVal + 10;
       suffix = ' Elo';
     } else {
+      const latestAvg = Math.round(
+        avgEloSeries.all[playedRoundsCount - 1] ?? avgEloSeries.all[0] ?? avgElo
+      );
       seriesList = [
         {
           color: '#d99a2b',
           v: avgEloSeries.v,
           p: avgEloSeries.p,
           label: 'Rerata',
+          endLabel: `${latestAvg}`,
         },
       ];
       const allVals = [...avgEloSeries.v, ...avgEloSeries.p];
@@ -452,10 +478,10 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       };
     });
 
-    // Anti-collision label positioning on right margin
+    // Anti-collision label positioning on right margin (shows latest Elo rating on mode pemain)
     const ends = mats
       .map((m, si) => ({
-        text: seriesList[si].label,
+        text: seriesList[si].endLabel ?? seriesList[si].label,
         color: seriesList[si].color,
         x: m.full[m.full.length - 1]?.x ?? W - mR,
         y: m.full[m.full.length - 1]?.y ?? H / 2,
@@ -463,8 +489,8 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       .sort((a, b) => a.y - b.y);
 
     ends.forEach((e2, i) => {
-      if (i > 0 && e2.y - ends[i - 1].y < 12) {
-        e2.y = ends[i - 1].y + 12;
+      if (i > 0 && e2.y - ends[i - 1].y < 13) {
+        e2.y = ends[i - 1].y + 13;
       }
     });
     const over = ends[ends.length - 1]?.y - (H - mB - 4);
@@ -484,12 +510,18 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       ends,
       rounds,
     };
-  }, [mode, roundStats, playedRoundsCount, topPlayerSeries, avgEloSeries, totalRounds, iw, ih]);
-
-  // Active stack distribution (shows overall tournament cumulative outcome: matches line & legend)
-  const stackW = overallAvgOutcomes.white;
-  const stackD = overallAvgOutcomes.draw;
-  const stackB = overallAvgOutcomes.black;
+  }, [
+    mode,
+    selectedPlayerId,
+    roundStats,
+    playedRoundsCount,
+    topPlayerSeries,
+    avgEloSeries,
+    totalRounds,
+    iw,
+    ih,
+    avgElo,
+  ]);
 
   // Hover crosshair handler
   const handleMouseMove = (e: React.MouseEvent<SVGRectElement>) => {
@@ -577,7 +609,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
         </div>
       </div>
 
-      {/* ── 2. Inner Panel with Mode Switcher & Dynamic Chart ── */}
+      {/* ── 2. Inner Panel with Mode Switcher, Filter & Taller Spline Chart ── */}
       <div className="stat-panel">
         <div className="stat-panel-head">
           <svg
@@ -595,7 +627,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
           </svg>
           <span className="stat-ttl">
             {mode === 'laga'
-              ? 'Progres hasil laga (kumulatif)'
+              ? 'Hasil laga tiap babak (kumulatif)'
               : mode === 'pemain'
               ? 'Elo per peserta tiap babak'
               : 'Rerata Elo peserta tiap babak'}
@@ -645,83 +677,92 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
           </span>
         </div>
 
-        {/* Stacked Outcome Bar (Shown in 'laga' mode) */}
-        {mode === 'laga' && (
-          <div className="stat-stack-wrap">
-            <div className="stat-stack" role="progressbar" aria-label="Distribusi Hasil Laga">
-              <i className="w" style={{ width: `${stackW}%` }} title={`Putih: ${stackW}%`} />
-              <i className="d" style={{ width: `${stackD}%` }} title={`Remis: ${stackD}%`} />
-              <i className="b" style={{ width: `${stackB}%` }} title={`Hitam: ${stackB}%`} />
+        {/* ── Subheader Controls / Filters (Replaces old diagram batang) ── */}
+        {mode === 'pemain' ? (
+          <div className="stat-filter-wrap" role="region" aria-label="Filter Peserta">
+            <div className="stat-filter-label">
+              <Users size={13} />
+              <span>Filter Peserta:</span>
+            </div>
+            <div className="stat-filter-chips">
+              <button
+                type="button"
+                className={`stat-filter-chip ${selectedPlayerId === 'all' ? 'active' : ''}`}
+                onClick={() => setSelectedPlayerId('all')}
+                title="Tampilkan semua peserta teratas"
+              >
+                <span>Semua ({topPlayerSeries.length})</span>
+              </button>
+              {topPlayerSeries.map((p) => {
+                const isSelected = selectedPlayerId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`stat-filter-chip ${isSelected ? 'active' : ''}`}
+                    onClick={() => setSelectedPlayerId(isSelected ? 'all' : p.id)}
+                    title={`${p.fullName} — Rating terkini: ${p.currentRating} Elo`}
+                    style={
+                      isSelected
+                        ? { borderColor: p.color, background: `${p.color}18`, color: p.color }
+                        : undefined
+                    }
+                  >
+                    <span className="stat-dot" style={{ background: p.color }} />
+                    <span className="stat-filter-name">{p.name}</span>
+                    <span className="stat-filter-elo">{p.currentRating}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
-
-        {/* Legend Chips */}
-        <div className={`stat-legend ${mode !== 'laga' ? 'center' : ''}`}>
-          {mode === 'laga' ? (
-            <>
-              <span
-                className="stat-chip"
-                onMouseEnter={(e) =>
-                  setActiveTooltip({
-                    text: `Total kemenangan bidak putih: ${overallAvgOutcomes.white}% (${overallAvgOutcomes.whiteCount} dari ${overallAvgOutcomes.total} laga)`,
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onMouseLeave={() => setActiveTooltip(null)}
-              >
-                <span className="stat-dot w" />
-                <span>Putih · {overallAvgOutcomes.white}%</span>
-              </span>
-              <span
-                className="stat-chip"
-                onMouseEnter={(e) =>
-                  setActiveTooltip({
-                    text: `Total hasil remis: ${overallAvgOutcomes.draw}% (${overallAvgOutcomes.drawCount} dari ${overallAvgOutcomes.total} laga)`,
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onMouseLeave={() => setActiveTooltip(null)}
-              >
-                <span className="stat-dot d" />
-                <span>Remis · {overallAvgOutcomes.draw}%</span>
-              </span>
-              <span
-                className="stat-chip"
-                onMouseEnter={(e) =>
-                  setActiveTooltip({
-                    text: `Total kemenangan bidak hitam: ${overallAvgOutcomes.black}% (${overallAvgOutcomes.blackCount} dari ${overallAvgOutcomes.total} laga)`,
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onMouseLeave={() => setActiveTooltip(null)}
-              >
-                <span className="stat-dot b" />
-                <span>Hitam · {overallAvgOutcomes.black}%</span>
-              </span>
-            </>
-          ) : mode === 'pemain' ? (
-            topPlayerSeries.map((p) => (
-              <span
-                key={p.fullName}
-                className="stat-chip"
-                onMouseEnter={(e) =>
-                  setActiveTooltip({
-                    text: `${p.fullName}: Elo terkini ${p.all[p.all.length - 1]}`,
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onMouseLeave={() => setActiveTooltip(null)}
-              >
-                <span className="stat-dot" style={{ background: p.color }} />
-                <span>{p.name}</span>
-              </span>
-            ))
-          ) : (
+        ) : mode === 'laga' ? (
+          <div className="stat-legend-laga">
+            <span
+              className="stat-chip"
+              onMouseEnter={(e) =>
+                setActiveTooltip({
+                  text: `Total kemenangan bidak putih: ${overallAvgOutcomes.white}% (${overallAvgOutcomes.whiteCount} dari ${overallAvgOutcomes.total} laga)`,
+                  x: e.clientX,
+                  y: e.clientY,
+                })
+              }
+              onMouseLeave={() => setActiveTooltip(null)}
+            >
+              <span className="stat-dot w" />
+              <span>Putih · {overallAvgOutcomes.white}%</span>
+            </span>
+            <span
+              className="stat-chip"
+              onMouseEnter={(e) =>
+                setActiveTooltip({
+                  text: `Total hasil remis: ${overallAvgOutcomes.draw}% (${overallAvgOutcomes.drawCount} dari ${overallAvgOutcomes.total} laga)`,
+                  x: e.clientX,
+                  y: e.clientY,
+                })
+              }
+              onMouseLeave={() => setActiveTooltip(null)}
+            >
+              <span className="stat-dot d" />
+              <span>Remis · {overallAvgOutcomes.draw}%</span>
+            </span>
+            <span
+              className="stat-chip"
+              onMouseEnter={(e) =>
+                setActiveTooltip({
+                  text: `Total kemenangan bidak hitam: ${overallAvgOutcomes.black}% (${overallAvgOutcomes.blackCount} dari ${overallAvgOutcomes.total} laga)`,
+                  x: e.clientX,
+                  y: e.clientY,
+                })
+              }
+              onMouseLeave={() => setActiveTooltip(null)}
+            >
+              <span className="stat-dot b" />
+              <span>Hitam · {overallAvgOutcomes.black}%</span>
+            </span>
+          </div>
+        ) : (
+          <div className="stat-legend-rerata">
             <span
               className="stat-chip"
               onMouseEnter={(e) =>
@@ -734,12 +775,12 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
               onMouseLeave={() => setActiveTooltip(null)}
             >
               <span className="stat-dot" style={{ background: '#d99a2b' }} />
-              <span>Rerata Elo Peserta ({avgElo} Elo)</span>
+              <span>Rerata Elo Peserta Turnamen ({avgElo} Elo)</span>
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* ── 3. Core SVG Interactive Spline Chart ── */}
+        {/* ── 3. Core SVG Interactive Spline Chart (Taller H=260) ── */}
         <svg
           ref={svgRef}
           className="stat-chart-svg"
@@ -803,7 +844,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
                   stroke="#efe8d8"
                   strokeWidth="1"
                 />
-                <text x={xPos - 4} y={H - 7} className="stat-axlab">
+                <text x={xPos - 4} y={H - 8} className="stat-axlab">
                   {i + 1}
                 </text>
               </g>
@@ -832,8 +873,8 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
                 opacity="0.75"
               />
               <text
-                x={W - mR - 62}
-                y={H - 7}
+                x={W - mR - 58}
+                y={H - 8}
                 className="stat-axlab"
                 style={{ fontSize: '9px', fontStyle: 'italic', fill: '#b4a98c' }}
               >
@@ -900,15 +941,15 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
             );
           })}
 
-          {/* Right margin end labels with anti-collision */}
+          {/* Right margin end labels with anti-collision (latest Elo rating on mode pemain) */}
           {chartData.ends.map((end, i) => (
             <text
               key={i}
-              x={end.x + 7}
-              y={end.y + 3.5}
+              x={end.x + 8}
+              y={end.y + 4}
               fill={end.color}
               style={{
-                font: '700 10.5px "Segoe UI", Montserrat, sans-serif',
+                font: '700 11.5px "Segoe UI", Montserrat, sans-serif',
               }}
             >
               {end.text}
@@ -1031,34 +1072,6 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
             )}
           </div>
         </article>
-      </div>
-
-      {/* ── 5. Standings Rule Indicator Legend ── */}
-      <div className="round-statistics-legend">
-        <div className="round-statistics-legend-heading">
-          <strong>
-            <Info size={13} /> Keterangan indikator klasemen
-          </strong>
-          <span>Menang = 1 • Remis = ½ • Kalah = 0</span>
-        </div>
-        <div className="round-statistics-legend-grid">
-          <div>
-            <strong>M / R / K</strong>
-            <span>Menang / Remis / Kalah</span>
-          </div>
-          <div>
-            <strong>BH (Buchholz)</strong>
-            <span>Total poin seluruh lawan</span>
-          </div>
-          <div>
-            <strong>SB (Sonneborn)</strong>
-            <span>Skor lawan yang dikalahkan</span>
-          </div>
-          <div>
-            <strong>GM / FM / CM</strong>
-            <span>Gelar Master kehormatan</span>
-          </div>
-        </div>
       </div>
 
       {/* ── Floating Hover Tooltip (Chart crosshair) ── */}
