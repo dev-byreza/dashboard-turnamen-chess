@@ -983,10 +983,11 @@ body::before {
 
 .stat-stack {
   display: flex;
-  height: 9px;
+  height: 10px;
   border-radius: 999px;
   overflow: hidden;
   background: #e8e0d0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .stat-stack i {
@@ -995,15 +996,18 @@ body::before {
   transition: width 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-.stat-stack .w { background: #b9c0c9; }
+.stat-stack .w {
+  background: #cdd5df;
+  border-right: 1px solid rgba(0, 0, 0, 0.12);
+}
 .stat-stack .d { background: #e8a322; }
-.stat-stack .b { background: #203a5e; }
+.stat-stack .b { background: #14213d; }
 
 .stat-legend {
   display: flex;
   justify-content: space-between;
   margin: 2px 4px 10px;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -1131,6 +1135,15 @@ body::before {
 
 .stat-tip-label {
   opacity: 0.85;
+}
+
+.stat-tip-breakdown {
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  font-size: 10px;
+  opacity: 0.85;
+  color: #f6e7b4;
 }
 
 .round-statistics-highlights {

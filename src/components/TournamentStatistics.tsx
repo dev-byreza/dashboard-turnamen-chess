@@ -82,6 +82,13 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
     clientY: number;
     rows: Array<{ label: string; value: string; color: string }>;
     isProjected: boolean;
+    roundBreakdown?: {
+      round: number;
+      whiteWins: number;
+      draws: number;
+      blackWins: number;
+      total: number;
+    };
   } | null>(null);
 
   const [activeTooltip, setActiveTooltip] = useState<{
@@ -96,6 +103,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
   // ---- 1. Calculate Completed Rounds and Timeline Data ----
   const {
     playedRoundsCount,
+    perRoundBreakdown,
     roundStats,
     overallAvgOutcomes,
     topPlayerSeries,
@@ -113,15 +121,24 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
     }
     const played = Math.max(1, lastCompletedRound);
 
-    // Round-by-round match outcomes
+    // Cumulative round-by-round match outcomes (Progres Hasil Laga Kumulatif)
     const whites: number[] = [];
     const draws: number[] = [];
     const blacks: number[] = [];
 
-    let totalWhiteWins = 0;
-    let totalDraws = 0;
-    let totalBlackWins = 0;
-    let totalRatedMatches = 0;
+    // Per-round raw breakdown (for tooltip)
+    const perRoundBreakdown: Array<{
+      round: number;
+      whiteWins: number;
+      draws: number;
+      blackWins: number;
+      total: number;
+    }> = [];
+
+    let cumWhiteWins = 0;
+    let cumDraws = 0;
+    let cumBlackWins = 0;
+    let cumTotalScored = 0;
 
     for (let r = 1; r <= roundsCount; r++) {
       const rMatches = matches.filter(
@@ -129,50 +146,58 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       );
       const scored = rMatches.filter((m) => m.result !== null);
 
-      if (scored.length > 0) {
-        const w = scored.filter((m) => m.result === '1-0').length;
-        const d = scored.filter((m) => m.result === '0.5-0.5').length;
-        const b = scored.filter((m) => m.result === '0-1').length;
-        const count = scored.length;
+      const rW = scored.filter((m) => m.result === '1-0').length;
+      const rD = scored.filter((m) => m.result === '0.5-0.5').length;
+      const rB = scored.filter((m) => m.result === '0-1').length;
+      const rTotal = scored.length;
 
-        totalWhiteWins += w;
-        totalDraws += d;
-        totalBlackWins += b;
-        totalRatedMatches += count;
+      perRoundBreakdown.push({
+        round: r,
+        whiteWins: rW,
+        draws: rD,
+        blackWins: rB,
+        total: rTotal,
+      });
 
-        const wPct = Math.round((w / count) * 100);
-        const dPct = Math.round((d / count) * 100);
+      if (rTotal > 0) {
+        cumWhiteWins += rW;
+        cumDraws += rD;
+        cumBlackWins += rB;
+        cumTotalScored += rTotal;
+
+        const wPct = Math.round((cumWhiteWins / cumTotalScored) * 100);
+        const dPct = Math.round((cumDraws / cumTotalScored) * 100);
         const bPct = Math.max(0, 100 - wPct - dPct);
 
         whites.push(wPct);
         draws.push(dPct);
         blacks.push(bPct);
       } else {
-        // Future / unplayed round baseline projection
-        if (totalRatedMatches > 0) {
-          const avgW = Math.round((totalWhiteWins / totalRatedMatches) * 100);
-          const avgD = Math.round((totalDraws / totalRatedMatches) * 100);
-          const avgB = Math.max(0, 100 - avgW - avgD);
-          whites.push(avgW);
-          draws.push(avgD);
-          blacks.push(avgB);
+        // Future / unplayed round projection based on cumulative outcomes so far
+        if (cumTotalScored > 0) {
+          const wPct = Math.round((cumWhiteWins / cumTotalScored) * 100);
+          const dPct = Math.round((cumDraws / cumTotalScored) * 100);
+          const bPct = Math.max(0, 100 - wPct - dPct);
+          whites.push(wPct);
+          draws.push(dPct);
+          blacks.push(bPct);
         } else {
-          whites.push(52);
-          draws.push(18);
+          whites.push(50);
+          draws.push(20);
           blacks.push(30);
         }
       }
     }
 
-    const overallW = totalRatedMatches
-      ? Math.round((totalWhiteWins / totalRatedMatches) * 100)
-      : whites[0] ?? 52;
-    const overallD = totalRatedMatches
-      ? Math.round((totalDraws / totalRatedMatches) * 100)
-      : draws[0] ?? 18;
-    const overallB = totalRatedMatches
+    const overallW = cumTotalScored
+      ? Math.round((cumWhiteWins / cumTotalScored) * 100)
+      : (whites[0] ?? 50);
+    const overallD = cumTotalScored
+      ? Math.round((cumDraws / cumTotalScored) * 100)
+      : (draws[0] ?? 20);
+    const overallB = cumTotalScored
       ? Math.max(0, 100 - overallW - overallD)
-      : blacks[0] ?? 30;
+      : (blacks[0] ?? 30);
 
     // Player Elo trajectories for top 4-6 players
     const rankedPlayers = standings.rows.slice(0, 5).map((row) => row.player);
@@ -226,6 +251,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
 
     return {
       playedRoundsCount: played,
+      perRoundBreakdown,
       roundStats: {
         whites,
         draws,
@@ -235,6 +261,10 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
         white: overallW,
         draw: overallD,
         black: overallB,
+        whiteCount: cumWhiteWins,
+        drawCount: cumDraws,
+        blackCount: cumBlackWins,
+        total: cumTotalScored,
       },
       topPlayerSeries: pSeries,
       avgEloSeries: {
@@ -375,14 +405,10 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
     };
   }, [mode, roundStats, playedRoundsCount, topPlayerSeries, avgEloSeries, totalRounds, iw, ih]);
 
-  // Active stack distribution (shows latest round with data)
-  const currentStackRoundIdx = Math.min(
-    Math.max(0, playedRoundsCount - 1),
-    (roundStats.whites.length || 1) - 1
-  );
-  const stackW = roundStats.whites[currentStackRoundIdx] ?? 50;
-  const stackD = roundStats.draws[currentStackRoundIdx] ?? 20;
-  const stackB = roundStats.blacks[currentStackRoundIdx] ?? 30;
+  // Active stack distribution (shows overall tournament cumulative outcome: matches line & legend)
+  const stackW = overallAvgOutcomes.white;
+  const stackD = overallAvgOutcomes.draw;
+  const stackB = overallAvgOutcomes.black;
 
   // Hover crosshair handler
   const handleMouseMove = (e: React.MouseEvent<SVGRectElement>) => {
@@ -401,6 +427,8 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       color: s.color,
     }));
 
+    const bd = perRoundBreakdown[roundIdx];
+
     setHoverInfo({
       x: chartData.getX(roundIdx),
       roundIndex: roundIdx,
@@ -408,6 +436,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
       clientY: e.clientY,
       rows,
       isProjected: roundIdx >= playedRoundsCount,
+      roundBreakdown: bd && bd.total > 0 ? bd : undefined,
     });
   };
 
@@ -485,7 +514,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
           </svg>
           <span className="stat-ttl">
             {mode === 'laga'
-              ? 'Progres laga babak ini'
+              ? 'Progres hasil laga (kumulatif)'
               : mode === 'pemain'
               ? 'Elo per peserta tiap babak'
               : 'Rerata Elo peserta tiap babak'}
@@ -554,7 +583,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
                 className="stat-chip"
                 onMouseEnter={(e) =>
                   setActiveTooltip({
-                    text: `Rata-rata hasil putih: ${overallAvgOutcomes.white}%`,
+                    text: `Total kemenangan bidak putih: ${overallAvgOutcomes.white}% (${overallAvgOutcomes.whiteCount} dari ${overallAvgOutcomes.total} laga)`,
                     x: e.clientX,
                     y: e.clientY,
                   })
@@ -568,7 +597,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
                 className="stat-chip"
                 onMouseEnter={(e) =>
                   setActiveTooltip({
-                    text: `Rata-rata remis: ${overallAvgOutcomes.draw}%`,
+                    text: `Total hasil remis: ${overallAvgOutcomes.draw}% (${overallAvgOutcomes.drawCount} dari ${overallAvgOutcomes.total} laga)`,
                     x: e.clientX,
                     y: e.clientY,
                   })
@@ -582,7 +611,7 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
                 className="stat-chip"
                 onMouseEnter={(e) =>
                   setActiveTooltip({
-                    text: `Rata-rata hasil hitam: ${overallAvgOutcomes.black}%`,
+                    text: `Total kemenangan bidak hitam: ${overallAvgOutcomes.black}% (${overallAvgOutcomes.blackCount} dari ${overallAvgOutcomes.total} laga)`,
                     x: e.clientX,
                     y: e.clientY,
                   })
@@ -945,9 +974,11 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
         >
           <div className="stat-tip-header">
             <b>Babak {hoverInfo.roundIndex + 1}</b>
-            {hoverInfo.isProjected && (
+            {hoverInfo.isProjected ? (
               <span className="stat-tip-proj"> (proyeksi)</span>
-            )}
+            ) : mode === 'laga' ? (
+              <span className="stat-tip-proj"> (kumulatif)</span>
+            ) : null}
           </div>
           {hoverInfo.rows.map((row, i) => (
             <div key={i} className="stat-tip-row">
@@ -956,6 +987,11 @@ export const TournamentStatistics: React.FC<TournamentStatisticsProps> = ({
               <b>{row.value}</b>
             </div>
           ))}
+          {mode === 'laga' && hoverInfo.roundBreakdown && (
+            <div className="stat-tip-breakdown">
+              Babak {hoverInfo.roundIndex + 1} saja: {hoverInfo.roundBreakdown.whiteWins} Putih • {hoverInfo.roundBreakdown.blackWins} Hitam{hoverInfo.roundBreakdown.draws > 0 ? ` • ${hoverInfo.roundBreakdown.draws} Remis` : ''}
+            </div>
+          )}
         </div>
       )}
 
