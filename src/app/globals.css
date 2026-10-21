@@ -1793,36 +1793,36 @@ body::before {
   letter-spacing: 0.02em;
 }
 
-/* Badge L1 - Soft Modern Sky Blue */
+/* Badge L1 - Soft Sky Blue (Outlined Translucent) */
 .title-tag.title-tag-l1 {
-  background: rgba(14, 165, 233, 0.12);
+  background: rgba(14, 165, 233, 0.08);
   color: #0284c7;
-  border: 1px solid rgba(14, 165, 233, 0.26);
+  border: 1px solid rgba(14, 165, 233, 0.35);
   box-shadow: none;
   text-shadow: none;
   font-weight: 750;
   letter-spacing: 0.03em;
 }
 
-/* Badge L2 - Soft Modern Royal Blue */
+/* Badge L2 - Solid Royal Sapphire (Lebih Elit, Solid dengan Teks Putih) */
 .title-tag.title-tag-l2 {
-  background: rgba(59, 130, 246, 0.14);
-  color: #1d4ed8;
-  border: 1px solid rgba(59, 130, 246, 0.28);
-  box-shadow: none;
-  text-shadow: none;
-  font-weight: 750;
-  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border: 1px solid #3b82f6;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 /* Badge L3 - Soft Modern Prestigious Gold (1000+ Elo) */
 .title-tag.title-tag-l3 {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18) 0%, rgba(245, 158, 11, 0.12) 100%);
-  color: #b45309;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.08);
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fde68a 100%);
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.20);
   text-shadow: none;
-  font-weight: 800;
+  font-weight: 850;
   letter-spacing: 0.04em;
 }
 
@@ -1839,21 +1839,23 @@ body::before {
 
 /* Dukungan Mode Gelap (Dark Mode) */
 [data-theme="dark"] .title-tag.title-tag-l1 {
-  background: rgba(14, 165, 233, 0.18);
+  background: rgba(14, 165, 233, 0.16);
   color: #38bdf8;
-  border-color: rgba(56, 189, 248, 0.32);
+  border-color: rgba(56, 189, 248, 0.35);
 }
 
 [data-theme="dark"] .title-tag.title-tag-l2 {
-  background: rgba(59, 130, 246, 0.20);
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.35);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  border-color: #60a5fa;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.40);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 [data-theme="dark"] .title-tag.title-tag-l3 {
-  background: rgba(245, 158, 11, 0.20);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(217, 119, 6, 0.18) 100%);
   color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.38);
+  border-color: rgba(251, 191, 36, 0.45);
 }
 
 [data-theme="dark"] .player-name-gold-glow {
