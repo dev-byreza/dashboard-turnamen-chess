@@ -1042,7 +1042,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               <Trophy size={18} style={{ color: 'var(--gold)' }} />
               <h3 className="section-title-text">Klasemen Sementara</h3>
             </div>
-            <div className="flex-row-center gap-2 no-print">
+            <div className="flex-row-center gap-2 no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
               <button
                 type="button"
                 className="btn-glass-secondary"

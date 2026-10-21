@@ -1452,6 +1452,15 @@ body::before {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.flex-row-center {
+  display: flex;
+  align-items: center;
+}
+
+.gap-2 {
+  gap: 0.55rem;
+}
+
 .section-title-wrap {
   display: flex;
   align-items: center;
