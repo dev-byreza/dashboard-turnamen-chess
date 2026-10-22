@@ -1498,19 +1498,24 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
     pathD += ` L 320 64 Z`;
 
-    // Extract significant move dots matching Reference Image (No crowded bead necklace!)
-    const significantTypes = ['brilliant', 'great', 'inaccuracy', 'mistake', 'miss', 'blunder'];
+    // Exclude the 3 high-frequency categories: Excellent, Good, Inaccuracy (to keep graphic clean)
+    // Only display critical key-moment turning points: Brilliant, Great, Mistake, Miss, Blunder
+    const significantTypes = ['brilliant', 'great', 'mistake', 'miss', 'blunder'];
     const rawDots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
 
     pts.forEach((p, idx) => {
       let t = p.type;
       if (t === 'missed_win') t = 'miss';
 
-      const isFirstBook = idx === 0 && t === 'book';
+      // Explicitly ignore 'excellent', 'good', 'inaccuracy', 'book'
+      if (!t || t === 'excellent' || t === 'good' || t === 'inaccuracy' || t === 'book') {
+        return;
+      }
+
       const isCheckmate = moveHistory[idx]?.san?.includes('#');
 
-      if ((t && significantTypes.includes(t)) || isFirstBook || isCheckmate) {
-        const dotType = isCheckmate ? 'best' : isFirstBook ? 'book' : t!;
+      if (significantTypes.includes(t) || isCheckmate) {
+        const dotType = isCheckmate && !significantTypes.includes(t) ? 'best' : t;
         const meta = REVIEW_CLASSIFICATIONS.find((c) => c.type === dotType);
         if (meta) {
           rawDots.push({
@@ -1524,10 +1529,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
     });
 
-    // Filter dots that are too close horizontally (min 7.5px spacing) to avoid clutter
+    // Filter dots that are too close horizontally (min 9px spacing) to keep graph ultra clean and uncluttered
     const filteredDots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
     rawDots.forEach((dot) => {
-      const tooClose = filteredDots.find((d) => Math.abs(d.x - dot.x) < 7.5);
+      const tooClose = filteredDots.find((d) => Math.abs(d.x - dot.x) < 9);
       if (!tooClose) {
         filteredDots.push(dot);
       }
