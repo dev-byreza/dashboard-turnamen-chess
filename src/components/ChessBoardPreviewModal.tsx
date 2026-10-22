@@ -429,38 +429,9 @@ export function classifyGameMoves(
     return times[(ply * 13) % times.length];
   };
 
-  // Find candidate for Brilliant Move !!
-  let whiteBrilliantPly = -1;
-  let blackBrilliantPly = -1;
-
-  if (isWhiteWin) {
-    const cand =
-      rawMoves.find(
-        (m) =>
-          m.color === 'w' &&
-          m.ply > 6 &&
-          (m.san.includes('x') || m.san.includes('+')) &&
-          m.piece !== 'p'
-      ) || rawMoves.find((m) => m.color === 'w' && m.ply > 8);
-    if (cand) whiteBrilliantPly = cand.ply;
-  } else if (isBlackWin) {
-    const cand =
-      rawMoves.find(
-        (m) =>
-          m.color === 'b' &&
-          m.ply > 6 &&
-          (m.san.includes('x') || m.san.includes('+')) &&
-          m.piece !== 'p'
-      ) || rawMoves.find((m) => m.color === 'b' && m.ply > 8);
-    if (cand) blackBrilliantPly = cand.ply;
-  } else {
-    // If draw or undetermined, pick a sharp midgame move
-    const cand = rawMoves.find((m) => m.ply > 8 && m.san.includes('x') && m.piece !== 'p');
-    if (cand) {
-      if (cand.color === 'w') whiteBrilliantPly = cand.ply;
-      else blackBrilliantPly = cand.ply;
-    }
-  }
+  // Brilliant moves are only verified by Stockfish engine evaluation (classifyByEngine), never forced in heuristic
+  const whiteBrilliantPly = -1;
+  const blackBrilliantPly = -1;
 
   // Find candidate Blunders for the losing side
   const blunderPlies = new Set<number>();
@@ -848,6 +819,82 @@ function getGameStorageKey(
     id = `fen_${Math.abs(hash)}`;
   }
   return `chesscom_review_${id}_d${depth || 14}`;
+}
+
+/**
+ * UniversalBoardDrawer (adopted from https://github.com/Hakorr/UniversalBoardDrawer)
+ * Calculates mathematical vector polygon arrow with exact SVG rotation
+ */
+export interface UniversalBoardArrow {
+  points: string;
+  transform: string;
+}
+
+export function createUniversalBoardArrow(
+  fromSquare: string,
+  toSquare: string,
+  isFlipped: boolean,
+  config?: {
+    lineWidth?: number;
+    arrowheadWidth?: number;
+    arrowheadHeight?: number;
+    startOffset?: number;
+    tipOffset?: number;
+  }
+): UniversalBoardArrow | null {
+  if (!fromSquare || !toSquare || fromSquare.length < 2 || toSquare.length < 2) return null;
+
+  const fileToCol = (f: string) => f.charCodeAt(0) - 97;
+  const rankToRow = (r: string) => 8 - parseInt(r, 10);
+
+  let c1 = fileToCol(fromSquare[0].toLowerCase());
+  let r1 = rankToRow(fromSquare[1]);
+  let c2 = fileToCol(toSquare[0].toLowerCase());
+  let r2 = rankToRow(toSquare[1]);
+
+  if (c1 < 0 || c1 > 7 || r1 < 0 || r1 > 7 || c2 < 0 || c2 > 7 || r2 < 0 || r2 > 7) {
+    return null;
+  }
+
+  if (isFlipped) {
+    c1 = 7 - c1;
+    r1 = 7 - r1;
+    c2 = 7 - c2;
+    r2 = 7 - r2;
+  }
+
+  // 800x800 SVG coordinate system (each square is 100x100)
+  const fromX = c1 * 100 + 50;
+  const fromY = r1 * 100 + 50;
+  const toX = c2 * 100 + 50;
+  const toY = r2 * 100 + 50;
+
+  const distance = Math.hypot(fromX - toX, fromY - toY);
+  if (distance < 1) return null;
+
+  const angle = Math.atan2(fromY - toY, fromX - toX);
+
+  // Proportions faithfully matching UniversalBoardDrawer / Chess.com
+  const lineWidth = config?.lineWidth ?? 18;
+  const arrowheadWidth = config?.arrowheadWidth ?? 52;
+  const arrowheadHeight = config?.arrowheadHeight ?? 42;
+  const startOffset = config?.startOffset ?? 22;
+  const tipOffset = config?.tipOffset ?? 10;
+
+  const arrowPoints = [
+    { x: fromX - lineWidth / 2, y: fromY - startOffset },
+    { x: fromX - lineWidth / 2, y: fromY - distance + arrowheadHeight },
+    { x: fromX - arrowheadWidth / 2, y: fromY - distance + arrowheadHeight },
+    { x: fromX, y: fromY - distance + tipOffset },
+    { x: fromX + arrowheadWidth / 2, y: fromY - distance + arrowheadHeight },
+    { x: fromX + lineWidth / 2, y: fromY - distance + arrowheadHeight },
+    { x: fromX + lineWidth / 2, y: fromY - startOffset },
+  ];
+
+  const points = arrowPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const transform = `rotate(${(angle * (180 / Math.PI) - 90).toFixed(2)} ${fromX} ${fromY})`;
+
+  return { points, transform };
 }
 
 export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
@@ -1356,6 +1403,35 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (currentPlyIndex >= 0 && moveHistory[currentPlyIndex]) {
       const currentMove = moveHistory[currentPlyIndex];
 
+      const isSub =
+        currentMove.classification === 'inaccuracy' ||
+        currentMove.classification === 'mistake' ||
+        currentMove.classification === 'miss' ||
+        currentMove.classification === 'blunder' ||
+        currentMove.classification === 'missed_win';
+
+      // If suboptimal move, provide the best alternative move as the target for the arrow
+      if (isSub) {
+        if (currentMove.bestAlternativeMove?.from && currentMove.bestAlternativeMove?.to) {
+          return {
+            from: currentMove.bestAlternativeMove.from as Square,
+            to: currentMove.bestAlternativeMove.to as Square,
+            san: currentMove.bestAlternativeMove.san,
+            isCurrentMoveBest: false,
+            classification: 'best' as ChessComBadgeType,
+          };
+        }
+        if (decisionEval?.bestMoveUci && decisionEval.bestMoveUci.length >= 4) {
+          return {
+            from: decisionEval.bestMoveUci.slice(0, 2) as Square,
+            to: decisionEval.bestMoveUci.slice(2, 4) as Square,
+            san: decisionEval.bestMoveSan || decisionEval.bestMoveUci,
+            isCurrentMoveBest: false,
+            classification: 'best' as ChessComBadgeType,
+          };
+        }
+      }
+
       // 1. Check Stockfish 19 Lite evaluation on the decision position (prevFen)
       if (decisionEval?.bestMoveUci && decisionEval.bestMoveUci.length >= 4) {
         const from = decisionEval.bestMoveUci.slice(0, 2) as Square;
@@ -1397,7 +1473,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           to: currentMove.bestAlternativeMove.to as Square,
           san: currentMove.bestAlternativeMove.san,
           isCurrentMoveBest: false,
-          classification: currentMove.classification,
+          classification: 'best' as ChessComBadgeType,
         };
       }
     }
@@ -1418,57 +1494,35 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return null;
   }, [currentPlyIndex, moveHistory, decisionEval, currentEval]);
 
-  // Dynamic color for Best Move arrow & highlights (Brilliant: #31c4b9, Great: #5091c5, Best: #81b64c)
+  // Current move classification
+  const currentClassification =
+    currentPlyIndex >= 0 ? moveHistory[currentPlyIndex]?.classification : null;
+
+  // Automatically show Best Move Arrow when an inaccuracy, mistake, miss, or blunder occurs
+  const isSuboptimalMove =
+    currentClassification === 'inaccuracy' ||
+    currentClassification === 'mistake' ||
+    currentClassification === 'miss' ||
+    currentClassification === 'blunder' ||
+    currentClassification === 'missed_win';
+
+  const shouldShowBestArrow = (showBestMove || isSuboptimalMove) && !!bestMoveInfo;
+
+  // Dynamic color for Best Move arrow & highlights (Brilliant: #31c4b9, Great: #5091c5, Best: #9bc64e)
   const bestMoveColor = useMemo(() => {
+    if (isSuboptimalMove) return '#9bc64e';
     const classification =
-      bestMoveInfo?.classification ||
-      (currentPlyIndex >= 0 ? moveHistory[currentPlyIndex]?.classification : null);
+      bestMoveInfo?.classification || currentClassification;
     if (classification === 'brilliant') return '#31c4b9';
     if (classification === 'great') return '#5091c5';
-    return '#81b64c';
-  }, [bestMoveInfo, currentPlyIndex, moveHistory]);
+    return '#9bc64e';
+  }, [bestMoveInfo, currentClassification, isSuboptimalMove]);
 
-  // Arrow line coordinates on a 100x100 grid (sleek & minimal proportions)
-  const bestMoveArrowCoords = useMemo(() => {
-    if (!bestMoveInfo || !bestMoveInfo.from || !bestMoveInfo.to) return null;
-    const fromStr = bestMoveInfo.from.toLowerCase();
-    const toStr = bestMoveInfo.to.toLowerCase();
-    if (fromStr.length < 2 || toStr.length < 2) return null;
-
-    const fileToCol = (f: string) => f.charCodeAt(0) - 97;
-    const rankToRow = (r: string) => 8 - parseInt(r, 10);
-
-    let fromCol = fileToCol(fromStr[0]);
-    let fromRow = rankToRow(fromStr[1]);
-    let toCol = fileToCol(toStr[0]);
-    let toRow = rankToRow(toStr[1]);
-
-    if (isFlipped) {
-      fromCol = 7 - fromCol;
-      fromRow = 7 - fromRow;
-      toCol = 7 - toCol;
-      toRow = 7 - toRow;
-    }
-
-    const x1 = (fromCol + 0.5) * 12.5;
-    const y1 = (fromRow + 0.5) * 12.5;
-    const x2 = (toCol + 0.5) * 12.5;
-    const y2 = (toRow + 0.5) * 12.5;
-
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const dist = Math.hypot(dx, dy);
-    if (dist < 0.1) return null;
-
-    const shortenHead = 5.6;
-    const shortenTail = 2.4;
-    return {
-      x1: x1 + (dx / dist) * shortenTail,
-      y1: y1 + (dy / dist) * shortenTail,
-      x2: x2 - (dx / dist) * shortenHead,
-      y2: y2 - (dy / dist) * shortenHead,
-    };
-  }, [bestMoveInfo, isFlipped]);
+  // UniversalBoardDrawer modern vector polygon arrow (viewBox 0 0 800 800)
+  const bestMoveUniversalArrow = useMemo(() => {
+    if (!shouldShowBestArrow || !bestMoveInfo?.from || !bestMoveInfo?.to) return null;
+    return createUniversalBoardArrow(bestMoveInfo.from, bestMoveInfo.to, isFlipped);
+  }, [shouldShowBestArrow, bestMoveInfo, isFlipped]);
 
   // Effective board FEN to display (if Best Move is toggled in Review, show previous position before the move so the piece makes the arrow)
   const effectiveBoardFen = useMemo(() => {
@@ -1870,8 +1924,20 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Dynamic Review Statistics & Accuracy
   const reviewStats = useMemo(() => {
-    const isWhiteWin = match?.result === '1-0';
-    const isBlackWin = match?.result === '0-1';
+    const matchResult =
+      match?.result ||
+      recentGame?.tournamentScore ||
+      (recentGame?.pgn?.includes('1-0')
+        ? '1-0'
+        : recentGame?.pgn?.includes('0-1')
+        ? '0-1'
+        : recentGame?.pgn?.includes('1/2-1/2')
+        ? '1/2-1/2'
+        : null);
+
+    const isWhiteWin = matchResult === '1-0';
+    const isBlackWin = matchResult === '0-1';
+    const isDraw = matchResult === '1/2-1/2';
 
     let wScore = 0;
     let wTotal = 0;
@@ -1930,19 +1996,75 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       Number(blackRating) || undefined
     );
 
+    // Dynamic coach commentary based on game result and actual moves played
+    const wBrilliant = calculatedCounts.brilliant?.w ?? 0;
+    const bBrilliant = calculatedCounts.brilliant?.b ?? 0;
+    const wGreat = calculatedCounts.great?.w ?? 0;
+    const bGreat = calculatedCounts.great?.b ?? 0;
+    const wBest = calculatedCounts.best?.w ?? 0;
+    const bBest = calculatedCounts.best?.b ?? 0;
+    const wBlunders = calculatedCounts.blunder?.w ?? 0;
+    const bBlunders = calculatedCounts.blunder?.b ?? 0;
+
+    let dynamicCoachComment = '';
+
+    if (isWhiteWin) {
+      if (wBrilliant > 0) {
+        dynamicCoachComment = `Pengorbanan taktis spektakuler (Brilliant) oleh ${whiteName}! Membuka inisiatif serangan yang langsung mengunci kemenangan mutlak.`;
+      } else if (wGreat > 0) {
+        dynamicCoachComment = `Langkah krusial (Great Move) dan ketajaman taktis oleh ${whiteName}! Berhasil menemukan solusi terbaik di fase penentuan untuk mengamankan kemenangan.`;
+      } else if (parseFloat(wAcc) >= 80) {
+        dynamicCoachComment = `Permainan sangat solid dan presisi tinggi dari ${whiteName} (${wAcc}% akurasi)! Mengontrol tempo pertandingan dan mengeksekusi rencana tanpa celah.`;
+      } else if (bBlunders > 0) {
+        dynamicCoachComment = `${whiteName} dengan cermat memanfaatkan kelengahan lawan! Mengonversi keunggulan posisi menjadi poin kemenangan meyakinkan.`;
+      } else if (wBest >= 5) {
+        dynamicCoachComment = `Pilihan langkah yang sangat disiplin dan konsisten oleh ${whiteName}! Membangun keunggulan posisi secara bertahap hingga fase akhir.`;
+      } else {
+        dynamicCoachComment = `Kemenangan meyakinkan diraih oleh ${whiteName}! Menjaga stabilitas permainan hingga memastikan poin penuh.`;
+      }
+    } else if (isBlackWin) {
+      if (bBrilliant > 0) {
+        dynamicCoachComment = `Pengorbanan taktis spektakuler (Brilliant) oleh ${blackName}! Mengonversi keunggulan taktis menjadi poin kemenangan mutlak.`;
+      } else if (bGreat > 0) {
+        dynamicCoachComment = `Langkah krusial (Great Move) dan ketajaman serangan balik oleh ${blackName}! Berhasil menemukan manuver kunci di momen penentuan.`;
+      } else if (parseFloat(bAcc) >= 80) {
+        dynamicCoachComment = `Permainan sangat solid dan presisi tinggi dari ${blackName} (${bAcc}% akurasi)! Mengontrol tempo dan mengeksekusi rencana kemenangan dengan rapi.`;
+      } else if (wBlunders > 0) {
+        dynamicCoachComment = `${blackName} dengan cermat memanfaatkan kelengahan lawan! Mengonversi keunggulan taktis menjadi poin kemenangan meyakinkan.`;
+      } else if (bBest >= 5) {
+        dynamicCoachComment = `Pilihan langkah yang sangat disiplin dan konsisten oleh ${blackName}! Menekan pertahanan lawan secara bertahap hingga meraih kemenangan.`;
+      } else {
+        dynamicCoachComment = `Kemenangan meyakinkan diraih oleh ${blackName}! Menjaga stabilitas permainan hingga memastikan poin penuh.`;
+      }
+    } else if (isDraw) {
+      if (wBlunders === 0 && bBlunders === 0) {
+        dynamicCoachComment = `Pertarungan sangat solid dan seimbang dari ${whiteName} dan ${blackName}! Pertahanan kokoh kedua pihak berbuah hasil imbang yang adil.`;
+      } else {
+        dynamicCoachComment = `Duel sengit penuh dinamika taktis dari kedua pemain! Pertukaran perwira yang intens berakhir dengan posisi remis (Draw).`;
+      }
+    } else {
+      dynamicCoachComment = `Pertandingan menarik antara ${whiteName} dan ${blackName}! Tinjau setiap langkah dengan Game Review untuk melihat analisis taktis permainan.`;
+    }
+
     return {
       whiteAccuracy: wAcc,
       blackAccuracy: bAcc,
       whiteGameRating: wRatingNum,
       blackGameRating: bRatingNum,
-      coachComment: isWhiteWin
-        ? `Langkah brilian (Brilliant Move) dan taktik tajam oleh ${whiteName}! Tekanan konsisten berhasil mengunci kemenangan meyakinkan.`
-        : isBlackWin
-        ? `Langkah brilian dan serangan balik mematikan oleh ${blackName}! Mengonversi keunggulan taktis menjadi poin kemenangan.`
-        : 'Pertarungan sengit dan seimbang dari kedua pemain! Pertukaran perwira yang rapi berakhir dengan posisi imbang.',
+      coachComment: dynamicCoachComment,
       counts: calculatedCounts,
     };
-  }, [match?.result, whiteName, blackName, whiteRating, blackRating, moveHistory, calculatedCounts]);
+  }, [
+    match?.result,
+    recentGame?.tournamentScore,
+    recentGame?.pgn,
+    whiteName,
+    blackName,
+    whiteRating,
+    blackRating,
+    moveHistory,
+    calculatedCounts,
+  ]);
 
   // Evaluation Chart Data (Matching Reference Image)
   const evalChartData = useMemo(() => {
@@ -2377,7 +2499,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           isLastMoveTo && currentMoveItem?.classification;
 
                         const isBestMoveFrom = showBestMove && bestMoveInfo?.from === squareName;
-                        const isBestMoveTo = showBestMove && bestMoveInfo?.to === squareName;
+                        const isBestMoveTo = shouldShowBestArrow && bestMoveInfo?.to === squareName;
                         const isBestMoveSq = isBestMoveFrom || isBestMoveTo;
 
                         return (
@@ -2389,9 +2511,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                               handleSquareClick(squareName);
                             }}
                             style={
-                              isBestMoveSq
+                              showBestMove && isBestMoveSq
                                 ? {
-                                    backgroundColor: `${bestMoveColor}44`,
+                                    backgroundColor: `${bestMoveColor}28`,
                                     boxShadow: `inset 0 0 0 2px ${bestMoveColor}`,
                                   }
                                 : undefined
@@ -2399,7 +2521,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                             className={`chesscom-square ${isLight ? 'light-sq' : 'dark-sq'} ${
                               isSelected ? 'is-selected' : ''
                             } ${!showBestMove && (isLastMoveFrom || isLastMoveTo) ? 'is-last-move' : ''} ${
-                              isBestMoveSq ? 'is-best-move' : ''
+                              showBestMove && isBestMoveSq ? 'is-best-move' : ''
                             } ${dragHoverSquare === squareName ? 'is-drag-hover' : ''} ${
                               activeDrag?.fromSquare === squareName ? 'is-drag-origin' : ''
                             }`}
@@ -2448,8 +2570,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                               </div>
                             )}
 
-                            {/* Destination Target Ring for Best Move */}
-                            {isBestMoveTo && (
+                            {/* Destination Target Ring for Best Move (when Best button toggled) */}
+                            {showBestMove && isBestMoveTo && (
                               <div
                                 className="best-move-target-ring"
                                 style={{ borderColor: bestMoveColor }}
@@ -2461,69 +2583,18 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     )
                 )}
 
-                {/* SVG Arrow Overlay for Best Move (High Visibility Chess.com Style) */}
-                {showBestMove && bestMoveArrowCoords && (
+                {/* SVG Arrow Overlay for Best Move (UniversalBoardDrawer polygon with exact rotation) */}
+                {shouldShowBestArrow && bestMoveUniversalArrow && (
                   <svg
                     className="chesscom-board-arrow-overlay"
-                    viewBox="0 0 100 100"
+                    viewBox="0 0 800 800"
                     preserveAspectRatio="none"
                   >
-                    <defs>
-                      <filter
-                        id="chesscom-arrow-shadow"
-                        x="-30%"
-                        y="-30%"
-                        width="160%"
-                        height="160%"
-                      >
-                        <feDropShadow
-                          dx="0"
-                          dy="1"
-                          stdDeviation="1.2"
-                          floodColor="#000000"
-                          floodOpacity="0.85"
-                        />
-                      </filter>
-                      <marker
-                        id="arrowhead-best-move"
-                        markerWidth="8"
-                        markerHeight="8"
-                        refX="5.6"
-                        refY="4"
-                        orient="auto"
-                        markerUnits="userSpaceOnUse"
-                      >
-                        <path
-                          d="M 0 0.8 L 7 4 L 0 7.2 L 1.6 4 Z"
-                          fill={bestMoveColor}
-                          stroke="rgba(0, 0, 0, 0.55)"
-                          strokeWidth="0.5"
-                          strokeLinejoin="round"
-                        />
-                      </marker>
-                    </defs>
-                    {/* Dark contrast underlay outline */}
-                    <line
-                      x1={bestMoveArrowCoords.x1}
-                      y1={bestMoveArrowCoords.y1}
-                      x2={bestMoveArrowCoords.x2}
-                      y2={bestMoveArrowCoords.y2}
-                      stroke="rgba(0, 0, 0, 0.55)"
-                      strokeWidth="5.2"
-                      strokeLinecap="round"
-                    />
-                    {/* Vibrant primary arrow shaft with drop shadow */}
-                    <line
-                      x1={bestMoveArrowCoords.x1}
-                      y1={bestMoveArrowCoords.y1}
-                      x2={bestMoveArrowCoords.x2}
-                      y2={bestMoveArrowCoords.y2}
-                      stroke={bestMoveColor}
-                      strokeWidth="3.6"
-                      strokeLinecap="round"
-                      markerEnd="url(#arrowhead-best-move)"
-                      filter="url(#chesscom-arrow-shadow)"
-                      opacity="1"
+                    <polygon
+                      points={bestMoveUniversalArrow.points}
+                      transform={bestMoveUniversalArrow.transform}
+                      fill={bestMoveColor}
+                      opacity="0.88"
                     />
                   </svg>
                 )}
@@ -3027,10 +3098,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         setShowBestMove(!showBestMove);
                         setShowExplanation(false);
                       }}
-                      className={`btn-best-move ${showBestMove ? 'active' : ''}`}
+                      className={`btn-best-move ${showBestMove || isSuboptimalMove ? 'active' : ''}`}
                       title="Perlihatkan langkah terbaik di papan catur"
                     >
-                      <Star size={15} fill={showBestMove ? '#ffffff' : 'none'} />
+                      <Star size={15} fill={showBestMove || isSuboptimalMove ? '#ffffff' : 'none'} />
                       <span>Best</span>
                     </button>
                     <button
