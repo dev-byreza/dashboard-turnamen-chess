@@ -437,7 +437,7 @@ function formatCandidateLineDisplay(
   const prefix = isBlackToMove ? `${moveNumber}... ` : `${moveNumber}. `;
   const san = line?.san || fallbackSan || '';
   if (!san) {
-    return isBlackToMove ? '1... ♞f6 2. c4 e6 3. ♘f3 d5' : '1. e4 e5 2. ♘f3 ♞c6';
+    return `${prefix}Menganalisis...`;
   }
   const figurine = formatSanWithFigurine(san, isBlackToMove ? 'b' : 'w');
   return `${prefix}${figurine}`;
@@ -1388,9 +1388,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           .then((d) => {
             if (!d || !d.success) return;
             const cp = typeof d.scoreCp === 'number' ? d.scoreCp : 0;
-            setScoreMap((prev) => ({
-              ...prev,
-              [currentBoardFen]: {
+            setScoreMap((prev) => {
+              const updated = {
+                ...(prev[currentBoardFen] || {}),
                 fen: currentBoardFen,
                 cp,
                 mate: d.mateIn,
@@ -1399,8 +1399,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                 bestUci: d.bestMoveUci,
                 bestSan: d.bestMoveSan,
                 lines: d.lines || [],
-              },
-            }));
+              };
+              scoreCacheRef.current.set(`${reviewDepth}|${currentBoardFen}`, updated);
+              return {
+                ...prev,
+                [currentBoardFen]: updated,
+              };
+            });
           })
           .catch(() => {});
       }
@@ -2423,29 +2428,73 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Candidate engine continuation lines (MultiPV) for the current position
   const currentCandidateLines = useMemo(() => {
+    // 1. Position from scoreMap with lines
     if (scoreMap[currentBoardFen]?.lines && scoreMap[currentBoardFen].lines!.length > 0) {
       return scoreMap[currentBoardFen].lines!;
     }
+    // 2. Exact match in COMMON_BOOK_LINES (e.g. START_FEN, 1. e4, 1. d4)
     if (COMMON_BOOK_LINES[currentBoardFen]) {
       return COMMON_BOOK_LINES[currentBoardFen];
     }
-    if (currentEval?.bestMoveSan) {
+    // 3. Current live evaluation from engine
+    if (currentEval?.fen === currentBoardFen && (currentEval.bestMoveSan || currentEval.bestMoveUci)) {
       const isBlack = currentBoardFen.split(' ')[1] === 'b';
       const moveNum = Math.floor((currentPlyIndex + 1) / 2) + 1;
       const prefix = isBlack ? `${moveNum}... ` : `${moveNum}. `;
+      const san = currentEval.bestMoveSan || currentEval.bestMoveUci || '';
       return [
         {
           uci: currentEval.bestMoveUci || '',
-          san: currentEval.bestMoveSan,
-          continuation: `${prefix}${currentEval.bestMoveSan}`,
+          san,
+          continuation: `${prefix}${san}`,
           scoreDisplay: currentEval.scoreDisplay || '+0.00',
           cp: currentEval.scoreCp || 0,
           winWhite: currentEval.winChanceWhite || 50,
         },
       ];
     }
-    return COMMON_BOOK_LINES[START_FEN] || [];
-  }, [currentBoardFen, scoreMap, currentEval, currentPlyIndex]);
+    // 4. Saved bestSan/bestUci in scoreMap
+    if (scoreMap[currentBoardFen]?.bestSan || scoreMap[currentBoardFen]?.bestUci) {
+      const isBlack = currentBoardFen.split(' ')[1] === 'b';
+      const moveNum = Math.floor((currentPlyIndex + 1) / 2) + 1;
+      const prefix = isBlack ? `${moveNum}... ` : `${moveNum}. `;
+      const san = scoreMap[currentBoardFen].bestSan || scoreMap[currentBoardFen].bestUci!;
+      return [
+        {
+          uci: scoreMap[currentBoardFen].bestUci || '',
+          san,
+          continuation: `${prefix}${san}`,
+          scoreDisplay: scoreMap[currentBoardFen].scoreDisplay || '+0.00',
+          cp: scoreMap[currentBoardFen].cp || 0,
+          winWhite: scoreMap[currentBoardFen].winWhite || 50,
+        },
+      ];
+    }
+    // 5. Next move in the played game
+    if (currentPlyIndex >= -1 && currentPlyIndex < moveHistory.length - 1) {
+      const nextMove = moveHistory[currentPlyIndex + 1];
+      if (nextMove) {
+        const isBlack = nextMove.color === 'b';
+        const moveNum = Math.floor((currentPlyIndex + 2) / 2) + 1;
+        const prefix = isBlack ? `${moveNum}... ` : `${moveNum}. `;
+        return [
+          {
+            uci: `${nextMove.from}${nextMove.to}`,
+            san: nextMove.san,
+            continuation: `${prefix}${nextMove.san}`,
+            scoreDisplay: scoreMap[nextMove.fen]?.scoreDisplay || '+0.00',
+            cp: scoreMap[nextMove.fen]?.cp || 0,
+            winWhite: scoreMap[nextMove.fen]?.winWhite || 50,
+          },
+        ];
+      }
+    }
+    // 6. Only START_FEN gets COMMON_BOOK_LINES[START_FEN]
+    if (currentBoardFen === START_FEN) {
+      return COMMON_BOOK_LINES[START_FEN] || [];
+    }
+    return [];
+  }, [currentBoardFen, scoreMap, currentEval, currentPlyIndex, moveHistory]);
 
   // Active Move Coach Feedback (Image 4 speech bubble comment: e.g. "d4 is the last book move")
   const currentMoveCoachComment = useMemo(() => {
