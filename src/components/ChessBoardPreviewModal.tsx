@@ -1498,9 +1498,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
     pathD += ` L 320 64 Z`;
 
-    // Exclude the 3 high-frequency categories: Excellent, Good, Inaccuracy (to keep graphic clean)
-    // Only display critical key-moment turning points: Brilliant, Great, Mistake, Miss, Blunder
-    const significantTypes = ['brilliant', 'great', 'mistake', 'miss', 'blunder'];
+    // Only exclude the 3 categories: Excellent, Good, Inaccuracy (and opening book)
+    // Display: Best, Brilliant, Great, Mistake, Miss, Blunder
+    const significantTypes = ['brilliant', 'great', 'best', 'mistake', 'miss', 'blunder'];
     const rawDots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
 
     pts.forEach((p, idx) => {
@@ -1529,10 +1529,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
     });
 
-    // Filter dots that are too close horizontally (min 9px spacing) to keep graph ultra clean and uncluttered
+    // Filter dots that are too close horizontally (min 6.5px spacing) to keep graph clean
     const filteredDots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
     rawDots.forEach((dot) => {
-      const tooClose = filteredDots.find((d) => Math.abs(d.x - dot.x) < 9);
+      const tooClose = filteredDots.find((d) => Math.abs(d.x - dot.x) < 6.5);
       if (!tooClose) {
         filteredDots.push(dot);
       }
