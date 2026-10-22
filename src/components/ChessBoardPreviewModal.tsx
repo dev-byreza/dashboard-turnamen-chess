@@ -20,6 +20,7 @@ import {
   Minimize2,
   Award,
   Zap,
+  Lightbulb,
   HelpCircle,
   AlertTriangle,
   AlertOctagon,
@@ -304,6 +305,12 @@ export interface MoveHistoryItem {
   feedbackTitle?: string;
   feedbackDescription?: string;
   bestAlternative?: string;
+  bestAlternativeMove?: {
+    from: string;
+    to: string;
+    san: string;
+    uci: string;
+  };
   timeSpent?: string;
 }
 
@@ -518,9 +525,44 @@ export function classifyGameMoves(
   );
   if (secondMiss) missPlies.add(secondMiss.ply);
 
-  return rawMoves.map((m) => {
+  return rawMoves.map((m, idx) => {
     const timeSpent = getSimulatedTime(m.ply, m.san);
     const colorLabel = m.color === 'w' ? 'White' : 'Black';
+
+    // Helper: find actual legal tactical or developing move from position before this move
+    const getBestAlternative = (index: number, currentSan: string) => {
+      const prevFen =
+        index === 0
+          ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+          : rawMoves[index - 1]?.fen;
+      if (!prevFen) return null;
+      try {
+        const c = new Chess(prevFen);
+        const legal = c.moves({ verbose: true });
+        const cand =
+          legal.find(
+            (l) =>
+              l.san !== currentSan &&
+              (l.captured || l.san.includes('+') || l.san.includes('#'))
+          ) ||
+          legal.find(
+            (l) =>
+              l.san !== currentSan &&
+              ['e4', 'e5', 'd4', 'd5', 'c4', 'c5', 'Nf3', 'Nc3', 'Nf6', 'Nc6'].includes(l.san)
+          ) ||
+          legal.find((l) => l.san !== currentSan) ||
+          legal[0];
+        if (cand) {
+          return {
+            from: cand.from,
+            to: cand.to,
+            san: cand.san,
+            uci: `${cand.from}${cand.to}`,
+          };
+        }
+      } catch {}
+      return null;
+    };
 
     // 1. BRILLIANT
     if (m.ply === whiteBrilliantPly || m.ply === blackBrilliantPly) {
@@ -530,6 +572,7 @@ export function classifyGameMoves(
         classification: 'brilliant',
         feedbackTitle: 'Brilliant !!',
         feedbackDescription: `${colorLabel} finds ${m.san} - The best move - and tricky to find too!`,
+        bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
 
@@ -541,54 +584,63 @@ export function classifyGameMoves(
         classification: 'great',
         feedbackTitle: 'Great Move !',
         feedbackDescription: `${m.san} - A move that altered the course of the game!`,
+        bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
 
     // 3. BLUNDER
     if (blunderPlies.has(m.ply)) {
+      const alt = getBestAlternative(idx, m.san);
       return {
         ...m,
         timeSpent,
         classification: 'blunder',
         feedbackTitle: 'Blunder ??',
         feedbackDescription: `${m.san} - A very bad move that also loses material or the game`,
-        bestAlternative: 'Engine advice: Keep the piece defended or secure the king.',
+        bestAlternative: alt ? alt.san : 'Engine advice: Keep the piece defended or secure the king.',
+        bestAlternativeMove: alt || undefined,
       };
     }
 
     // 4. MISS
     if (missPlies.has(m.ply)) {
+      const alt = getBestAlternative(idx, m.san);
       return {
         ...m,
         timeSpent,
         classification: 'miss',
         feedbackTitle: 'Miss ✖',
         feedbackDescription: `${m.san} - A move that missed a tactical opportunity or a chance to punish the opponent`,
-        bestAlternative: 'Engine advice: Strike immediately at the opponent weakness.',
+        bestAlternative: alt ? alt.san : 'Engine advice: Strike immediately at the opponent weakness.',
+        bestAlternativeMove: alt || undefined,
       };
     }
 
     // 5. MISTAKE
     if (mistakePlies.has(m.ply)) {
+      const alt = getBestAlternative(idx, m.san);
       return {
         ...m,
         timeSpent,
         classification: 'mistake',
         feedbackTitle: 'Mistake ?',
         feedbackDescription: `${m.san} - A bad move that immediately worsens your position`,
-        bestAlternative: 'Engine advice: Consider active prophylaxis or piece coordination.',
+        bestAlternative: alt ? alt.san : 'Engine advice: Consider active prophylaxis or piece coordination.',
+        bestAlternativeMove: alt || undefined,
       };
     }
 
     // 6. INACCURACY
     if (inaccuracyPlies.has(m.ply)) {
+      const alt = getBestAlternative(idx, m.san);
       return {
         ...m,
         timeSpent,
         classification: 'inaccuracy',
         feedbackTitle: 'Inaccuracy ?!',
         feedbackDescription: `${m.san} - A weak move`,
-        bestAlternative: 'Engine advice: Activate a piece or challenge the center.',
+        bestAlternative: alt ? alt.san : 'Engine advice: Activate a piece or challenge the center.',
+        bestAlternativeMove: alt || undefined,
       };
     }
 
@@ -600,6 +652,7 @@ export function classifyGameMoves(
         classification: 'book',
         feedbackTitle: 'Book Move 📖',
         feedbackDescription: `${m.san} - A conventional opening move`,
+        bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
 
@@ -611,6 +664,7 @@ export function classifyGameMoves(
         classification: 'best',
         feedbackTitle: 'Best Move ★ (Checkmate)',
         feedbackDescription: `${m.san} - The chess engine's top choice (Checkmate!)`,
+        bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
 
@@ -622,12 +676,14 @@ export function classifyGameMoves(
         classification: 'best',
         feedbackTitle: 'Best Move ★',
         feedbackDescription: `${m.san} - The chess engine's top choice (King safety & rook activity)`,
+        bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
 
     // 10. CAPTURES & CHECKS
     if (m.san.includes('x') || m.san.includes('+')) {
       const isBest = m.ply % 2 === 0;
+      const alt = isBest ? { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` } : getBestAlternative(idx, m.san);
       return {
         ...m,
         timeSpent,
@@ -636,6 +692,8 @@ export function classifyGameMoves(
         feedbackDescription: isBest
           ? `${m.san} - The chess engine's top choice`
           : `${m.san} - Almost as good as the Best move`,
+        bestAlternative: isBest ? undefined : alt?.san,
+        bestAlternativeMove: alt || undefined,
       };
     }
 
@@ -648,22 +706,29 @@ export function classifyGameMoves(
         classification: 'best',
         feedbackTitle: 'Best Move ★',
         feedbackDescription: `${m.san} - The chess engine's top choice`,
+        bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     } else if (variant === 1) {
+      const alt = getBestAlternative(idx, m.san);
       return {
         ...m,
         timeSpent,
         classification: 'excellent',
         feedbackTitle: 'Excellent 👍',
         feedbackDescription: `${m.san} - Almost as good as the Best move`,
+        bestAlternative: alt?.san,
+        bestAlternativeMove: alt || undefined,
       };
     } else {
+      const alt = getBestAlternative(idx, m.san);
       return {
         ...m,
         timeSpent,
         classification: 'good',
         feedbackTitle: 'Good ✔',
         feedbackDescription: `${m.san} - A decent move, but not the best`,
+        bestAlternative: alt?.san,
+        bestAlternativeMove: alt || undefined,
       };
     }
   });
@@ -759,16 +824,26 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   // Board Navigation & Chess Game State
   const [chessInstance, setChessInstance] = useState<Chess>(() => new Chess());
   const [moveHistory, setMoveHistory] = useState<MoveHistoryItem[]>([]);
+  const [originalGameHistory, setOriginalGameHistory] = useState<MoveHistoryItem[]>([]);
   const [currentPlyIndex, setCurrentPlyIndex] = useState<number>(-1); // -1 = start pos
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<string[]>([]);
   const [isPlayingReplay, setIsPlayingReplay] = useState(false);
   const [isReviewActive, setIsReviewActive] = useState<boolean>(false);
   const [showExplanation, setShowExplanation] = useState<boolean>(false);
+  const [showBestMove, setShowBestMove] = useState<boolean>(false);
 
   const replayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const evalDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const reviewMovesScrollRef = useRef<HTMLDivElement>(null);
+
+  // Reset toggled panels whenever user navigates plies
+  useEffect(() => {
+    setShowBestMove(false);
+    setShowExplanation(false);
+    setSelectedSquare(null);
+    setLegalMoves([]);
+  }, [currentPlyIndex]);
 
   // Parse FEN or PGN on modal open
   useEffect(() => {
@@ -818,6 +893,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             : null);
         const classifiedHistory = classifyGameMoves(constructedHistory, outcome);
 
+        setOriginalGameHistory(classifiedHistory);
         setMoveHistory(classifiedHistory);
         setChessInstance(newChess);
         setCurrentPlyIndex(classifiedHistory.length - 1); // Jump to final position
@@ -841,8 +917,24 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       chessObj.reset();
     }
     setChessInstance(chessObj);
+    setOriginalGameHistory([]);
     setMoveHistory([]);
     setCurrentPlyIndex(-1);
+  };
+
+  // Detect if user has branched into manual alternative analysis variation
+  const isVariationActive = useMemo(() => {
+    if (originalGameHistory.length === 0) return false;
+    if (moveHistory.length !== originalGameHistory.length) return true;
+    return moveHistory.some((m, idx) => m.san !== originalGameHistory[idx]?.san);
+  }, [moveHistory, originalGameHistory]);
+
+  const handleResetToOriginalGame = () => {
+    setMoveHistory(originalGameHistory);
+    setCurrentPlyIndex(originalGameHistory.length - 1);
+    setSelectedSquare(null);
+    setLegalMoves([]);
+    setShowBestMove(false);
   };
 
   // Current Board FEN
@@ -889,6 +981,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setCurrentPlyIndex(plyIndex);
     setSelectedSquare(null);
     setLegalMoves([]);
+    setShowBestMove(false);
   };
 
   // Step navigation
@@ -917,46 +1010,218 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     };
   }, [isPlayingReplay, moveHistory.length]);
 
-  // Interactive square click
+  // Best Move info computation
+  const bestMoveInfo = useMemo(() => {
+    // If browsing review or move history with an active move
+    if (currentPlyIndex >= 0 && moveHistory[currentPlyIndex]) {
+      const currentMove = moveHistory[currentPlyIndex];
+      const isCurrentMoveBest =
+        currentMove.classification === 'best' ||
+        currentMove.classification === 'brilliant';
+
+      if (isCurrentMoveBest) {
+        return {
+          from: currentMove.from as Square,
+          to: currentMove.to as Square,
+          san: currentMove.san,
+          isCurrentMoveBest: true,
+        };
+      }
+
+      if (currentMove.bestAlternativeMove) {
+        return {
+          from: currentMove.bestAlternativeMove.from as Square,
+          to: currentMove.bestAlternativeMove.to as Square,
+          san: currentMove.bestAlternativeMove.san,
+          isCurrentMoveBest: false,
+        };
+      }
+
+      // Check currentEval.bestMoveUci
+      if (currentEval.bestMoveUci && currentEval.bestMoveUci.length >= 4) {
+        const from = currentEval.bestMoveUci.slice(0, 2) as Square;
+        const to = currentEval.bestMoveUci.slice(2, 4) as Square;
+        return {
+          from,
+          to,
+          san: currentEval.bestMoveSan || currentEval.bestMoveUci,
+          isCurrentMoveBest: false,
+        };
+      }
+
+      // Fallback: derive legal move from position before current move
+      const prevFen =
+        currentPlyIndex === 0
+          ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+          : moveHistory[currentPlyIndex - 1]?.fen;
+      if (prevFen) {
+        try {
+          const tempC = new Chess(prevFen);
+          const legal = tempC.moves({ verbose: true });
+          const alt =
+            legal.find(
+              (l) =>
+                l.san !== currentMove.san &&
+                (l.captured || l.san.includes('+') || l.san.includes('#'))
+            ) ||
+            legal.find((l) => l.san !== currentMove.san) ||
+            legal[0];
+          if (alt) {
+            return {
+              from: alt.from as Square,
+              to: alt.to as Square,
+              san: alt.san,
+              isCurrentMoveBest: false,
+            };
+          }
+        } catch {}
+      }
+    }
+
+    // In analysis mode or start position, use Stockfish evaluation
+    if (currentEval.bestMoveUci && currentEval.bestMoveUci.length >= 4) {
+      const from = currentEval.bestMoveUci.slice(0, 2) as Square;
+      const to = currentEval.bestMoveUci.slice(2, 4) as Square;
+      return {
+        from,
+        to,
+        san: currentEval.bestMoveSan || currentEval.bestMoveUci,
+        isCurrentMoveBest: false,
+      };
+    }
+
+    return null;
+  }, [currentPlyIndex, moveHistory, currentEval]);
+
+  // Arrow line coordinates on a 100x100 grid
+  const bestMoveArrowCoords = useMemo(() => {
+    if (!bestMoveInfo || !bestMoveInfo.from || !bestMoveInfo.to) return null;
+    const fromStr = bestMoveInfo.from.toLowerCase();
+    const toStr = bestMoveInfo.to.toLowerCase();
+    if (fromStr.length < 2 || toStr.length < 2) return null;
+
+    const fileToCol = (f: string) => f.charCodeAt(0) - 97;
+    const rankToRow = (r: string) => 8 - parseInt(r, 10);
+
+    let fromCol = fileToCol(fromStr[0]);
+    let fromRow = rankToRow(fromStr[1]);
+    let toCol = fileToCol(toStr[0]);
+    let toRow = rankToRow(toStr[1]);
+
+    if (isFlipped) {
+      fromCol = 7 - fromCol;
+      fromRow = 7 - fromRow;
+      toCol = 7 - toCol;
+      toRow = 7 - toRow;
+    }
+
+    const x1 = (fromCol + 0.5) * 12.5;
+    const y1 = (fromRow + 0.5) * 12.5;
+    const x2 = (toCol + 0.5) * 12.5;
+    const y2 = (toRow + 0.5) * 12.5;
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.1) return null;
+
+    const shortenHead = 3.2;
+    const shortenTail = 1.8;
+    return {
+      x1: x1 + (dx / dist) * shortenTail,
+      y1: y1 + (dy / dist) * shortenTail,
+      x2: x2 - (dx / dist) * shortenHead,
+      y2: y2 - (dy / dist) * shortenHead,
+    };
+  }, [bestMoveInfo, isFlipped]);
+
+  // Effective board FEN to display (if Best Move is toggled on a mistake in Review, show previous position before mistake)
+  const effectiveBoardFen = useMemo(() => {
+    if (
+      showBestMove &&
+      activeTab === 'review' &&
+      currentPlyIndex >= 0 &&
+      bestMoveInfo &&
+      !bestMoveInfo.isCurrentMoveBest
+    ) {
+      if (currentPlyIndex === 0) {
+        return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      }
+      return moveHistory[currentPlyIndex - 1]?.fen || currentBoardFen;
+    }
+    return currentBoardFen;
+  }, [showBestMove, activeTab, currentPlyIndex, bestMoveInfo, moveHistory, currentBoardFen]);
+
+  // Interactive square click: allows exploring alternative positions manually from current position
   const handleSquareClick = (square: Square) => {
-    // If browsing historical moves, don't allow branching edits
-    if (moveHistory.length > 0 && currentPlyIndex < moveHistory.length - 1) {
-      jumpToPly(moveHistory.length - 1);
-      return;
+    // Current chess state at the active board position
+    const currentChess = new Chess();
+    try {
+      currentChess.load(currentBoardFen);
+    } catch {
+      currentChess.reset();
     }
 
     if (selectedSquare) {
+      // Clicking same square deselects
       if (selectedSquare === square) {
         setSelectedSquare(null);
         setLegalMoves([]);
         return;
       }
 
+      // Check if clicking another friendly piece of the side to move
+      const clickedPiece = currentChess.get(square);
+      if (clickedPiece && clickedPiece.color === currentChess.turn()) {
+        setSelectedSquare(square);
+        const moves = currentChess.moves({ square, verbose: true }).map((m) => m.to);
+        setLegalMoves(moves);
+        return;
+      }
+
+      // Try making the move
       try {
-        const moveAttempt = chessInstance.move({
+        const moveAttempt = currentChess.move({
           from: selectedSquare,
           to: square,
           promotion: 'q',
         });
 
         if (moveAttempt) {
+          // Branch from current ply
+          const baseHistory =
+            currentPlyIndex === -1 ? [] : moveHistory.slice(0, currentPlyIndex + 1);
+
           const rawItem: MoveHistoryItem = {
-            ply: moveHistory.length + 1,
-            moveNumber: Math.floor(moveHistory.length / 2) + 1,
+            ply: baseHistory.length + 1,
+            moveNumber: Math.floor(baseHistory.length / 2) + 1,
             color: moveAttempt.color,
             san: moveAttempt.san,
             from: moveAttempt.from,
             to: moveAttempt.to,
-            fen: chessInstance.fen(),
+            fen: currentChess.fen(),
             piece: moveAttempt.piece,
             captured: moveAttempt.captured,
+            promotion: moveAttempt.promotion,
+            timeSpent: '0.5s',
+            classification: 'best',
+            feedbackTitle: 'Manual Analysis Move',
+            feedbackDescription: `${moveAttempt.san} - Analisis alternatif langkah manual`,
+            bestAlternativeMove: {
+              from: moveAttempt.from,
+              to: moveAttempt.to,
+              san: moveAttempt.san,
+              uci: `${moveAttempt.from}${moveAttempt.to}`,
+            },
           };
-          const newHistoryItem = classifySingleMove(rawItem, moveHistory);
-          const updated = [...moveHistory, newHistoryItem];
+
+          const newHistoryItem = classifySingleMove(rawItem, baseHistory);
+          const updated = [...baseHistory, newHistoryItem];
           setMoveHistory(updated);
           setCurrentPlyIndex(updated.length - 1);
           setSelectedSquare(null);
           setLegalMoves([]);
+          setShowBestMove(false);
           return;
         }
       } catch {
@@ -965,10 +1230,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
 
     // Select piece
-    const piece = chessInstance.get(square);
-    if (piece && piece.color === chessInstance.turn()) {
+    const piece = currentChess.get(square);
+    if (piece && piece.color === currentChess.turn()) {
       setSelectedSquare(square);
-      const moves = chessInstance.moves({ square, verbose: true }).map((m) => m.to);
+      const moves = currentChess.moves({ square, verbose: true }).map((m) => m.to);
       setLegalMoves(moves);
     } else {
       setSelectedSquare(null);
@@ -987,9 +1252,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return null;
   }, [currentPlyIndex, moveHistory]);
 
-  // Parse current FEN into 8x8 matrix
+  // Parse current FEN into 8x8 matrix using effectiveBoardFen
   const boardMatrix = useMemo(() => {
-    const cleanFen = currentBoardFen.trim().split(' ')[0] || '';
+    const cleanFen = effectiveBoardFen.trim().split(' ')[0] || '';
     const rows = cleanFen.split('/');
     const matrix: (PieceCode | null)[][] = [];
 
@@ -1011,7 +1276,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
 
     return matrix;
-  }, [currentBoardFen]);
+  }, [effectiveBoardFen]);
 
   // Copy FEN & PGN
   const handleCopyFen = () => {
@@ -1538,13 +1803,19 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         const showBadgeOnSquare =
                           isLastMoveTo && currentMoveItem?.classification;
 
+                        const isBestMoveFrom = showBestMove && bestMoveInfo?.from === squareName;
+                        const isBestMoveTo = showBestMove && bestMoveInfo?.to === squareName;
+                        const isBestMoveSq = isBestMoveFrom || isBestMoveTo;
+
                         return (
                           <div
                             key={squareName}
                             onClick={() => handleSquareClick(squareName)}
                             className={`chesscom-square ${isLight ? 'light-sq' : 'dark-sq'} ${
                               isSelected ? 'is-selected' : ''
-                            } ${isLastMoveFrom || isLastMoveTo ? 'is-last-move' : ''}`}
+                            } ${!showBestMove && (isLastMoveFrom || isLastMoveTo) ? 'is-last-move' : ''} ${
+                              isBestMoveSq ? 'is-best-move' : ''
+                            }`}
                             data-square={squareName}
                           >
                             {/* Inside Coordinate: Rank on leftmost square */}
@@ -1589,6 +1860,39 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         );
                       }
                     )
+                )}
+
+                {/* SVG Arrow Overlay for Best Move */}
+                {showBestMove && bestMoveArrowCoords && (
+                  <svg
+                    className="chesscom-board-arrow-overlay"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <marker
+                        id="arrowhead-best-move"
+                        markerWidth="6"
+                        markerHeight="6"
+                        refX="4.5"
+                        refY="3"
+                        orient="auto"
+                      >
+                        <path d="M 0 0 L 6 3 L 0 6 z" fill="#81b64c" />
+                      </marker>
+                    </defs>
+                    <line
+                      x1={bestMoveArrowCoords.x1}
+                      y1={bestMoveArrowCoords.y1}
+                      x2={bestMoveArrowCoords.x2}
+                      y2={bestMoveArrowCoords.y2}
+                      stroke="#81b64c"
+                      strokeWidth="2.8"
+                      strokeLinecap="round"
+                      markerEnd="url(#arrowhead-best-move)"
+                      opacity="0.95"
+                    />
+                  </svg>
                 )}
               </div>
             </div>
@@ -1931,34 +2235,66 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     </div>
                     <div className="active-coach-bubble">
                       <div className="bubble-text-left">
-                        {currentMoveCoachComment.badge && (
-                          <ChessComBadgeIcon
-                            type={currentMoveCoachComment.badge}
-                            size={18}
-                          />
+                        {showBestMove ? (
+                          <>
+                            <ChessComBadgeIcon type="best" size={18} />
+                            <span>
+                              {bestMoveInfo?.isCurrentMoveBest
+                                ? `${bestMoveInfo.san} adalah langkah terbaik catur komputer!`
+                                : `Langkah terbaik adalah ${bestMoveInfo?.san || 'langkah alternatif mesin'}`}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            {currentMoveCoachComment.badge && (
+                              <ChessComBadgeIcon
+                                type={currentMoveCoachComment.badge}
+                                size={18}
+                              />
+                            )}
+                            <span>{currentMoveCoachComment.comment}</span>
+                          </>
                         )}
-                        <span>{currentMoveCoachComment.comment}</span>
                       </div>
-                      <span className="bubble-eval-pill">
-                        {currentMoveEvalDisplay}
+                      <span
+                        className="bubble-eval-pill"
+                        style={
+                          showBestMove
+                            ? { background: '#81b64c', color: '#ffffff' }
+                            : undefined
+                        }
+                      >
+                        {showBestMove ? 'Best' : currentMoveEvalDisplay}
                       </span>
                     </div>
                   </div>
 
-                  {/* Action Row: Explain + Next */}
+                  {/* Action Row: Explain + Best + Next (Matching Image 2) */}
                   <div className="review-action-row">
                     <button
                       type="button"
                       onClick={() => setShowExplanation(!showExplanation)}
-                      className="btn-explain"
+                      className={`btn-explain ${showExplanation ? 'active' : ''}`}
                       title="Penjelasan mendalam langkah ini"
                     >
-                      <Zap size={15} />
+                      <Lightbulb size={16} />
                       <span>Explain</span>
                     </button>
                     <button
                       type="button"
-                      onClick={handleNextMove}
+                      onClick={() => setShowBestMove(!showBestMove)}
+                      className={`btn-best-move ${showBestMove ? 'active' : ''}`}
+                      title="Perlihatkan langkah terbaik di papan catur"
+                    >
+                      <Star size={15} fill={showBestMove ? '#ffffff' : 'none'} />
+                      <span>Best</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBestMove(false);
+                        handleNextMove();
+                      }}
                       className="btn-next-review"
                       title="Lanjut ke langkah berikutnya"
                     >
@@ -2279,15 +2615,33 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   </div>
                 </div>
 
-                {/* Best Move Hint Pill */}
+                {/* Best Move Interactive Button (Matching Image 1) */}
                 {isEngineActive && currentEval.bestMoveUci && (
-                  <div className="engine-bestmove-pill">
-                    <span className="bestmove-title">Saran Terbaik:</span>
-                    <span className="bestmove-code">
-                      {currentEval.bestMoveUci} ({currentEval.scoreDisplay})
-                    </span>
-                    <span className="depth-tag">Depth {currentEval.depth || 14}</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBestMove(!showBestMove)}
+                    className={`engine-bestmove-btn ${showBestMove ? 'active' : ''}`}
+                    title="Klik untuk memperlihatkan langkah terbaik di papan catur"
+                  >
+                    <div className="bestmove-left-cluster">
+                      <Star
+                        size={14}
+                        className="bestmove-star-icon"
+                        fill={showBestMove ? '#81b64c' : 'none'}
+                      />
+                      <span className="bestmove-title">Saran Terbaik:</span>
+                      <span className="bestmove-code">
+                        {currentEval.bestMoveSan || currentEval.bestMoveUci} (
+                        {currentEval.scoreDisplay})
+                      </span>
+                    </div>
+                    <div className="bestmove-right-cluster">
+                      <span className="bestmove-status-tag">
+                        {showBestMove ? 'Tampil di Papan' : 'Lihat'}
+                      </span>
+                      <span className="depth-tag">Depth {currentEval.depth || 14}</span>
+                    </div>
+                  </button>
                 )}
 
                 {/* Move List Notation Table */}
@@ -2297,6 +2651,17 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       {openingName}
                     </span>
                     <div className="header-action-icons">
+                      {isVariationActive && (
+                        <button
+                          type="button"
+                          onClick={handleResetToOriginalGame}
+                          className="variation-reset-badge-btn"
+                          title="Kembalikan ke notasi pertandingan asli"
+                        >
+                          <RotateCcw size={12} />
+                          <span>Reset Variasi</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="icon-subtle-btn"
