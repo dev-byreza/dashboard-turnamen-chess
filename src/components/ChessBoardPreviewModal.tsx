@@ -32,6 +32,7 @@ import {
   VolumeX,
   Cpu,
   Sliders,
+  Search,
 } from 'lucide-react';
 import { Chess, Square } from 'chess.js';
 import { Player, SwissMatch } from '../types/chess';
@@ -352,6 +353,45 @@ export const renderMoveFigurine = (
     </span>
   );
 };
+
+export function formatSanWithFigurine(san: string, color: 'w' | 'b'): string {
+  if (!san) return '';
+  const first = san[0];
+  const figurines: Record<string, { w: string; b: string }> = {
+    N: { w: '♘', b: '♞' },
+    B: { w: '♗', b: '♝' },
+    R: { w: '♖', b: '♜' },
+    Q: { w: '♕', b: '♛' },
+    K: { w: '♔', b: '♚' },
+  };
+  if (figurines[first]) {
+    const symbol = color === 'w' ? figurines[first].w : figurines[first].b;
+    return `${symbol}${san.slice(1)}`;
+  }
+  return san;
+}
+
+function getMoveItemColor(item?: MoveHistoryItem): string {
+  if (!item?.classification) return '#e2e8f0';
+  if (item.classification === 'book') return '#c3996b';
+  const meta = REVIEW_CLASSIFICATIONS.find((c) => c.type === item.classification);
+  return meta?.color || '#e2e8f0';
+}
+
+function formatCandidateLineDisplay(
+  line?: { uci: string; san: string; scoreDisplay: string },
+  currentFen?: string,
+  plyIndex: number = -1,
+  fallbackSan?: string
+): string {
+  const isBlackToMove = currentFen ? currentFen.split(' ')[1] === 'b' : false;
+  const moveNumber = Math.floor((plyIndex + 1) / 2) + 1;
+  const prefix = isBlackToMove ? `${moveNumber}... ` : `${moveNumber}. `;
+  const san = line?.san || fallbackSan || '';
+  if (!san) return 'Menganalisis respon terbaik...';
+  const figurine = formatSanWithFigurine(san, isBlackToMove ? 'b' : 'w');
+  return `${prefix}${figurine}`;
+}
 
 export function detectOpening(moves: MoveHistoryItem[], pgn?: string): string {
   // 1) Lichess opening database (position-based, handles transpositions)
@@ -937,6 +977,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [showBestMove, setShowBestMove] = useState<boolean>(false);
   const [isSoundModalOpen, setIsSoundModalOpen] = useState<boolean>(false);
   const [isEngineModalOpen, setIsEngineModalOpen] = useState<boolean>(false);
+  const [mobileMode, setMobileMode] = useState<'analysis' | 'review'>('analysis');
+  const [showExplorer, setShowExplorer] = useState<boolean>(false);
   const [stockfishDepth, setStockfishDepth] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('stockfish_depth');
@@ -2364,7 +2406,54 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       aria-modal="true"
     >
       <div className="chesscom-analysis-window">
-        {/* Top Navbar */}
+        {/* Mobile Header (Matching Chess.com Mobile App Image 2) */}
+        <header className="chesscom-mobile-header">
+          <button
+            type="button"
+            onClick={onClose}
+            className="mobile-header-btn"
+            title="Kembali (Esc)"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <div
+            className="mobile-header-title-group"
+            onClick={() => setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'))}
+            title="Beralih Mode Analysis / Game Review"
+          >
+            {mobileMode === 'analysis' ? (
+              <>
+                <Search size={16} className="mobile-title-icon" />
+                <span className="mobile-title-text">Analysis</span>
+              </>
+            ) : (
+              <>
+                <Star size={16} fill="#81b64c" color="#81b64c" className="mobile-title-icon" />
+                <span className="mobile-title-text">Game Review</span>
+              </>
+            )}
+          </div>
+          <div className="mobile-header-actions">
+            <button
+              type="button"
+              onClick={() => setIsEngineModalOpen(true)}
+              className="mobile-depth-badge-btn"
+              title={`Kedalaman Stockfish 19: Depth ${reviewDepth}`}
+            >
+              <span>{reviewDepth}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEngineModalOpen(true)}
+              className="mobile-header-btn"
+              title="Pengaturan Engine & Suara"
+            >
+              <Settings size={18} />
+            </button>
+          </div>
+        </header>
+
+        {/* Top Navbar (Desktop) */}
         <header className="chesscom-navbar">
           <div className="chesscom-nav-left">
             <img
@@ -2423,6 +2512,52 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         <div className="chesscom-main-layout">
           {/* LEFT: Board Section with Eval Bar & Player Cards */}
           <section className="chesscom-board-section">
+            {/* Horizontal Evaluation Bar on Mobile (Matching Chess.com Mobile Image 2) */}
+            <div className="chesscom-mobile-eval-bar" title="Evaluasi Posisi Stockfish 19">
+              <div
+                className="mobile-eval-bar-white"
+                style={{
+                  width: `${scoreMap[currentBoardFen]?.winWhite ?? currentEval.winChanceWhite}%`,
+                }}
+              />
+              <div className="mobile-eval-bar-score-badge">
+                {scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
+              </div>
+            </div>
+
+            {/* Candidate Engine Lines (MultiPV) on Mobile when in Analysis Mode (Image 2) */}
+            {mobileMode === 'analysis' && (
+              <div className="chesscom-mobile-engine-lines">
+                <div className="mobile-engine-line-row">
+                  <span className="mobile-line-eval-pill">
+                    {scoreMap[currentBoardFen]?.lines?.[0]?.scoreDisplay ?? (scoreMap[currentBoardFen]?.scoreDisplay || currentEval.scoreDisplay)}
+                  </span>
+                  <span className="mobile-line-text">
+                    {formatCandidateLineDisplay(
+                      scoreMap[currentBoardFen]?.lines?.[0],
+                      currentBoardFen,
+                      currentPlyIndex,
+                      scoreMap[currentBoardFen]?.bestSan || currentEval?.bestMoveSan
+                    )}
+                  </span>
+                </div>
+                {scoreMap[currentBoardFen]?.lines?.[1] && (
+                  <div className="mobile-engine-line-row">
+                    <span className="mobile-line-eval-pill">
+                      {scoreMap[currentBoardFen]?.lines?.[1]?.scoreDisplay}
+                    </span>
+                    <span className="mobile-line-text">
+                      {formatCandidateLineDisplay(
+                        scoreMap[currentBoardFen]?.lines?.[1],
+                        currentBoardFen,
+                        currentPlyIndex
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Top Player (Black if normal, White if flipped) */}
             <div className="chesscom-player-bar top">
               <div className="player-info-cluster">
@@ -2704,6 +2839,137 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                 <span>10:00</span>
               </div>
             </div>
+
+            {/* Mobile Opening Bar (Matching Chess.com Mobile Image 2) */}
+            <div className="chesscom-mobile-opening-bar">
+              <span>{openingName || 'Standard Opening'}</span>
+            </div>
+
+            {/* Mobile Content: Mode Switch between Analysis Moves Sheet (Image 2) and Review Card */}
+            {mobileMode === 'analysis' ? (
+              <div className="chesscom-mobile-moves-sheet">
+                {moveRows.map((row) => (
+                  <div key={row.number} className="mobile-move-pair">
+                    <span className="mobile-move-num">{row.number}.</span>
+                    {row.white && (
+                      <button
+                        type="button"
+                        onClick={() => jumpToPly(row.white!.ply - 1)}
+                        className={`mobile-move-btn ${
+                          currentPlyIndex === row.white.ply - 1 ? 'active' : ''
+                        }`}
+                      >
+                        {row.white.classification && row.white.classification !== 'book' && (
+                          <span className="mobile-move-badge">
+                            <ChessComBadgeIcon type={row.white.classification} size={12} />
+                          </span>
+                        )}
+                        {row.white.classification === 'book' && (
+                          <span className="mobile-move-badge">📖</span>
+                        )}
+                        <span
+                          className="mobile-move-text"
+                          style={{
+                            color:
+                              currentPlyIndex === row.white.ply - 1
+                                ? '#121212'
+                                : getMoveItemColor(row.white),
+                          }}
+                        >
+                          {formatSanWithFigurine(row.white.san, 'w')}
+                        </span>
+                      </button>
+                    )}
+                    {row.black && (
+                      <button
+                        type="button"
+                        onClick={() => jumpToPly(row.black!.ply - 1)}
+                        className={`mobile-move-btn ${
+                          currentPlyIndex === row.black.ply - 1 ? 'active' : ''
+                        }`}
+                      >
+                        {row.black.classification && row.black.classification !== 'book' && (
+                          <span className="mobile-move-badge">
+                            <ChessComBadgeIcon type={row.black.classification} size={12} />
+                          </span>
+                        )}
+                        {row.black.classification === 'book' && (
+                          <span className="mobile-move-badge">📖</span>
+                        )}
+                        <span
+                          className="mobile-move-text"
+                          style={{
+                            color:
+                              currentPlyIndex === row.black.ply - 1
+                                ? '#121212'
+                                : getMoveItemColor(row.black),
+                          }}
+                        >
+                          {formatSanWithFigurine(row.black.san, 'b')}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="chesscom-mobile-review-card">
+                {/* Coach Speech Bubble on Mobile */}
+                <div className="review-coach-speech-bubble">
+                  <div className="review-coach-avatar-wrapper">
+                    <img
+                      src="/images/coach-avatar.png"
+                      alt="Chess Coach"
+                      className="review-coach-avatar-img"
+                    />
+                  </div>
+                  <div className="review-coach-card-body">
+                    <div className="review-coach-top-row">
+                      {currentMoveCoachComment.badge && (
+                        <ChessComBadgeIcon type={currentMoveCoachComment.badge} size={20} />
+                      )}
+                      <p className="review-coach-title-text">
+                        {currentMoveCoachComment.title}
+                      </p>
+                      <span className="review-coach-eval-pill">
+                        {scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
+                      </span>
+                    </div>
+                    <p className="review-coach-explanation-text">
+                      {currentMoveCoachComment.comment}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Mobile Action Buttons: Best, Explain, Next */}
+                <div className="mobile-review-action-row">
+                  <button
+                    type="button"
+                    onClick={() => setShowBestMove(!showBestMove)}
+                    className={`mobile-action-pill ${showBestMove ? 'active' : ''}`}
+                  >
+                    <Star size={15} />
+                    <span>Best</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowExplanation(!showExplanation)}
+                    className={`mobile-action-pill ${showExplanation ? 'active' : ''}`}
+                  >
+                    <Lightbulb size={15} />
+                    <span>Explain</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextMove}
+                    className="mobile-action-next-btn"
+                  >
+                    <Play size={15} fill="currentColor" />
+                    <span>Next</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* RIGHT: Game Review Sidebar Panel (Default & Exclusive Mode) */}
@@ -3515,6 +3781,52 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               )}
           </aside>
         </div>
+
+        {/* Mobile Bottom Navigation Bar (Matching Chess.com Mobile App Image 2) */}
+        <nav className="chesscom-mobile-bottom-bar" aria-label="Kontrol Navigasi Mobile">
+          <button
+            type="button"
+            onClick={() => setIsEngineModalOpen(true)}
+            className="mobile-bottom-btn"
+          >
+            <Sliders size={18} />
+            <span>Options</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowExplorer(!showExplorer)}
+            className={`mobile-bottom-btn ${showExplorer ? 'active' : ''}`}
+          >
+            <Compass size={18} />
+            <span>Explorer</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'))}
+            className="mobile-hero-btn"
+            title={mobileMode === 'analysis' ? 'Buka Game Review' : 'Buka Mode Analysis'}
+          >
+            <Star size={22} fill="#ffffff" color="#ffffff" />
+          </button>
+          <button
+            type="button"
+            onClick={handlePrevMove}
+            className="mobile-bottom-btn"
+            title="Langkah Sebelumnya"
+          >
+            <ChevronLeft size={20} />
+            <span>Back</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleNextMove}
+            className="mobile-bottom-btn"
+            title="Langkah Berikutnya"
+          >
+            <ChevronRight size={20} />
+            <span>Forward</span>
+          </button>
+        </nav>
 
         {/* Chess Sound Effects & Theme Settings Modal */}
         <ChessSoundSettingsModal

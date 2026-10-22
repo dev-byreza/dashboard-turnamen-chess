@@ -422,11 +422,10 @@
 .chesscom-board-wrapper {
   --board-max-h: calc(96vh - 190px);
   --board-max-w: calc(100% - 44px);
-  width: min(var(--board-max-h), var(--board-max-w), 720px);
   height: min(var(--board-max-h), var(--board-max-w), 720px);
+  width: auto;
   max-width: 100%;
   max-height: 100%;
-  aspect-ratio: 1 / 1;
   display: flex;
   align-items: stretch;
   gap: 0.5rem;
@@ -436,8 +435,8 @@
 .chesscom-analysis-backdrop.is-fullscreen .chesscom-board-wrapper {
   --board-max-h: calc(100vh - 170px);
   --board-max-w: calc(100% - 44px);
-  width: min(var(--board-max-h), var(--board-max-w), 780px);
   height: min(var(--board-max-h), var(--board-max-w), 780px);
+  width: auto;
 }
 
 /* Vertical Evaluation Bar */
@@ -476,9 +475,12 @@
   white-space: nowrap;
 }
 
-/* 8x8 Chessboard Grid */
+/* 8x8 Chessboard Grid - STRICT 1:1 ASPECT RATIO */
 .chesscom-board-grid {
-  flex: 1;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  width: auto;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
@@ -494,6 +496,7 @@
   position: relative;
   width: 100%;
   height: 100%;
+  aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2091,53 +2094,409 @@
   line-height: 1;
 }
 
-/* Responsive adjustments */
-@media (max-width: 960px) {
-  .chesscom-analysis-backdrop {
-    padding: 0;
-  }
-  .chesscom-analysis-window {
-    max-height: 100vh;
-    height: 100vh;
-    border-radius: 0;
-    border: none;
-  }
-  .chesscom-main-layout {
-    flex-direction: column;
-    overflow-y: auto;
-    height: calc(100% - 50px);
-  }
-  .chesscom-board-section {
-    flex: 0 0 auto;
-    padding: 0.4rem;
-    overflow: visible;
-    width: 100%;
-  }
-  .chesscom-board-wrapper {
-    --board-max-h: 52vh;
-    --board-max-w: calc(100vw - 28px);
-    width: min(var(--board-max-h), var(--board-max-w), 460px);
-    height: min(var(--board-max-h), var(--board-max-w), 460px);
+/* ==========================================================================
+   CHESS.COM MOBILE APP ADAPTIVE SYSTEM (Matching Image 2)
+   ========================================================================== */
+
+.chesscom-mobile-header {
+  display: none;
+}
+
+.chesscom-mobile-eval-bar {
+  display: none;
+}
+
+.chesscom-mobile-engine-lines {
+  display: none;
+}
+
+.chesscom-mobile-opening-bar {
+  display: none;
+}
+
+.chesscom-mobile-moves-sheet {
+  display: none;
+}
+
+.chesscom-mobile-review-card {
+  display: none;
+}
+
+.chesscom-mobile-bottom-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Hide desktop-only elements */
+  .chesscom-navbar {
+    display: none !important;
   }
   .chesscom-player-bar {
-    --bar-max-h: 52vh;
-    --bar-max-w: calc(100vw - 28px);
-    width: min(var(--bar-max-h), var(--bar-max-w), 460px);
+    display: none !important;
   }
-  .chesscom-analysis-progress {
-    --prog-max-h: 52vh;
-    --prog-max-w: calc(100vw - 28px);
-    width: min(var(--prog-max-h), var(--prog-max-w), 460px);
+  .chesscom-eval-bar-track {
+    display: none !important;
   }
   .chesscom-sidebar-section {
-    flex: 1 0 auto;
-    width: 100%;
-    max-width: 100%;
-    min-width: 100%;
-    border-left: none;
-    border-top: 1px solid #363430;
-    min-height: 440px;
-    overflow-y: visible;
+    display: none !important;
+  }
+  .chesscom-analysis-progress {
+    display: none !important;
+  }
+
+  /* Full screen modal window on mobile */
+  .chesscom-analysis-backdrop {
+    padding: 0 !important;
+    background: #181715 !important;
+  }
+  .chesscom-analysis-window {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    background: #181715 !important;
+  }
+  .chesscom-main-layout {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    height: calc(100vh - 48px - 56px) !important;
+    flex: 1 1 auto !important;
+    padding-bottom: 64px !important;
+  }
+  .chesscom-board-section {
+    flex: 0 0 auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  /* Mobile App Header (Top bar with Back arrow, Analysis title, Depth badge, Gear) */
+  .chesscom-mobile-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 48px !important;
+    padding: 0 0.75rem !important;
+    background: #21201d !important;
+    border-bottom: 1px solid #2e2c28 !important;
+    flex-shrink: 0 !important;
+    z-index: 20 !important;
+  }
+  .mobile-header-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #c4c2be !important;
+    padding: 6px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    border-radius: 6px !important;
+  }
+  .mobile-header-title-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.45rem !important;
+    cursor: pointer !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+  }
+  .mobile-title-icon {
+    color: #81b64c !important;
+  }
+  .mobile-title-text {
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    letter-spacing: -0.01em !important;
+  }
+  .mobile-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+  }
+  .mobile-depth-badge-btn {
+    background: #2b2926 !important;
+    border: 1px solid #4a4742 !important;
+    color: #c4c2be !important;
+    font-size: 0.75rem !important;
+    font-weight: 800 !important;
+    border-radius: 4px !important;
+    padding: 2px 7px !important;
+    cursor: pointer !important;
+    font-family: ui-monospace, SFMono-Regular, monospace !important;
+  }
+
+  /* Horizontal Evaluation Bar above board */
+  .chesscom-mobile-eval-bar {
+    display: block !important;
+    width: 100% !important;
+    height: 20px !important;
+    background: #383531 !important;
+    position: relative !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+  }
+  .mobile-eval-bar-white {
+    height: 100% !important;
+    background: #ffffff !important;
+    transition: width 0.35s ease !important;
+  }
+  .mobile-eval-bar-score-badge {
+    position: absolute !important;
+    left: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background: #ffffff !important;
+    color: #121212 !important;
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    padding: 1px 6px !important;
+    border-radius: 3px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+    font-family: ui-monospace, SFMono-Regular, monospace !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Multi-PV Engine candidate lines on mobile (Image 2) */
+  .chesscom-mobile-engine-lines {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #21201d !important;
+    border-bottom: 1px solid #2e2c28 !important;
+    padding: 0.35rem 0.65rem !important;
+    gap: 0.25rem !important;
+    flex-shrink: 0 !important;
+  }
+  .mobile-engine-line-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    font-size: 0.82rem !important;
+    color: #d1d5db !important;
+    font-family: ui-monospace, SFMono-Regular, monospace !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .mobile-line-eval-pill {
+    background: #312f2b !important;
+    color: #e2e4e8 !important;
+    border: 1px solid #4a4742 !important;
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    padding: 0.05rem 0.4rem !important;
+    border-radius: 4px !important;
+    flex-shrink: 0 !important;
+  }
+  .mobile-line-text {
+    font-weight: 600 !important;
+    color: #e5e7eb !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* STRICT 1:1 SQUARE CHESSBOARD on mobile */
+  .chesscom-board-wrapper {
+    width: 100vw !important;
+    max-width: 100% !important;
+    height: auto !important;
+    aspect-ratio: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+  .chesscom-board-grid {
+    width: 100vw !important;
+    max-width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  .chesscom-square {
+    aspect-ratio: 1 / 1 !important;
+  }
+
+  /* Opening name bar beneath board */
+  .chesscom-mobile-opening-bar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #191816 !important;
+    padding: 0.4rem 0.75rem !important;
+    border-bottom: 1px solid #2a2825 !important;
+    color: #9ca3af !important;
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+    text-align: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Move history sheet (Image 2) */
+  .chesscom-mobile-moves-sheet {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-content: flex-start !important;
+    gap: 0.35rem 0.5rem !important;
+    padding: 0.65rem 0.75rem 4.5rem !important;
+    background: #21201d !important;
+    overflow-y: auto !important;
+    flex: 1 !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .mobile-move-pair {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.25rem !important;
+    font-size: 0.85rem !important;
+    font-family: ui-monospace, SFMono-Regular, monospace !important;
+  }
+  .mobile-move-num {
+    color: #787672 !important;
+    font-weight: 700 !important;
+    margin-right: 1px !important;
+  }
+  .mobile-move-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-weight: 600 !important;
+    color: #e5e7eb !important;
+    transition: background-color 0.1s ease !important;
+  }
+  .mobile-move-btn.active {
+    background: #ffffff !important;
+    color: #121212 !important;
+    font-weight: 800 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+  }
+  .mobile-move-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+  }
+
+  /* Mobile Review card (when in review mode on mobile) */
+  .chesscom-mobile-review-card {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.6rem !important;
+    padding: 0.75rem 0.75rem 4.5rem !important;
+    background: #21201d !important;
+    flex: 1 !important;
+  }
+  .mobile-review-action-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1.4fr !important;
+    gap: 0.5rem !important;
+    margin-top: 0.4rem !important;
+  }
+  .mobile-action-pill {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.35rem !important;
+    padding: 0.65rem 0.5rem !important;
+    background: #2a2926 !important;
+    border: 1px solid #3c3a36 !important;
+    border-radius: 8px !important;
+    color: #e5e7eb !important;
+    font-size: 0.85rem !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+  }
+  .mobile-action-pill.active {
+    background: #81b64c !important;
+    color: #ffffff !important;
+    border-color: #81b64c !important;
+  }
+  .mobile-action-next-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.4rem !important;
+    padding: 0.65rem 0.5rem !important;
+    background: #81b64c !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 0.92rem !important;
+    font-weight: 800 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(129, 182, 76, 0.4) !important;
+  }
+
+  /* Fixed Bottom Navigation Bar (Matching Chess.com Mobile Image 2) */
+  .chesscom-mobile-bottom-bar {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 56px !important;
+    background: #181715 !important;
+    border-top: 1px solid #2d2b27 !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    padding: 0 0.5rem !important;
+    z-index: 100 !important;
+  }
+  .mobile-bottom-btn {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    background: transparent !important;
+    border: none !important;
+    color: #9ca3af !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    padding: 4px 10px !important;
+  }
+  .mobile-bottom-btn.active {
+    color: #81b64c !important;
+  }
+  .mobile-hero-btn {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 50% !important;
+    background: #81b64c !important;
+    border: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #ffffff !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 10px rgba(129, 182, 76, 0.45) !important;
+    margin-bottom: 4px !important;
+    transition: transform 0.15s ease, background 0.15s ease !important;
+  }
+  .mobile-hero-btn:active {
+    transform: scale(0.94) !important;
+    background: #68a846 !important;
   }
 }
 
