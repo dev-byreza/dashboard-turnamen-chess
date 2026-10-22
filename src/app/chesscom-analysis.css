@@ -764,10 +764,11 @@
   height: 64px;
   background: #383531;
   border: 1px solid #4a4742;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
   position: relative;
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.4);
+  margin-bottom: 0.85rem;
 }
 
 .chesscom-eval-chart-svg {

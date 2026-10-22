@@ -1145,73 +1145,113 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     };
   }, [match?.result, whiteName, blackName, moveHistory, calculatedCounts]);
 
-  // Evaluation Chart Data (Image 3)
+  // Evaluation Chart Data (Matching Reference Image)
   const evalChartData = useMemo(() => {
     if (moveHistory.length === 0) {
       return {
         svgPath: 'M 0 64 L 0 32 L 320 32 L 320 64 Z',
         dots: [] as { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[],
+        points: [] as { x: number; y: number; ply: number }[],
       };
     }
 
     const isWhiteWin = match?.result === '1-0';
     const isBlackWin = match?.result === '0-1';
-
     const total = moveHistory.length;
+
+    // Realistic chess advantage progression based on move classifications
+    let runningEval = 0.2; // Centipawns / pawns equivalent (+ = White, - = Black)
     const pts: { x: number; y: number; type?: ChessComBadgeType; ply: number }[] = [];
 
     moveHistory.forEach((m, idx) => {
-      const x = (idx / Math.max(1, total - 1)) * 320;
-      let y = 32;
+      const isWhite = m.color === 'w';
+      const dir = isWhite ? 1 : -1;
 
-      if (idx < total * 0.4) {
-        y = 32 - Math.sin(idx * 1.5) * 2.5;
-      } else if (idx < total * 0.72) {
-        const progress = (idx - total * 0.4) / (total * 0.32);
+      // Evaluation delta based on move classification
+      let delta = 0;
+      switch (m.classification) {
+        case 'brilliant':
+          delta = dir * 2.2;
+          break;
+        case 'great':
+          delta = dir * 1.5;
+          break;
+        case 'best':
+          delta = dir * 0.2;
+          break;
+        case 'excellent':
+          delta = dir * 0.05;
+          break;
+        case 'good':
+          delta = -dir * 0.15;
+          break;
+        case 'book':
+          delta = Math.sin(idx * 0.8) * 0.1;
+          break;
+        case 'inaccuracy':
+          delta = -dir * 0.9;
+          break;
+        case 'mistake':
+          delta = -dir * 1.8;
+          break;
+        case 'miss':
+        case 'missed_win':
+          delta = -dir * 2.5;
+          break;
+        case 'blunder':
+          delta = -dir * 3.8;
+          break;
+        default:
+          delta = 0;
+      }
+
+      runningEval += delta;
+
+      // Endgame gravity towards match result
+      if (idx > total * 0.65) {
+        const endProgress = (idx - total * 0.65) / (total * 0.35);
         if (isWhiteWin) {
-          y = 32 - progress * 8 - Math.sin(idx * 2) * 3;
+          runningEval = Math.max(runningEval, 1.8 + endProgress * 4.2);
         } else if (isBlackWin) {
-          y = 32 + progress * 8 + Math.sin(idx * 2) * 3;
-        } else {
-          y = 32 + Math.sin(idx * 2) * 2.5;
-        }
-      } else {
-        const progress = (idx - total * 0.72) / (total * 0.28);
-        if (isWhiteWin) {
-          y = 24 - progress * 18 - Math.sin(idx) * 2;
-        } else if (isBlackWin) {
-          y = 40 + progress * 18 + Math.sin(idx) * 2;
-        } else {
-          y = 32 + Math.sin(idx * 3) * 2;
+          runningEval = Math.min(runningEval, -1.8 - endProgress * 4.2);
         }
       }
 
-      y = Math.max(6, Math.min(58, y));
+      // Clamp running eval to [-6, +6]
+      const clampedEval = Math.max(-6, Math.min(6, runningEval));
+      const x = (idx / Math.max(1, total - 1)) * 320;
+      // y: 32 is baseline (0.00), y=6 is +6 pawns (White top peak), y=58 is -6 pawns (Black valley)
+      const y = Math.max(6, Math.min(58, 32 - (clampedEval / 6) * 26));
+
       pts.push({ x, y, type: m.classification, ply: m.ply });
     });
 
+    // Build SVG path
     let pathD = `M 0 64 L 0 ${pts[0].y.toFixed(1)}`;
     for (let i = 1; i < pts.length; i++) {
       pathD += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
     }
     pathD += ` L 320 64 Z`;
 
-    const dots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
-    pts.forEach((p) => {
+    // Extract significant move dots matching Reference Image (No crowded bead necklace!)
+    const significantTypes = ['brilliant', 'great', 'inaccuracy', 'mistake', 'miss', 'blunder'];
+    const rawDots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
+
+    pts.forEach((p, idx) => {
       let t = p.type;
       if (t === 'missed_win') t = 'miss';
-      if (
-        t &&
-        ['brilliant', 'great', 'book', 'best', 'inaccuracy', 'mistake', 'miss', 'blunder'].includes(
-          t
-        )
-      ) {
-        const meta = REVIEW_CLASSIFICATIONS.find((c) => c.type === t);
+
+      const isFirstBook = idx === 0 && t === 'book';
+      const isCheckmate = moveHistory[idx]?.san?.includes('#');
+
+      if ((t && significantTypes.includes(t)) || isFirstBook || isCheckmate) {
+        const dotType = isCheckmate ? 'best' : isFirstBook ? 'book' : t!;
+        const meta = REVIEW_CLASSIFICATIONS.find((c) => c.type === dotType);
         if (meta) {
-          dots.push({
+          rawDots.push({
             x: p.x,
             y: p.y,
-            type: t,
+            type: dotType,
             color: meta.color,
             ply: p.ply,
           });
@@ -1219,7 +1259,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
     });
 
-    return { svgPath: pathD, dots, points: pts };
+    // Filter dots that are too close horizontally (min 7.5px spacing) to avoid clutter
+    const filteredDots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
+    rawDots.forEach((dot) => {
+      const tooClose = filteredDots.find((d) => Math.abs(d.x - dot.x) < 7.5);
+      if (!tooClose) {
+        filteredDots.push(dot);
+      }
+    });
+
+    return { svgPath: pathD, dots: filteredDots, points: pts };
   }, [moveHistory, match?.result]);
 
   // Click handler for evaluation chart (Image 3)
@@ -1640,6 +1689,39 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Advantage / Evaluation Graph (Matching Reference Image - Directly below Coach Figure) */}
+                  <div className="chesscom-eval-chart-box" title="Klik grafik untuk melompat ke langkah catur">
+                    <svg
+                      viewBox="0 0 320 64"
+                      preserveAspectRatio="none"
+                      className="chesscom-eval-chart-svg"
+                      onClick={handleChartClick}
+                    >
+                      {/* Center baseline line */}
+                      <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
+                      {/* Solid white fill below curve */}
+                      <path d={evalChartData.svgPath} fill="#ffffff" />
+                      {/* Significant move dots along curve */}
+                      {evalChartData.dots.map((d, i) => (
+                        <circle
+                          key={i}
+                          cx={d.x}
+                          cy={d.y}
+                          r={3.2}
+                          fill={d.color}
+                          stroke="#ffffff"
+                          strokeWidth="0.8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            jumpToPly(d.ply - 1);
+                            setIsReviewActive(true);
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      ))}
+                    </svg>
+                  </div>
+
                   {/* Unified Review Card (Matching Chess.com Image 1) */}
                   <div className="chesscom-review-table-card">
                     {/* Players Row */}
@@ -1755,39 +1837,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         </div>
                       );
                     })}
-                  </div>
-
-                  {/* Advantage / Evaluation Graph (Matching Chess.com Image 3) */}
-                  <div className="chesscom-eval-chart-box" title="Klik grafik untuk melompat ke langkah catur">
-                    <svg
-                      viewBox="0 0 320 64"
-                      preserveAspectRatio="none"
-                      className="chesscom-eval-chart-svg"
-                      onClick={handleChartClick}
-                    >
-                      {/* Center baseline line */}
-                      <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
-                      {/* Solid white fill below curve */}
-                      <path d={evalChartData.svgPath} fill="#ffffff" />
-                      {/* Classification markers along curve */}
-                      {evalChartData.dots.map((d, i) => (
-                        <circle
-                          key={i}
-                          cx={d.x}
-                          cy={d.y}
-                          r={3.2}
-                          fill={d.color}
-                          stroke="#ffffff"
-                          strokeWidth="0.8"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            jumpToPly(d.ply - 1);
-                            setIsReviewActive(true);
-                          }}
-                          style={{ cursor: 'pointer' }}
-                        />
-                      ))}
-                    </svg>
                   </div>
 
                   {/* Start Review CTA Button */}
