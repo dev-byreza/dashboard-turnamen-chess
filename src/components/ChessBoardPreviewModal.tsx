@@ -1653,6 +1653,24 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return null;
   }, [currentPlyIndex, moveHistory, decisionEval, currentEval]);
 
+  // Clean SAN display for best move (converting UCI like "d4d5" to clean SAN "d5")
+  const bestMoveSanDisplay = useMemo(() => {
+    if (!bestMoveInfo) return '';
+    const prevFen =
+      currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
+    if (bestMoveInfo.san && !/^[a-h][1-8][a-h][1-8]/.test(bestMoveInfo.san)) {
+      return bestMoveInfo.san;
+    }
+    if (bestMoveInfo.from && bestMoveInfo.to && prevFen) {
+      try {
+        const c = new Chess(prevFen);
+        const m = c.move({ from: bestMoveInfo.from, to: bestMoveInfo.to });
+        if (m?.san) return m.san;
+      } catch {}
+    }
+    return bestMoveInfo.san || '';
+  }, [bestMoveInfo, currentPlyIndex, rawMoveHistory]);
+
   // Current move classification
   const currentClassification =
     currentPlyIndex >= 0 ? moveHistory[currentPlyIndex]?.classification : null;
@@ -2108,22 +2126,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       eco = 'A00';
     }
 
-    const bookMoves = moveHistory.filter((m) => m.classification === 'book');
-    const maxBookPly = bookMoves.length > 0 ? Math.max(...bookMoves.map((m) => m.ply)) : 0;
-    const theoryLimit = Math.max(maxBookPly, fromDb?.plies ?? 0, 1);
-    const seqMoves = moveHistory.slice(0, Math.min(theoryLimit, moveHistory.length));
-
-    const seqStr = seqMoves
-      .reduce((acc, m, idx) => {
-        if (idx % 2 === 0) {
-          acc.push(`${Math.floor(idx / 2) + 1}. ${m.san}`);
-        } else {
-          acc[acc.length - 1] += ` ${m.san}`;
-        }
-        return acc;
-      }, [] as string[])
-      .join(' ');
-
     const bookCountW = calculatedCounts.book?.w ?? 0;
     const bookCountB = calculatedCounts.book?.b ?? 0;
     const totalBook = bookCountW + bookCountB;
@@ -2131,12 +2133,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return {
       name,
       eco,
-      seqStr: seqStr || (rawMoveHistory[0] ? `1. ${rawMoveHistory[0].san}` : ''),
       bookCountW,
       bookCountB,
       totalBook,
     };
-  }, [rawMoveHistory, moveHistory, recentGame?.pgn, match?.chessComPgn, openingName, calculatedCounts]);
+  }, [rawMoveHistory, recentGame?.pgn, match?.chessComPgn, openingName, calculatedCounts]);
 
   // Dynamic Review Statistics & Accuracy
   const reviewStats = useMemo(() => {
@@ -3064,18 +3065,40 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   </div>
                   <div className="review-coach-card-body">
                     <div className="review-coach-top-row">
-                      {currentMoveCoachComment.badge && (
-                        <ChessComBadgeIcon type={currentMoveCoachComment.badge} size={20} />
+                      {showExplanation ? (
+                        <>
+                          <Lightbulb size={20} style={{ color: '#eab308' }} />
+                          <p className="review-coach-title-text">Penjelasan Taktis</p>
+                        </>
+                      ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
+                        <>
+                          <ChessComBadgeIcon type="best" size={20} />
+                          <p className="review-coach-title-text">Best Move</p>
+                        </>
+                      ) : (
+                        <>
+                          {currentMoveCoachComment.badge && (
+                            <ChessComBadgeIcon type={currentMoveCoachComment.badge} size={20} />
+                          )}
+                          <p className="review-coach-title-text">
+                            {currentMoveCoachComment.title}
+                          </p>
+                        </>
                       )}
-                      <p className="review-coach-title-text">
-                        {currentMoveCoachComment.title}
-                      </p>
                       <span className="review-coach-eval-pill">
-                        {scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
+                        {(!showExplanation && isSuboptimalMove) || showBestMove
+                          ? 'Best'
+                          : (scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay)}
                       </span>
                     </div>
                     <p className="review-coach-explanation-text">
-                      {currentMoveCoachComment.comment}
+                      {showExplanation ? (
+                        currentMoveCoachComment.comment
+                      ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
+                        `Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`
+                      ) : (
+                        currentMoveCoachComment.comment
+                      )}
                     </p>
                   </div>
                 </div>
@@ -3084,15 +3107,21 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                 <div className="mobile-review-action-row">
                   <button
                     type="button"
-                    onClick={() => setShowBestMove(!showBestMove)}
-                    className={`mobile-action-pill ${showBestMove ? 'active' : ''}`}
+                    onClick={() => {
+                      setShowBestMove(!showBestMove);
+                      setShowExplanation(false);
+                    }}
+                    className={`mobile-action-pill ${(!showExplanation && isSuboptimalMove) || showBestMove ? 'active' : ''}`}
                   >
                     <Star size={15} />
                     <span>Best</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowExplanation(!showExplanation)}
+                    onClick={() => {
+                      setShowExplanation(!showExplanation);
+                      setShowBestMove(false);
+                    }}
                     className={`mobile-action-pill ${showExplanation ? 'active' : ''}`}
                   >
                     <Lightbulb size={15} />
@@ -3100,7 +3129,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={handleNextMove}
+                    onClick={() => {
+                      setShowBestMove(false);
+                      setShowExplanation(false);
+                      handleNextMove();
+                    }}
                     className="mobile-action-next-btn"
                   >
                     <Play size={15} fill="currentColor" />
@@ -3303,21 +3336,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <div className="review-recap-header">
                         <div className="recap-title-left">
                           <span className="recap-eco-pill">{openingRecap.eco}</span>
+                          <span className="recap-book-icon">📖</span>
                           <span className="recap-opening-name" title={openingRecap.name}>
                             {openingRecap.name}
                           </span>
                         </div>
                         <span className="recap-book-badge">
-                          📖 {openingRecap.totalBook} Buku
+                          {openingRecap.totalBook} Buku
                         </span>
                       </div>
-
-                      {openingRecap.seqStr && (
-                        <div className="recap-moves-row">
-                          <span className="recap-moves-label">Teori:</span>
-                          <span className="recap-moves-text">{openingRecap.seqStr}</span>
-                        </div>
-                      )}
 
                       <div className="recap-stats-bar">
                         <span className="recap-stat-pill white">
@@ -3494,18 +3521,18 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     </div>
                     <div className="active-coach-bubble">
                       <div className="bubble-text-left">
-                        {showBestMove ? (
-                          <>
-                            <ChessComBadgeIcon type="best" size={18} />
-                            <span>
-                              {`Langkah terbaik adalah ${bestMoveInfo?.san || 'langkah catur komputer'}`}
-                            </span>
-                          </>
-                        ) : showExplanation && currentPlyIndex >= 0 && moveHistory[currentPlyIndex] ? (
+                        {showExplanation ? (
                           <>
                             <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
                             <span>
-                              {describeMoveTactics(moveHistory[currentPlyIndex])}
+                              {currentMoveCoachComment.comment}
+                            </span>
+                          </>
+                        ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
+                          <>
+                            <ChessComBadgeIcon type="best" size={18} />
+                            <span>
+                              {`Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`}
                             </span>
                           </>
                         ) : (
@@ -3523,12 +3550,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <span
                         className="bubble-eval-pill"
                         style={
-                          showBestMove
+                          (!showExplanation && isSuboptimalMove) || showBestMove
                             ? { background: '#81b64c', color: '#ffffff' }
                             : undefined
                         }
                       >
-                        {showBestMove ? 'Best' : currentMoveEvalDisplay}
+                        {(!showExplanation && isSuboptimalMove) || showBestMove
+                          ? 'Best'
+                          : currentMoveEvalDisplay}
                       </span>
                     </div>
                   </div>
@@ -3541,10 +3570,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         setShowBestMove(!showBestMove);
                         setShowExplanation(false);
                       }}
-                      className={`btn-best-move ${showBestMove || isSuboptimalMove ? 'active' : ''}`}
+                      className={`btn-best-move ${(!showExplanation && isSuboptimalMove) || showBestMove ? 'active' : ''}`}
                       title="Perlihatkan langkah terbaik di papan catur"
                     >
-                      <Star size={15} fill={showBestMove || isSuboptimalMove ? '#ffffff' : 'none'} />
+                      <Star size={15} fill={(!showExplanation && isSuboptimalMove) || showBestMove ? '#ffffff' : 'none'} />
                       <span>Best</span>
                     </button>
                     <button
@@ -3869,19 +3898,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     >
                       <Bookmark size={14} />
                       <span>Opening</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (navigator.clipboard && recentGame?.url) {
-                          navigator.clipboard.writeText(recentGame.url);
-                          alert('Link pertandingan disalin ke clipboard!');
-                        }
-                      }}
-                      className="review-footer-btn"
-                    >
-                      <Share2 size={14} />
-                      <span>Share</span>
                     </button>
                     <button
                       type="button"

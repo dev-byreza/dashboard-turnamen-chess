@@ -193,6 +193,8 @@
 
 /* --- Left Board Section --- */
 .chesscom-board-section {
+  container-type: inline-size;
+  --board-size: min(calc(88vh - 210px), calc(100cqw - 48px), 620px);
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
@@ -207,11 +209,13 @@
   box-sizing: border-box;
 }
 
+.chesscom-analysis-backdrop.is-fullscreen .chesscom-board-section {
+  --board-size: min(calc(92vh - 180px), calc(100cqw - 48px), 680px);
+}
+
 /* Player Bar */
 .chesscom-player-bar {
-  --bar-max-h: calc(88vh - 210px);
-  --bar-max-w: calc(100% - 44px);
-  width: min(var(--bar-max-h), var(--bar-max-w), 620px);
+  width: calc(var(--board-size) + 36px);
   max-width: 100%;
   display: flex;
   align-items: center;
@@ -221,12 +225,6 @@
   border: none;
   flex-shrink: 0;
   box-sizing: border-box;
-}
-
-.chesscom-analysis-backdrop.is-fullscreen .chesscom-player-bar {
-  --bar-max-h: calc(92vh - 180px);
-  --bar-max-w: calc(100% - 44px);
-  width: min(var(--bar-max-h), var(--bar-max-w), 680px);
 }
 
 .player-info-cluster {
@@ -420,9 +418,7 @@
 
 /* Board + Eval Bar Wrapper */
 .chesscom-board-wrapper {
-  --board-max-h: calc(88vh - 210px);
-  --board-max-w: calc(100% - 44px);
-  height: min(var(--board-max-h), var(--board-max-w), 620px);
+  height: var(--board-size);
   width: auto;
   max-width: 100%;
   max-height: 100%;
@@ -430,13 +426,6 @@
   align-items: stretch;
   gap: 0.5rem;
   flex-shrink: 0;
-}
-
-.chesscom-analysis-backdrop.is-fullscreen .chesscom-board-wrapper {
-  --board-max-h: calc(92vh - 180px);
-  --board-max-w: calc(100% - 44px);
-  height: min(var(--board-max-h), var(--board-max-w), 680px);
-  width: auto;
 }
 
 /* Vertical Evaluation Bar */
@@ -477,9 +466,11 @@
 
 /* 8x8 Chessboard Grid - STRICT 1:1 ASPECT RATIO */
 .chesscom-board-grid {
-  height: 100%;
-  aspect-ratio: 1 / 1;
-  width: auto;
+  width: var(--board-size) !important;
+  height: var(--board-size) !important;
+  aspect-ratio: 1 / 1 !important;
+  max-width: 100%;
+  max-height: 100%;
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -968,9 +959,9 @@
 .recap-title-left {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   min-width: 0;
-  overflow: hidden;
+  flex: 1;
 }
 
 .recap-eco-pill {
@@ -984,13 +975,18 @@
   flex-shrink: 0;
 }
 
+.recap-book-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .recap-opening-name {
-  font-size: 0.84rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
 .recap-book-badge {
@@ -1003,34 +999,6 @@
   border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.recap-moves-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  font-size: 0.76rem;
-  line-height: 1.35;
-  color: #b0afab;
-  background: #181715;
-  padding: 0.35rem 0.55rem;
-  border-radius: 5px;
-  border: 1px solid #2e2c28;
-}
-
-.recap-moves-label {
-  font-weight: 800;
-  color: #81b64c;
-  flex-shrink: 0;
-}
-
-.recap-moves-text {
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.74rem;
-  color: #e5e7eb;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .recap-stats-bar {
@@ -1295,6 +1263,13 @@
 
 .btn-explain:hover {
   background: #46433e;
+}
+
+.btn-explain.active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
 }
 
 .btn-best-move {
@@ -2613,9 +2588,7 @@
 
 /* Analysis progress */
 .chesscom-analysis-progress {
-  --prog-max-h: calc(88vh - 210px);
-  --prog-max-w: calc(100% - 44px);
-  width: min(var(--prog-max-h), var(--prog-max-w), 620px);
+  width: calc(var(--board-size) + 36px);
   max-width: 100%;
   margin: 0.15rem 0;
   padding: 0.35rem 0.65rem;

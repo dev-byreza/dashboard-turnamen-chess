@@ -25,9 +25,12 @@ export function isBookPosition(fen: string): boolean {
 
 /** Deepest named opening reached by a sequence of FENs (one per ply). */
 export function detectOpeningFromFens(fens: string[]): OpeningInfo | null {
-  for (let i = fens.length - 1; i >= 0; i--) {
+  let deepest: OpeningInfo | null = null;
+  for (let i = 0; i < fens.length; i++) {
     const o = lookupOpening(fens[i]);
-    if (o) return o;
+    if (o && (!deepest || o.plies >= deepest.plies)) {
+      deepest = o;
+    }
   }
-  return null;
+  return deepest;
 }
