@@ -186,6 +186,7 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
       };
 
       engine.processCommand('ucinewgame');
+      engine.processCommand(`setoption name MultiPV value ${Math.max(1, Math.min(5, multipv))}`);
       engine.processCommand(`position fen ${cleanFen}`);
       engine.processCommand(`go depth ${targetDepth}`);
     } catch (err) {
@@ -225,12 +226,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const fen = body?.fen;
     const depth = parseInt(body?.depth || '12', 10);
+    const mpv = parseInt(body?.multipv || '3', 10);
 
     if (!fen) {
       return NextResponse.json({ success: false, error: 'Parameter FEN is required' }, { status: 400 });
     }
 
-    return NextResponse.json(await evaluateCached(fen.trim(), depth));
+    return NextResponse.json(await evaluateCached(fen.trim(), depth, mpv));
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

@@ -18,7 +18,6 @@ import {
   Clock,
   Maximize2,
   Minimize2,
-  Award,
   Zap,
   Lightbulb,
   HelpCircle,
@@ -52,6 +51,7 @@ import {
   describeReview,
   describeMoveTactics,
   LABEL_TITLE,
+  calculateGameRating,
 } from '../utils/gameReview';
 import { detectOpeningFromFens, isBookPosition } from '../utils/openingBook';
 import { ChessSoundSettingsModal } from './ChessSoundSettingsModal';
@@ -830,6 +830,26 @@ export function classifySingleMove(
   };
 }
 
+function getGameStorageKey(
+  match: SwissMatch | null,
+  recentGame?: ChessComRecentGame | null,
+  fenKey?: string,
+  depth?: number
+): string {
+  let id = '';
+  if (match?.id) id = `match_${match.id}`;
+  else if (recentGame?.url) id = `game_${recentGame.url.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  else if (fenKey) {
+    let hash = 0;
+    for (let i = 0; i < fenKey.length; i++) {
+      hash = (hash << 5) - hash + fenKey.charCodeAt(i);
+      hash |= 0;
+    }
+    id = `fen_${Math.abs(hash)}`;
+  }
+  return `chesscom_review_${id}_d${depth || 14}`;
+}
+
 export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   isOpen,
   match,
@@ -881,12 +901,24 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return 14;
   });
 
-  // ── Engine-based review: every position is scored by the same Stockfish as the eval bar ──
-  const reviewDepth = Math.min(stockfishDepth, 16);
+  // ── Engine-based review: every position is scored by Stockfish at selected depth ──
+  const reviewDepth = Math.max(8, Math.min(24, stockfishDepth));
   const [scoreMap, setScoreMap] = useState<Record<string, PositionScore>>({});
   const [analysisProgress, setAnalysisProgress] = useState({ done: 0, total: 0 });
   const scoreCacheRef = useRef<Map<string, PositionScore>>(new Map());
   const fenKey = useMemo(() => rawMoveHistory.map((m) => m.fen).join('|'), [rawMoveHistory]);
+
+  const handleClearCache = useCallback(() => {
+    scoreCacheRef.current.clear();
+    if (typeof window !== 'undefined') {
+      const storageKey = getGameStorageKey(match, recentGame, fenKey, reviewDepth);
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {}
+    }
+    setScoreMap({});
+    setAnalysisProgress({ done: 0, total: 0 });
+  }, [match, recentGame, fenKey, reviewDepth]);
 
   useEffect(() => {
     if (!isOpen || rawMoveHistory.length === 0) {
@@ -895,15 +927,39 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
     const fens = [START_FEN, ...rawMoveHistory.map((m) => m.fen)];
     const uniqueFens = Array.from(new Set(fens));
+    const storageKey = getGameStorageKey(match, recentGame, fenKey, reviewDepth);
+
+    // 1. Cek penyimpanan persisten (localStorage) agar tidak dianalisis ulang berkali-kali
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored) as Record<string, PositionScore>;
+          const hasAll = uniqueFens.every((f) => !!parsed[f]);
+          if (hasAll) {
+            uniqueFens.forEach((f) => {
+              scoreCacheRef.current.set(`${reviewDepth}|${f}`, parsed[f]);
+            });
+            setScoreMap(parsed);
+            setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+            return;
+          }
+        }
+      } catch {
+        // Abaikan parse error, lanjut ke analisis engine
+      }
+    }
+
     const ctrl = new AbortController();
     let cancelled = false;
 
+    // 2. Cek in-memory cache dan posisi pembukaan (Book Move)
     const initial: Record<string, PositionScore> = {};
     uniqueFens.forEach((f) => {
       const hit = scoreCacheRef.current.get(`${reviewDepth}|${f}`);
       if (hit) {
         initial[f] = hit;
-      } else if (isBookPosition(f)) {
+      } else if (f === START_FEN || isBookPosition(f)) {
         const bookScore: PositionScore = {
           fen: f,
           cp: 15,
@@ -914,14 +970,20 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         scoreCacheRef.current.set(`${reviewDepth}|${f}`, bookScore);
       }
     });
+
     const isAllCached = Object.keys(initial).length === uniqueFens.length;
     if (isAllCached) {
       setScoreMap(initial);
       setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(initial));
+        } catch {}
+      }
       return;
     }
 
-    // Set initial progress but DO NOT set partial scoreMap to avoid data twitching every second
+    // Set progress awal namun kosongkan scoreMap agar data tidak berubah-ubah tiap detik
     setScoreMap({});
     setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
 
@@ -942,8 +1004,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       if (!cancelled) {
-        // Commit 100% finished analysis all at once!
+        // Simpan hasil analisis 100% lengkap ke state dan localStorage
         setScoreMap(accumulated);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(accumulated));
+          } catch {}
+        }
       }
     })();
 
@@ -951,8 +1018,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       cancelled = true;
       ctrl.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, fenKey, reviewDepth]);
+    // Re-run otomatis jika depth, fenKey, atau game berubah!
+  }, [isOpen, fenKey, reviewDepth, match?.id, recentGame?.url]);
 
   const isAnalyzing = analysisProgress.total > 0 && analysisProgress.done < analysisProgress.total;
   const isAnalysisComplete =
@@ -1677,6 +1744,48 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return matrix;
   }, [effectiveBoardFen]);
 
+  // Captured pieces and material advantage (Chess.com style)
+  const capturedPieces = useMemo(() => {
+    const cleanFen = currentBoardFen.split(' ')[0] || '';
+    const counts: Record<string, number> = {
+      P: 0, N: 0, B: 0, R: 0, Q: 0,
+      p: 0, n: 0, b: 0, r: 0, q: 0,
+    };
+    for (const ch of cleanFen) {
+      if (counts[ch] !== undefined) counts[ch]++;
+    }
+    const initialCounts: Record<string, number> = {
+      P: 8, N: 2, B: 2, R: 2, Q: 1,
+      p: 8, n: 2, b: 2, r: 2, q: 1,
+    };
+    const whiteCaptured: string[] = [];
+    ['P', 'N', 'B', 'R', 'Q'].forEach((p) => {
+      const lost = Math.max(0, initialCounts[p] - counts[p]);
+      for (let i = 0; i < lost; i++) whiteCaptured.push(p.toLowerCase());
+    });
+    const blackCaptured: string[] = [];
+    ['p', 'n', 'b', 'r', 'q'].forEach((p) => {
+      const lost = Math.max(0, initialCounts[p] - counts[p]);
+      for (let i = 0; i < lost; i++) blackCaptured.push(p);
+    });
+
+    const val: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+    let wScore = 0;
+    let bScore = 0;
+    ['p', 'n', 'b', 'r', 'q'].forEach((p) => {
+      wScore += (counts[p.toUpperCase()] || 0) * val[p];
+      bScore += (counts[p] || 0) * val[p];
+    });
+    const diff = wScore - bScore;
+
+    return {
+      whiteCapturedByBlack: whiteCaptured,
+      blackCapturedByWhite: blackCaptured,
+      whiteAdvantage: diff > 0 ? `+${diff}` : null,
+      blackAdvantage: diff < 0 ? `+${Math.abs(diff)}` : null,
+    };
+  }, [currentBoardFen]);
+
   // Copy FEN & PGN
   const handleCopyFen = () => {
     navigator.clipboard.writeText(currentBoardFen);
@@ -1797,9 +1906,35 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const wAcc = wTotal > 0 ? (wScore / wTotal).toFixed(1) : (isWhiteWin ? '67.6' : '54.0');
     const bAcc = bTotal > 0 ? (bScore / bTotal).toFixed(1) : (isBlackWin ? '67.6' : '54.0');
 
+    const wRatingNum = calculateGameRating(
+      parseFloat(wAcc),
+      {
+        brilliant: calculatedCounts.brilliant?.w ?? 0,
+        great: calculatedCounts.great?.w ?? 0,
+        best: calculatedCounts.best?.w ?? 0,
+        mistake: calculatedCounts.mistake?.w ?? 0,
+        blunder: calculatedCounts.blunder?.w ?? 0,
+      },
+      Number(whiteRating) || undefined
+    );
+
+    const bRatingNum = calculateGameRating(
+      parseFloat(bAcc),
+      {
+        brilliant: calculatedCounts.brilliant?.b ?? 0,
+        great: calculatedCounts.great?.b ?? 0,
+        best: calculatedCounts.best?.b ?? 0,
+        mistake: calculatedCounts.mistake?.b ?? 0,
+        blunder: calculatedCounts.blunder?.b ?? 0,
+      },
+      Number(blackRating) || undefined
+    );
+
     return {
       whiteAccuracy: wAcc,
       blackAccuracy: bAcc,
+      whiteGameRating: wRatingNum,
+      blackGameRating: bRatingNum,
       coachComment: isWhiteWin
         ? `Langkah brilian (Brilliant Move) dan taktik tajam oleh ${whiteName}! Tekanan konsisten berhasil mengunci kemenangan meyakinkan.`
         : isBlackWin
@@ -1807,7 +1942,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         : 'Pertarungan sengit dan seimbang dari kedua pemain! Pertukaran perwira yang rapi berakhir dengan posisi imbang.',
       counts: calculatedCounts,
     };
-  }, [match?.result, whiteName, blackName, moveHistory, calculatedCounts]);
+  }, [match?.result, whiteName, blackName, whiteRating, blackRating, moveHistory, calculatedCounts]);
 
   // Evaluation Chart Data (Matching Reference Image)
   const evalChartData = useMemo(() => {
@@ -2079,7 +2214,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
           <div className="chesscom-nav-center">
             <div className="chesscom-nav-tab active" style={{ cursor: 'default' }}>
-              <Award size={15} className="tab-icon-review" />
               <span>Game Review</span>
             </div>
           </div>
@@ -2153,6 +2287,30 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     <span className="player-sub-username">
                       @{isFlipped ? whiteUsername : blackUsername}
                     </span>
+                  )}
+                  <div className="player-captured-row">
+                    <div className="captured-icons-list">
+                      {(isFlipped ? capturedPieces.blackCapturedByWhite : capturedPieces.whiteCapturedByBlack).slice(0, 8).map((p, idx) => (
+                        <span key={idx} className="captured-piece-mini">
+                          {p === 'p' ? '♟' : p.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                    {(isFlipped ? capturedPieces.whiteAdvantage : capturedPieces.blackAdvantage) && (
+                      <span className="captured-advantage-score">
+                        {isFlipped ? capturedPieces.whiteAdvantage : capturedPieces.blackAdvantage}
+                      </span>
+                    )}
+                  </div>
+                  {isAnalysisComplete && (
+                    <div className="player-profile-stats-row">
+                      <span className={`player-profile-acc-pill ${isFlipped ? 'white' : 'black'}`}>
+                        Akurasi {isFlipped ? reviewStats.whiteAccuracy : reviewStats.blackAccuracy}%
+                      </span>
+                      <span className="player-profile-rating-pill" title="Estimasi Performa Rating Permainan">
+                        Est. {isFlipped ? reviewStats.whiteGameRating : reviewStats.blackGameRating}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2421,6 +2579,30 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       @{isFlipped ? blackUsername : whiteUsername}
                     </span>
                   )}
+                  <div className="player-captured-row">
+                    <div className="captured-icons-list">
+                      {(isFlipped ? capturedPieces.whiteCapturedByBlack : capturedPieces.blackCapturedByWhite).slice(0, 8).map((p, idx) => (
+                        <span key={idx} className="captured-piece-mini">
+                          {p === 'p' ? '♙' : p.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                    {(isFlipped ? capturedPieces.blackAdvantage : capturedPieces.whiteAdvantage) && (
+                      <span className="captured-advantage-score">
+                        {isFlipped ? capturedPieces.blackAdvantage : capturedPieces.whiteAdvantage}
+                      </span>
+                    )}
+                  </div>
+                  {isAnalysisComplete && (
+                    <div className="player-profile-stats-row">
+                      <span className={`player-profile-acc-pill ${isFlipped ? 'black' : 'white'}`}>
+                        Akurasi {isFlipped ? reviewStats.blackAccuracy : reviewStats.whiteAccuracy}%
+                      </span>
+                      <span className="player-profile-rating-pill" title="Estimasi Performa Rating Permainan">
+                        Est. {isFlipped ? reviewStats.blackGameRating : reviewStats.whiteGameRating}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="player-clock-box active-clock">
@@ -2594,6 +2776,20 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <div />
                       <div className="review-accuracy-box black-box">
                         {reviewStats.blackAccuracy}
+                      </div>
+                    </div>
+
+                    {/* Game Rating Row (Chess.com Performance Rating) */}
+                    <div className="review-grid-row">
+                      <span className="review-grid-label">Game Rating</span>
+                      <div className="review-rating-box white-box" title="Estimasi Performa Rating Putih (Chess.com CAPS)">
+                        {reviewStats.whiteGameRating}
+                      </div>
+                      <div className="review-rating-vs-badge" title="Performance Rating">
+                        VS
+                      </div>
+                      <div className="review-rating-box black-box" title="Estimasi Performa Rating Hitam (Chess.com CAPS)">
+                        {reviewStats.blackGameRating}
                       </div>
                     </div>
 
@@ -2791,6 +2987,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                               {`Langkah terbaik adalah ${bestMoveInfo?.san || 'langkah catur komputer'}`}
                             </span>
                           </>
+                        ) : showExplanation && currentPlyIndex >= 0 && moveHistory[currentPlyIndex] ? (
+                          <>
+                            <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
+                            <span>
+                              {describeMoveTactics(moveHistory[currentPlyIndex])}
+                            </span>
+                          </>
                         ) : (
                           <>
                             {currentMoveCoachComment.badge && (
@@ -2816,20 +3019,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Action Row: Explain + Best + Next (Matching Image 2) */}
+                  {/* Action Row: Best + Explain + Next (Matching Chess.com Image 2) */}
                   <div className="review-action-row">
                     <button
                       type="button"
-                      onClick={() => setShowExplanation(!showExplanation)}
-                      className={`btn-explain ${showExplanation ? 'active' : ''}`}
-                      title="Penjelasan mendalam langkah ini"
-                    >
-                      <Lightbulb size={16} />
-                      <span>Explain</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowBestMove(!showBestMove)}
+                      onClick={() => {
+                        setShowBestMove(!showBestMove);
+                        setShowExplanation(false);
+                      }}
                       className={`btn-best-move ${showBestMove ? 'active' : ''}`}
                       title="Perlihatkan langkah terbaik di papan catur"
                     >
@@ -2839,14 +3036,27 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
+                        setShowExplanation(!showExplanation);
                         setShowBestMove(false);
+                      }}
+                      className={`btn-explain ${showExplanation ? 'active' : ''}`}
+                      title="Penjelasan Taktis Langkah"
+                    >
+                      <Lightbulb size={15} />
+                      <span>Explain</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBestMove(false);
+                        setShowExplanation(false);
                         handleNextMove();
                       }}
                       className="btn-next-review"
                       title="Lanjut ke langkah berikutnya"
                     >
+                      <Play size={14} fill="currentColor" />
                       <span>Next</span>
-                      <ChevronRight size={17} />
                     </button>
                   </div>
 
@@ -2894,45 +3104,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     );
                   })()}
 
-                  {/* Explain Panel Dropdown */}
-                  {showExplanation && (
-                    <div className="review-explain-panel">
-                      {currentPlyIndex >= 0 && moveHistory[currentPlyIndex] ? (
-                        (() => {
-                          const curM = moveHistory[currentPlyIndex];
-                          const tacticsDesc = describeMoveTactics(curM);
-                          const desc =
-                            curM.feedbackDescription &&
-                            !curM.feedbackDescription.toLowerCase().includes('menganalisis')
-                              ? curM.feedbackDescription
-                              : `${curM.san} - ${tacticsDesc}`;
-                          return (
-                            <>
-                              <div style={{ margin: '0 0 0.35rem 0', fontWeight: 600, color: '#f3f4f6' }}>
-                                {desc}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: '0.74rem',
-                                  color: '#9ca3af',
-                                  marginBottom: curM.bestAlternative ? '0.35rem' : 0,
-                                }}
-                              >
-                                <strong style={{ color: '#d1d5db' }}>Keterangan Taktis:</strong> {tacticsDesc}
-                              </div>
-                              {curM.bestAlternative && (
-                                <div style={{ color: '#81b64c', fontWeight: 700, marginTop: '0.25rem' }}>
-                                  Saran Alternatif Terbaik: {curM.bestAlternative}
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <p style={{ margin: 0 }}>Papan catur dalam posisi awal pembukaan.</p>
-                      )}
-                    </div>
-                  )}
+
 
                   {/* Reset Manual Variation */}
                   {isVariationActive && (
@@ -3264,6 +3436,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           onDepthChange={(newDepth) => setStockfishDepth(newDepth)}
           isEngineActive={isEngineActive}
           onToggleEngineActive={(active) => setIsEngineActive(active)}
+          onClearCache={handleClearCache}
         />
       </div>
     </div>

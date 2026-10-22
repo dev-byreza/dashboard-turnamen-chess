@@ -49,8 +49,8 @@ export async function fetchPositionScore(
   depth: number,
   signal?: AbortSignal
 ): Promise<PositionScore | null> {
-  // 1. Fast book check from opening database: known book positions are equal
-  if (isBookPosition(fen)) {
+  // 1. Fast book check: START_FEN and known opening theory are neutral/book
+  if (fen === START_FEN || isBookPosition(fen)) {
     return {
       fen,
       cp: 15,
@@ -192,8 +192,14 @@ function classifyCore(
 
   if (m.san.includes('#')) return { ...base, label: 'best' };
 
-  // Opening theory: position exists in the lichess-org/chess-openings database
-  if (isBookPosition(m.fen) && loss <= 10) return { ...base, label: 'book' };
+  // Opening theory: any theoretical position from opening database or standard first moves is ALWAYS a Book Move!
+  const isOpeningBook =
+    isBookPosition(m.fen) ||
+    (m.ply <= 2 &&
+      ['e4', 'd4', 'c4', 'Nf3', 'g3', 'b3', 'f4', 'e5', 'd5', 'c5', 'e6', 'c6', 'Nf6', 'g6', 'd6', 'Nc6'].includes(
+        m.san
+      ));
+  if (isOpeningBook) return { ...base, loss: 0, label: 'book' };
 
   if (loss <= 2) {
     // Brilliant: genuine sacrifice (SEE), still near-best, not recapture, not forced,
@@ -209,12 +215,32 @@ function classifyCore(
       return { ...base, label: 'brilliant' };
     }
     if (isBest || loss < 0.3) {
-      // Great = the only good move: runner-up candidate is clearly worse (MultiPV)
+      // 1. MultiPV check: Runner-up move is distinctly worse (wa - secondWin >= 7 or cpDiff >= 90)
       const second = before.lines && before.lines.length >= 2 ? before.lines[1] : null;
-      if (second && wb < 90) {
+      if (second && wb < 92) {
         const secondWin = m.color === 'w' ? second.winWhite : 100 - second.winWhite;
-        if (wa - secondWin >= 15) return { ...base, label: 'great' };
+        const cpDiff = typeof before.cp === 'number' && typeof second.cp === 'number'
+          ? (m.color === 'w' ? before.cp - second.cp : second.cp - before.cp)
+          : 0;
+        if (wa - secondWin >= 7 || cpDiff >= 90) return { ...base, label: 'great' };
       }
+
+      // 2. Crucial saving move under heavy pressure: position was difficult (wb <= 45),
+      // and player found the critical move that held or saved the game (wa >= 40)
+      if (wb <= 45 && wa >= 40 && loss <= 0.8 && isBest) {
+        return { ...base, label: 'great' };
+      }
+
+      // 3. Punishing opponent's mistake or blunder with the sharpest move
+      if (prevLoss >= 10 && loss <= 0.4 && isBest && wb < 90) {
+        return { ...base, label: 'great' };
+      }
+
+      // 4. Critical transition or defensive move with few good alternatives
+      if (wb < 80 && wa >= 55 && loss <= 0.2 && isBest && (m.san.includes('x') || m.san.includes('+') || m.piece === 'k')) {
+        return { ...base, label: 'great' };
+      }
+
       return { ...base, label: 'best' };
     }
     return { ...base, label: 'excellent' };
@@ -224,6 +250,37 @@ function classifyCore(
   if (loss <= 10) return { ...base, label: 'inaccuracy' };
   if (loss <= 20) return { ...base, label: prevLoss >= 10 ? 'miss' : 'mistake' };
   return { ...base, label: prevLoss >= 10 && wb >= 70 ? 'miss' : 'blunder' };
+}
+
+/**
+ * Calculates estimated Chess.com Game Performance Rating based on CAPS Accuracy & move quality
+ */
+export function calculateGameRating(
+  accuracy: number,
+  counts: { brilliant?: number; great?: number; best?: number; mistake?: number; blunder?: number },
+  baseRating?: number
+): number {
+  let est = 0;
+  if (accuracy >= 98) est = 2500 + (accuracy - 98) * 150;
+  else if (accuracy >= 95) est = 2200 + (accuracy - 95) * 100;
+  else if (accuracy >= 90) est = 1850 + (accuracy - 90) * 70;
+  else if (accuracy >= 80) est = 1450 + (accuracy - 80) * 40;
+  else if (accuracy >= 70) est = 1100 + (accuracy - 70) * 35;
+  else if (accuracy >= 60) est = 800 + (accuracy - 60) * 30;
+  else if (accuracy >= 50) est = 550 + (accuracy - 50) * 25;
+  else est = Math.max(250, 300 + accuracy * 5);
+
+  est += (counts.brilliant || 0) * 40;
+  est += (counts.great || 0) * 20;
+  est -= (counts.mistake || 0) * 15;
+  est -= (counts.blunder || 0) * 35;
+
+  if (baseRating && baseRating > 300 && baseRating < 3000) {
+    est = Math.round(est * 0.75 + baseRating * 0.25);
+  }
+
+  const rounded = Math.round(est / 25) * 25;
+  return Math.max(350, Math.min(2900, rounded));
 }
 
 export const LABEL_TITLE: Record<ReviewLabel, string> = {
