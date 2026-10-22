@@ -140,6 +140,7 @@ export function TournamentDirectory({
                   ) : tournament.slug ? (
                     <Link
                       href={`/${tournament.slug}`}
+                      prefetch={true}
                       className="btn-gold-action btn-sm tournament-directory-open"
                       aria-label={`Buka turnamen ${tournament.name}`}
                     >

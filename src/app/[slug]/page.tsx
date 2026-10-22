@@ -9,7 +9,12 @@ import type { TournamentStore } from '../../types/chess';
 import {
   countCompletedGamesInOtherTournaments,
   playersForTournament,
+  ensureInitialRatings,
 } from '../../utils/tournamentStore';
+import {
+  getCachedTournamentStore,
+  setCachedTournamentStore,
+} from '../../utils/tournamentStoreCache';
 
 type TournamentPageState =
   | { status: 'loading' }
@@ -19,7 +24,31 @@ type TournamentPageState =
 export default function TournamentSlugPage() {
   const params = useParams<{ slug: string }>();
   const slug = (params.slug || '').trim().toLowerCase();
-  const [pageState, setPageState] = useState<TournamentPageState>({ status: 'loading' });
+
+  const cached = getCachedTournamentStore();
+  const cachedTournament = cached?.tournaments.find(
+    (item) => item.slug?.toLowerCase() === slug
+  );
+  const hasCachedTournament = Boolean(cachedTournament);
+
+  const [pageState, setPageState] = useState<TournamentPageState>(() => {
+    if (cached && hasCachedTournament) {
+      return { status: 'ready', store: cached };
+    }
+    return { status: 'loading' };
+  });
+
+  // Shorten loader duration (~300ms) when database was already connected
+  const [isOpeningLoaderActive, setIsOpeningLoaderActive] = useState<boolean>(() => hasCachedTournament);
+
+  useEffect(() => {
+    if (hasCachedTournament) {
+      const timer = setTimeout(() => {
+        setIsOpeningLoaderActive(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [hasCachedTournament]);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,20 +62,25 @@ export default function TournamentSlugPage() {
         return data.store as TournamentStore;
       })
       .then((store) => {
-        if (!cancelled) setPageState({ status: 'ready', store });
+        if (cancelled) return;
+        const syncedStore = ensureInitialRatings(store);
+        setCachedTournamentStore(syncedStore, 'connected');
+        setPageState({ status: 'ready', store: syncedStore });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setPageState({
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Terjadi kesalahan saat memuat turnamen.',
-        });
+        if (!hasCachedTournament) {
+          setPageState({
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Terjadi kesalahan saat memuat turnamen.',
+          });
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, hasCachedTournament]);
 
   const tournament = pageState.status === 'ready'
     ? pageState.store.tournaments.find((item) => item.slug?.toLowerCase() === slug) || null
@@ -64,7 +98,7 @@ export default function TournamentSlugPage() {
     }));
   }, [pageState, tournament]);
 
-  const isLoading = pageState.status === 'loading';
+  const isLoading = (pageState.status === 'loading' && !hasCachedTournament) || isOpeningLoaderActive;
   const failureMessage = pageState.status === 'error' ? pageState.message : null;
 
   return (
@@ -83,7 +117,7 @@ export default function TournamentSlugPage() {
               <p className="brand-subtitle">Hasil dan klasemen turnamen catur</p>
             </div>
           </div>
-          <Link href="/" className="btn-glass-secondary tournament-slug-backlink">
+          <Link href="/" prefetch={true} className="btn-glass-secondary tournament-slug-backlink">
             <ArrowLeft size={15} />
             <span>Dashboard turnamen</span>
           </Link>

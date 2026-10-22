@@ -999,8 +999,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           )}
 
                           <div className="bottom-bar-center">
-                            {/* Tombol Preview Posisi Akhir Bidak (FEN) */}
-                            {(match.chessComFen || match.chessComUrl) && (
+                            {/* Tombol Analisis & Review Partai Mandiri (Stockfish 19) */}
+                            {(match.chessComFen || match.chessComUrl || match.chessComPgn) && (
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1010,10 +1010,10 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                     blackPlayer: blackP,
                                   })
                                 }
-                                className="btn-preview-board"
-                                title="Lihat posisi akhir bidak (FEN) di atas papan catur"
+                                className="btn-preview-board active"
+                                title="Buka jendela Analisis & Game Review Stockfish 19 (gaya Chess.com)"
                               >
-                                <span>♟️ Papan Akhir</span>
+                                <span>🔍 Analisis & Review</span>
                               </button>
                             )}
 
@@ -1023,9 +1023,9 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="btn-watch-chesscom active"
-                                title="Tonton replay game pertandingan ini di Chess.com"
+                                title="Buka pertandingan ini langsung di Chess.com"
                               >
-                                <span>🎮 Tonton di Chess.com</span>
+                                <span>🎮 Chess.com</span>
                                 <ExternalLink size={12} />
                               </a>
                             ) : whiteP?.chessComUsername || blackP?.chessComUsername ? (
@@ -1036,7 +1036,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                 className="btn-watch-chesscom"
                                 title="Buka profil catur di Chess.com"
                               >
-                                <span>Papan Chess.com</span>
+                                <span>Profil Chess.com</span>
                                 <ExternalLink size={11} />
                               </a>
                             ) : null}

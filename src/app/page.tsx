@@ -20,30 +20,57 @@ import { ChessTimerModal } from '../components/ChessTimerModal';
 import { TournamentManager } from '../components/TournamentManager';
 import { AdminLoginModal } from '../components/AdminLoginModal';
 import { TournamentRulesModal } from '../components/TournamentRulesModal';
+import { ChessBoardPreviewModal } from '../components/ChessBoardPreviewModal';
 import {
   checkIsAdmin,
   saveAdminSession,
   clearAdminSession,
   getStoredAdminPin,
 } from '../utils/adminAuth';
-import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen } from 'lucide-react';
+import {
+  getCachedTournamentStore,
+  setCachedTournamentStore,
+  getCachedDbStatus,
+} from '../utils/tournamentStoreCache';
+import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles } from 'lucide-react';
 
 export default function SwissTournamentPage() {
-  const [store, setStore] = useState(createEmptyStore);
-  const [isHydrated, setIsHydrated] = useState(false);
-  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'offline'>('checking');
+  const cachedStore = getCachedTournamentStore();
+  const cachedDbStatus = getCachedDbStatus();
+  const isDbAlreadyConnected = cachedDbStatus === 'connected' && Boolean(cachedStore);
+
+  const [store, setStore] = useState<TournamentStore>(() => cachedStore || createEmptyStore());
+  const [isHydrated, setIsHydrated] = useState(Boolean(cachedStore));
+  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'unconfigured' | 'offline'>(() => {
+    return isDbAlreadyConnected ? 'connected' : 'checking';
+  });
   const dbStatusRef = useRef(dbStatus);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const confirmedStoreRef = useRef(createEmptyStore());
-  const lastPersistedStoreRef = useRef<TournamentStore | null>(null);
+  const confirmedStoreRef = useRef<TournamentStore>(cachedStore || createEmptyStore());
+  const lastPersistedStoreRef = useRef<TournamentStore | null>(cachedStore || null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
   const [isAdminViewingTournament, setIsAdminViewingTournament] = useState<boolean>(false);
+
+  // Short loader transition (~300ms) when returning to tournament directory from an opened tournament
+  const [isClosingLoaderActive, setIsClosingLoaderActive] = useState<boolean>(() => isDbAlreadyConnected);
+  // Short loader transition for admin opening/closing tournament
+  const [isAdminTransitioning, setIsAdminTransitioning] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isClosingLoaderActive) {
+      const timer = setTimeout(() => {
+        setIsClosingLoaderActive(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isClosingLoaderActive]);
 
   // Modals state
   const [isTimerOpen, setIsTimerOpen] = useState<boolean>(false);
   const [isManagerOpen, setIsManagerOpen] = useState<boolean>(false);
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
   const [managerTab, setManagerTab] = useState<'tournaments' | 'roster'>('tournaments');
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
@@ -62,17 +89,24 @@ export default function SwissTournamentPage() {
           confirmedStoreRef.current = data.store;
           lastPersistedStoreRef.current = data.store;
           setStore(syncedStore);
+          setCachedTournamentStore(syncedStore, 'connected');
         } else {
-          setStore(createEmptyStore());
-          setDbStatus(data.configured ? 'offline' : 'unconfigured');
+          if (!cachedStore) {
+            setStore(createEmptyStore());
+          }
+          const nextStatus = data.configured ? 'offline' : 'unconfigured';
+          setDbStatus(nextStatus);
+          setCachedTournamentStore(cachedStore || createEmptyStore(), nextStatus);
         }
         setIsHydrated(true);
       })
       .catch((err) => {
         if (cancelled) return;
         console.warn('PostgreSQL fetch warning:', err);
-        setStore(createEmptyStore());
-        setDbStatus('offline');
+        if (!cachedStore) {
+          setStore(createEmptyStore());
+          setDbStatus('offline');
+        }
         setIsHydrated(true);
       });
 
@@ -107,6 +141,7 @@ export default function SwissTournamentPage() {
           if (response.ok && result.savedToDb) {
             confirmedStoreRef.current = storeSnapshot;
             lastPersistedStoreRef.current = storeSnapshot;
+            setCachedTournamentStore(storeSnapshot, 'connected');
             return;
           }
           dbStatusRef.current = 'offline';
@@ -157,6 +192,7 @@ export default function SwissTournamentPage() {
           lastPersistedStoreRef.current = tourData.store;
           setStore(syncedStore);
           setDbStatus('connected');
+          setCachedTournamentStore(syncedStore, 'connected');
         } else {
           setDbStatus(tourData.configured ? 'offline' : 'unconfigured');
         }
@@ -347,11 +383,27 @@ export default function SwissTournamentPage() {
     });
   };
 
-  // Switch active tournament
+  // Switch active tournament with brief transition loader
   const handleSetActive = (id: string) => {
     if (!requireConnectedAdmin()) return;
-    setStore((prev) => ({ ...prev, activeId: id }));
-    setIsAdminViewingTournament(true);
+    setIsAdminTransitioning(true);
+    setStore((prev) => {
+      const next = { ...prev, activeId: id };
+      setCachedTournamentStore(next, 'connected');
+      return next;
+    });
+    setTimeout(() => {
+      setIsAdminViewingTournament(true);
+      setIsAdminTransitioning(false);
+    }, 280);
+  };
+
+  const handleCloseAdminTournament = () => {
+    setIsAdminTransitioning(true);
+    setTimeout(() => {
+      setIsAdminViewingTournament(false);
+      setIsAdminTransitioning(false);
+    }, 280);
   };
 
   // Roster CRUD
@@ -542,6 +594,16 @@ export default function SwissTournamentPage() {
                 </button>
 
                 <button
+                  type="button"
+                  onClick={() => setIsAnalysisModalOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Buka papan analisis catur & Stockfish 19 Lite"
+                >
+                  <Sparkles size={15} style={{ color: '#81b64c' }} />
+                  <span>Analisis</span>
+                </button>
+
+                <button
                   onClick={() => setIsTimerOpen(true)}
                   className="btn-glass-secondary"
                   title="Buka jam catur digital"
@@ -573,6 +635,16 @@ export default function SwissTournamentPage() {
                 </button>
 
                 <button
+                  type="button"
+                  onClick={() => setIsAnalysisModalOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Buka papan analisis catur & Stockfish 19 Lite"
+                >
+                  <Sparkles size={15} style={{ color: '#81b64c' }} />
+                  <span>Analisis</span>
+                </button>
+
+                <button
                   onClick={() => setIsTimerOpen(true)}
                   className="btn-glass-secondary"
                   title="Buka jam catur digital"
@@ -595,12 +667,12 @@ export default function SwissTournamentPage() {
           </div>
         </header>
 
-        {dbStatus === 'checking' ? null : dbStatus === 'connected' && isAdminConnected && isAdminViewingTournament && activeTournament ? (
+        {(dbStatus === 'checking' && !isDbAlreadyConnected) ? null : dbStatus === 'connected' && isAdminConnected && isAdminViewingTournament && activeTournament ? (
           <>
             <div className="tournament-dashboard-toolbar">
               <button
                 type="button"
-                onClick={() => setIsAdminViewingTournament(false)}
+                onClick={handleCloseAdminTournament}
                 className="btn-glass-secondary"
               >
                 <ArrowLeft size={15} />
@@ -650,7 +722,7 @@ export default function SwissTournamentPage() {
         </footer>
       </div>
 
-      {dbStatus === 'checking' && (
+      {((dbStatus === 'checking' && !isDbAlreadyConnected) || isClosingLoaderActive || isAdminTransitioning) && (
         <section
           className="chess-loading-state"
           role="status"
@@ -719,6 +791,18 @@ export default function SwissTournamentPage() {
         isOpen={isRulesOpen}
         onClose={() => setIsRulesOpen(false)}
       />
+
+      {/* Standalone Chess.com Analysis & Game Review Modal */}
+      {isAnalysisModalOpen && (
+        <ChessBoardPreviewModal
+          isOpen={isAnalysisModalOpen}
+          match={null}
+          recentGame={null}
+          whitePlayer={null}
+          blackPlayer={null}
+          onClose={() => setIsAnalysisModalOpen(false)}
+        />
+      )}
     </main>
   );
 }
