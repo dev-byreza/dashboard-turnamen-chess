@@ -29,6 +29,8 @@ import {
   Settings,
   Bookmark,
   Compass,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { Chess, Square } from 'chess.js';
 import { Player, SwissMatch } from '../types/chess';
@@ -39,6 +41,9 @@ import {
   centipawnsToWinChance,
 } from '../utils/stockfishEngine';
 import { ChessComNeoPiece, PieceCode } from './ChessComNeoPiece';
+import { getChessAudioManager } from '../utils/chessAudio';
+import { ChessSoundSettingsModal } from './ChessSoundSettingsModal';
+
 
 export interface ChessBoardPreviewModalProps {
   isOpen: boolean;
@@ -72,61 +77,61 @@ export const REVIEW_CLASSIFICATIONS: {
     type: 'brilliant',
     label: 'Brilliant',
     color: '#31c4b9',
-    details: 'The best move - and tricky to find too!',
+    details: 'Pengorbanan perwira (sacrifice) yang secara taktis dinilai akurat dan mengarah pada keuntungan posisi mutlak.',
   },
   {
     type: 'great',
     label: 'Great',
     color: '#5091c5',
-    details: 'A move that altered the course of the game!',
+    details: 'Langkah krusial dan satu-satunya langkah terbaik yang mempertahankan atau memenangkan posisi Anda.',
   },
   {
     type: 'book',
     label: 'Book',
     color: '#c3996b',
-    details: 'A conventional opening move',
+    details: 'Langkah pembukaan (opening) standar yang terekam dalam teori catur dan database master.',
   },
   {
     type: 'best',
     label: 'Best',
     color: '#81b64c',
-    details: "The chess engine's top choice",
+    details: 'Langkah pilihan pertama (top choice) dari kalkulasi Stockfish pada posisi tersebut.',
   },
   {
     type: 'excellent',
     label: 'Excellent',
     color: '#68a846',
-    details: 'Almost as good as the Best move',
+    details: 'Bukan pilihan nomor satu Stockfish, tetapi evaluasinya sangat dekat dengan langkah terbaik.',
   },
   {
     type: 'good',
     label: 'Good',
     color: '#7fa650',
-    details: 'A decent move, but not the best',
+    details: 'Langkah yang aman, masuk akal, dan mempertahankan stabilitas permainan.',
   },
   {
     type: 'inaccuracy',
     label: 'Inaccuracy',
     color: '#f1b332',
-    details: 'A weak move',
+    details: 'Kesalahan kecil yang membuat kehilangan sedikit keunggulan (setara ±0.50 centipawn / drop 10%).',
   },
   {
     type: 'mistake',
     label: 'Mistake',
     color: '#f07d2e',
-    details: 'A bad move that immediately worsens your position',
+    details: 'Langkah buruk yang jelas-jelas merusak posisi (membuang evaluasi sekitar 1-2 pion / drop ±20%).',
   },
   {
     type: 'miss',
     label: 'Miss',
     color: '#df5353',
-    details: 'A move that missed a tactical opportunity or a chance to punish the opponent',
+    details: 'Langkah yang melewatkan kesempatan taktis atau peluang untuk menghukum kesalahan lawan.',
   },
   {
     type: 'blunder',
     label: 'Blunder',
     color: '#ca3431',
-    details: 'A very bad move that also loses material or the game',
+    details: 'Kesalahan fatal yang mengubah jalannya permainan secara drastis (membuang evaluasi di atas 2-3 pion / drop ≥30%).',
   },
 ];
 
@@ -471,15 +476,16 @@ export function classifyGameMoves(
     }
   });
 
-  // Candidate Mistakes
+  // Candidate Mistakes (Mid/Endgame only - protect opening phase)
   const mistakePlies = new Set<number>();
   const candMistakes = rawMoves.filter(
-    (m) =>
-      m.ply > 6 &&
+    (m, idx) =>
+      m.ply > 10 &&
       !blunderPlies.has(m.ply) &&
       !greatPlies.has(m.ply) &&
       m.ply !== whiteBrilliantPly &&
-      m.ply !== blackBrilliantPly
+      m.ply !== blackBrilliantPly &&
+      !(m.captured && rawMoves[idx - 1]?.captured) // Recaptures are never mistakes
   );
   candMistakes.forEach((m, idx) => {
     if ((m.ply * 3 + idx) % 7 === 0) {
@@ -487,11 +493,11 @@ export function classifyGameMoves(
     }
   });
 
-  // Candidate Inaccuracies
+  // Candidate Inaccuracies (Midgame only)
   const inaccuracyPlies = new Set<number>();
   rawMoves.forEach((m) => {
     if (
-      m.ply > 4 &&
+      m.ply > 8 &&
       !blunderPlies.has(m.ply) &&
       !greatPlies.has(m.ply) &&
       !mistakePlies.has(m.ply) &&
@@ -529,7 +535,7 @@ export function classifyGameMoves(
     const timeSpent = getSimulatedTime(m.ply, m.san);
     const colorLabel = m.color === 'w' ? 'White' : 'Black';
 
-    // Helper: find actual legal tactical or developing move from position before this move
+    // Helper: find actual safe legal tactical or developing move from position before this move
     const getBestAlternative = (index: number, currentSan: string) => {
       const prevFen =
         index === 0
@@ -539,19 +545,34 @@ export function classifyGameMoves(
       try {
         const c = new Chess(prevFen);
         const legal = c.moves({ verbose: true });
+
+        // Filter out blunders (especially Queen capturing into an enemy defended square)
+        const safeCandidates = legal.filter((l) => {
+          if (l.san === currentSan) return false;
+          if (l.piece === 'q') {
+            const sim = new Chess(prevFen);
+            sim.move(l);
+            const opp = sim.turn();
+            if (sim.isAttacked(l.to as any, opp)) {
+              return false; // NEVER suggest moving Queen into an attacked square
+            }
+          }
+          return true;
+        });
+
         const cand =
-          legal.find(
+          safeCandidates.find(
             (l) =>
-              l.san !== currentSan &&
-              (l.captured || l.san.includes('+') || l.san.includes('#'))
+              (l.captured || l.san.includes('+') || l.san.includes('#')) &&
+              l.piece !== 'q'
           ) ||
-          legal.find(
-            (l) =>
-              l.san !== currentSan &&
-              ['e4', 'e5', 'd4', 'd5', 'c4', 'c5', 'Nf3', 'Nc3', 'Nf6', 'Nc6'].includes(l.san)
+          safeCandidates.find((l) =>
+            ['e4', 'e5', 'd4', 'd5', 'c4', 'c5', 'Nf3', 'Nc3', 'Nf6', 'Nc6'].includes(l.san)
           ) ||
+          safeCandidates[0] ||
           legal.find((l) => l.san !== currentSan) ||
           legal[0];
+
         if (cand) {
           return {
             from: cand.from,
@@ -570,8 +591,8 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'brilliant',
-        feedbackTitle: 'Brilliant !!',
-        feedbackDescription: `${colorLabel} finds ${m.san} - The best move - and tricky to find too!`,
+        feedbackTitle: 'Brilliant !! (Sangat Cemerlang)',
+        feedbackDescription: `${m.san} - Pengorbanan perwira (sacrifice) yang secara taktis dinilai akurat dan mengarah pada kemenangan mutlak!`,
         bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
@@ -582,8 +603,8 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'great',
-        feedbackTitle: 'Great Move !',
-        feedbackDescription: `${m.san} - A move that altered the course of the game!`,
+        feedbackTitle: 'Great Move ! (Langkah Hebat)',
+        feedbackDescription: `${m.san} - Langkah krusial dan satu-satunya langkah terbaik yang mempertahankan atau memenangkan posisi.`,
         bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
@@ -595,9 +616,9 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'blunder',
-        feedbackTitle: 'Blunder ??',
-        feedbackDescription: `${m.san} - A very bad move that also loses material or the game`,
-        bestAlternative: alt ? alt.san : 'Engine advice: Keep the piece defended or secure the king.',
+        feedbackTitle: 'Blunder ?? (Kesalahan Fatal)',
+        feedbackDescription: `${m.san} - Kesalahan fatal yang mengubah jalannya permainan secara drastis (membuang evaluasi di atas 2-3 pion).`,
+        bestAlternative: alt ? alt.san : 'Engine advice: Amankan perwira atau lindungi posisi raja.',
         bestAlternativeMove: alt || undefined,
       };
     }
@@ -610,8 +631,8 @@ export function classifyGameMoves(
         timeSpent,
         classification: 'miss',
         feedbackTitle: 'Miss ✖',
-        feedbackDescription: `${m.san} - A move that missed a tactical opportunity or a chance to punish the opponent`,
-        bestAlternative: alt ? alt.san : 'Engine advice: Strike immediately at the opponent weakness.',
+        feedbackDescription: `${m.san} - Melewatkan peluang taktis atau kesempatan emas untuk menghukum kesalahan lawan.`,
+        bestAlternative: alt ? alt.san : 'Engine advice: Manfaatkan kelemahan posisi lawan.',
         bestAlternativeMove: alt || undefined,
       };
     }
@@ -623,9 +644,9 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'mistake',
-        feedbackTitle: 'Mistake ?',
-        feedbackDescription: `${m.san} - A bad move that immediately worsens your position`,
-        bestAlternative: alt ? alt.san : 'Engine advice: Consider active prophylaxis or piece coordination.',
+        feedbackTitle: 'Mistake ? (Kesalahan)',
+        feedbackDescription: `${m.san} - Langkah buruk yang jelas-jelas merusak posisi (membuang evaluasi sekitar 1-2 pion).`,
+        bestAlternative: alt ? alt.san : 'Engine advice: Perbaiki koordinasi perwira dan pertahanan.',
         bestAlternativeMove: alt || undefined,
       };
     }
@@ -637,21 +658,21 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'inaccuracy',
-        feedbackTitle: 'Inaccuracy ?!',
-        feedbackDescription: `${m.san} - A weak move`,
-        bestAlternative: alt ? alt.san : 'Engine advice: Activate a piece or challenge the center.',
+        feedbackTitle: 'Inaccuracy ?! (Ketidakakuratan)',
+        feedbackDescription: `${m.san} - Kesalahan kecil yang membuat Anda kehilangan sedikit keunggulan (setara ±0.50 centipawn).`,
+        bestAlternative: alt ? alt.san : 'Engine advice: Aktifkan perwira atau rebut petak tengah.',
         bestAlternativeMove: alt || undefined,
       };
     }
 
-    // 7. BOOK MOVE (Opening phase)
-    if (m.ply <= 6 && !m.san.includes('#')) {
+    // 7. BOOK MOVE (Opening phase - first 4 full moves)
+    if (m.ply <= 8 && !m.san.includes('#')) {
       return {
         ...m,
         timeSpent,
         classification: 'book',
-        feedbackTitle: 'Book Move 📖',
-        feedbackDescription: `${m.san} - A conventional opening move`,
+        feedbackTitle: 'Book Move 📖 (Langkah Teori/Buku)',
+        feedbackDescription: `${m.san} - Langkah pembukaan standar yang terekam dalam teori catur dan database master.`,
         bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
@@ -662,8 +683,8 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'best',
-        feedbackTitle: 'Best Move ★ (Checkmate)',
-        feedbackDescription: `${m.san} - The chess engine's top choice (Checkmate!)`,
+        feedbackTitle: 'Best Move ★ (Skakmat)',
+        feedbackDescription: `${m.san} - Langkah pilihan pertama (top choice) dari kalkulasi Stockfish (Skakmat)!`,
         bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
@@ -674,8 +695,8 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'best',
-        feedbackTitle: 'Best Move ★',
-        feedbackDescription: `${m.san} - The chess engine's top choice (King safety & rook activity)`,
+        feedbackTitle: 'Best Move ★ (Langkah Terbaik)',
+        feedbackDescription: `${m.san} - Langkah pilihan pertama dari kalkulasi Stockfish (Keamanan raja & aktivitas benteng).`,
         bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     }
@@ -688,10 +709,10 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: isBest ? 'best' : 'excellent',
-        feedbackTitle: isBest ? 'Best Move ★' : 'Excellent 👍',
+        feedbackTitle: isBest ? 'Best Move ★ (Langkah Terbaik)' : 'Excellent 👍 (Sangat Bagus)',
         feedbackDescription: isBest
-          ? `${m.san} - The chess engine's top choice`
-          : `${m.san} - Almost as good as the Best move`,
+          ? `${m.san} - Langkah pilihan pertama (top choice) dari kalkulasi Stockfish pada posisi tersebut.`
+          : `${m.san} - Bukan pilihan nomor satu Stockfish, tetapi evaluasinya sangat dekat dengan langkah terbaik.`,
         bestAlternative: isBest ? undefined : alt?.san,
         bestAlternativeMove: alt || undefined,
       };
@@ -704,8 +725,8 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'best',
-        feedbackTitle: 'Best Move ★',
-        feedbackDescription: `${m.san} - The chess engine's top choice`,
+        feedbackTitle: 'Best Move ★ (Langkah Terbaik)',
+        feedbackDescription: `${m.san} - Langkah pilihan pertama (top choice) dari kalkulasi Stockfish pada posisi tersebut.`,
         bestAlternativeMove: { from: m.from, to: m.to, san: m.san, uci: `${m.from}${m.to}` },
       };
     } else if (variant === 1) {
@@ -714,8 +735,8 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'excellent',
-        feedbackTitle: 'Excellent 👍',
-        feedbackDescription: `${m.san} - Almost as good as the Best move`,
+        feedbackTitle: 'Excellent 👍 (Sangat Bagus)',
+        feedbackDescription: `${m.san} - Bukan pilihan nomor satu Stockfish, tetapi evaluasinya sangat dekat dengan langkah terbaik.`,
         bestAlternative: alt?.san,
         bestAlternativeMove: alt || undefined,
       };
@@ -725,11 +746,10 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'good',
-        feedbackTitle: 'Good ✔',
-        feedbackDescription: `${m.san} - A decent move, but not the best`,
+        feedbackTitle: 'Good ✔ (Bagus)',
+        feedbackDescription: `${m.san} - Langkah yang aman, masuk akal, dan mempertahankan stabilitas permainan.`,
         bestAlternative: alt?.san,
-        bestAlternativeMove: alt || undefined,
-      };
+        };
     }
   });
 }
@@ -748,8 +768,8 @@ export function classifySingleMove(
       ...move,
       timeSpent: '1.2s',
       classification: 'best',
-      feedbackTitle: 'Best Move ★ (Checkmate)',
-      feedbackDescription: `${move.san} - The chess engine's top choice!`,
+      feedbackTitle: 'Best Move ★ (Skakmat)',
+      feedbackDescription: `${move.san} - Langkah pilihan pertama (top choice) dari kalkulasi Stockfish (Skakmat)!`,
     };
   }
 
@@ -758,18 +778,18 @@ export function classifySingleMove(
       ...move,
       timeSpent: '0.8s',
       classification: 'best',
-      feedbackTitle: 'Best Move ★',
-      feedbackDescription: `${move.san} - The chess engine's top choice!`,
+      feedbackTitle: 'Best Move ★ (Langkah Terbaik)',
+      feedbackDescription: `${move.san} - Langkah pilihan pertama dari kalkulasi Stockfish (Keamanan raja & aktivitas benteng).`,
     };
   }
 
-  if (history.length <= 6) {
+  if (history.length <= 8) {
     return {
       ...move,
       timeSpent: '0.5s',
       classification: 'book',
-      feedbackTitle: 'Book Move 📖',
-      feedbackDescription: `${move.san} - A conventional opening move`,
+      feedbackTitle: 'Book Move 📖 (Langkah Teori/Buku)',
+      feedbackDescription: `${move.san} - Langkah pembukaan standar yang terekam dalam teori catur dan database master.`,
     };
   }
 
@@ -778,8 +798,8 @@ export function classifySingleMove(
       ...move,
       timeSpent: '2.4s',
       classification: 'great',
-      feedbackTitle: 'Great Move !',
-      feedbackDescription: `${move.san} - A move that altered the course of the game!`,
+      feedbackTitle: 'Great Move ! (Langkah Hebat)',
+      feedbackDescription: `${move.san} - Langkah krusial dan merupakan satu-satunya langkah terbaik yang mempertahankan posisi Anda.`,
     };
   }
 
@@ -787,13 +807,10 @@ export function classifySingleMove(
     ...move,
     timeSpent: '1.5s',
     classification: 'excellent',
-    feedbackTitle: 'Excellent 👍',
-    feedbackDescription: `${move.san} - Almost as good as the Best move`,
+    feedbackTitle: 'Excellent 👍 (Sangat Bagus)',
+    feedbackDescription: `${move.san} - Bukan pilihan nomor satu Stockfish, tetapi evaluasinya sangat dekat dengan langkah terbaik.`,
   };
 }
-
-type TabMode = 'review' | 'analysis';
-type AnalysisSubTab = 'moves' | 'info';
 
 export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   isOpen,
@@ -803,8 +820,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   blackPlayer,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabMode>('analysis');
-  const [analysisSubTab, setAnalysisSubTab] = useState<AnalysisSubTab>('moves');
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copiedFen, setCopiedFen] = useState(false);
@@ -820,6 +835,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     winChanceWhite: 50,
     isThinking: false,
   });
+  const [decisionEval, setDecisionEval] = useState<PositionEvaluation | null>(null);
+  const decisionEvalCacheRef = useRef<Map<string, PositionEvaluation>>(new Map());
+
 
   // Board Navigation & Chess Game State
   const [chessInstance, setChessInstance] = useState<Chess>(() => new Chess());
@@ -832,10 +850,41 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [isReviewActive, setIsReviewActive] = useState<boolean>(false);
   const [showExplanation, setShowExplanation] = useState<boolean>(false);
   const [showBestMove, setShowBestMove] = useState<boolean>(false);
+  const [isSoundModalOpen, setIsSoundModalOpen] = useState<boolean>(false);
+
+  // Preload sound effects on modal open
+  useEffect(() => {
+    if (isOpen) {
+      getChessAudioManager().preloadTheme();
+    }
+  }, [isOpen]);
 
   const replayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const evalDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const reviewMovesScrollRef = useRef<HTMLDivElement>(null);
+
+  // Drag and drop pieces state
+  const [activeDrag, setActiveDrag] = useState<{
+    piece: PieceCode;
+    fromSquare: Square;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    moved: boolean;
+  } | null>(null);
+  const [dragHoverSquare, setDragHoverSquare] = useState<Square | null>(null);
+  const dragInfoRef = useRef<{
+    piece: PieceCode;
+    fromSquare: Square;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    moved: boolean;
+  } | null>(null);
+  const lastDragDropTimeRef = useRef<number>(0);
+  const boardGridRef = useRef<HTMLDivElement>(null);
 
   // Reset toggled panels whenever user navigates plies
   useEffect(() => {
@@ -843,6 +892,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setShowExplanation(false);
     setSelectedSquare(null);
     setLegalMoves([]);
+    setActiveDrag(null);
+    setDragHoverSquare(null);
+    dragInfoRef.current = null;
   }, [currentPlyIndex]);
 
   // Parse FEN or PGN on modal open
@@ -976,13 +1028,26 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     };
   }, [isOpen, isEngineActive, currentBoardFen]);
 
-  // Jump to specific ply in move history
-  const jumpToPly = (plyIndex: number) => {
+  // Jump to specific ply in move history with sound effects
+  const jumpToPly = (plyIndex: number, playAudio = true) => {
     setCurrentPlyIndex(plyIndex);
     setSelectedSquare(null);
     setLegalMoves([]);
     setShowBestMove(false);
+
+    if (playAudio && plyIndex >= 0 && moveHistory[plyIndex]) {
+      const m = moveHistory[plyIndex];
+      getChessAudioManager().playMoveSound({
+        san: m.san,
+        isCapture: !!m.captured,
+        isCheck: m.san.includes('+') || m.san.includes('#'),
+        isCastle: m.san.startsWith('O-O'),
+        isPromotion: !!m.promotion,
+        color: m.color,
+      });
+    }
   };
+
 
   // Step navigation
   const handleFirstMove = () => jumpToPly(-1);
@@ -1010,14 +1075,92 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     };
   }, [isPlayingReplay, moveHistory.length]);
 
-  // Best Move info computation
+  // Evaluate the decision position (prevFen) with Stockfish 19 Lite to verify the best move
+  useEffect(() => {
+    if (!isOpen || currentPlyIndex < 0 || !moveHistory[currentPlyIndex]) {
+      setDecisionEval(null);
+      return;
+    }
+
+    const prevFen =
+      currentPlyIndex === 0
+        ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+        : moveHistory[currentPlyIndex - 1]?.fen;
+
+    if (!prevFen) return;
+
+    if (decisionEvalCacheRef.current.has(prevFen)) {
+      const cached = decisionEvalCacheRef.current.get(prevFen)!;
+      setDecisionEval(cached);
+      return;
+    }
+
+    const engine = getStockfishEngine();
+    engine
+      .evaluatePosition(prevFen, 12)
+      .then((evalRes) => {
+        decisionEvalCacheRef.current.set(prevFen, evalRes);
+        setDecisionEval(evalRes);
+
+        const currentMove = moveHistory[currentPlyIndex];
+        if (currentMove && evalRes.bestMoveUci) {
+          const sfFrom = evalRes.bestMoveUci.slice(0, 2);
+          const sfTo = evalRes.bestMoveUci.slice(2, 4);
+          const isEngineMatch =
+            (currentMove.from === sfFrom && currentMove.to === sfTo) ||
+            currentMove.san === evalRes.bestMoveSan;
+
+          if (
+            isEngineMatch &&
+            currentMove.classification !== 'best' &&
+            currentMove.classification !== 'brilliant'
+          ) {
+            setMoveHistory((prev) => {
+              const updated = [...prev];
+              if (updated[currentPlyIndex]) {
+                updated[currentPlyIndex] = {
+                  ...updated[currentPlyIndex],
+                  classification: 'best',
+                  feedbackTitle: 'Best Move ★',
+                  feedbackDescription: `${currentMove.san} - The chess engine's top choice!`,
+                };
+              }
+              return updated;
+            });
+          }
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, currentPlyIndex, moveHistory]);
+
+  // Best Move info computation powered by Stockfish 19 Lite
   const bestMoveInfo = useMemo(() => {
-    // If browsing review or move history with an active move
     if (currentPlyIndex >= 0 && moveHistory[currentPlyIndex]) {
       const currentMove = moveHistory[currentPlyIndex];
+
+      // 1. Check Stockfish 19 Lite evaluation on the decision position (prevFen)
+      if (decisionEval?.bestMoveUci && decisionEval.bestMoveUci.length >= 4) {
+        const from = decisionEval.bestMoveUci.slice(0, 2) as Square;
+        const to = decisionEval.bestMoveUci.slice(2, 4) as Square;
+        const isCurrentMoveBest =
+          (currentMove.from === from && currentMove.to === to) ||
+          currentMove.san === decisionEval.bestMoveSan;
+
+        return {
+          from,
+          to,
+          san: decisionEval.bestMoveSan || decisionEval.bestMoveUci,
+          isCurrentMoveBest,
+          classification: currentMove.classification,
+        };
+      }
+
+      // 2. Check if classified as best, brilliant, great, or book
       const isCurrentMoveBest =
         currentMove.classification === 'best' ||
-        currentMove.classification === 'brilliant';
+        currentMove.classification === 'brilliant' ||
+        currentMove.classification === 'great' ||
+        currentMove.classification === 'book';
 
       if (isCurrentMoveBest) {
         return {
@@ -1025,60 +1168,23 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           to: currentMove.to as Square,
           san: currentMove.san,
           isCurrentMoveBest: true,
+          classification: currentMove.classification,
         };
       }
 
+      // 3. Fallback to alternative move
       if (currentMove.bestAlternativeMove) {
         return {
           from: currentMove.bestAlternativeMove.from as Square,
           to: currentMove.bestAlternativeMove.to as Square,
           san: currentMove.bestAlternativeMove.san,
           isCurrentMoveBest: false,
+          classification: currentMove.classification,
         };
-      }
-
-      // Check currentEval.bestMoveUci
-      if (currentEval.bestMoveUci && currentEval.bestMoveUci.length >= 4) {
-        const from = currentEval.bestMoveUci.slice(0, 2) as Square;
-        const to = currentEval.bestMoveUci.slice(2, 4) as Square;
-        return {
-          from,
-          to,
-          san: currentEval.bestMoveSan || currentEval.bestMoveUci,
-          isCurrentMoveBest: false,
-        };
-      }
-
-      // Fallback: derive legal move from position before current move
-      const prevFen =
-        currentPlyIndex === 0
-          ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-          : moveHistory[currentPlyIndex - 1]?.fen;
-      if (prevFen) {
-        try {
-          const tempC = new Chess(prevFen);
-          const legal = tempC.moves({ verbose: true });
-          const alt =
-            legal.find(
-              (l) =>
-                l.san !== currentMove.san &&
-                (l.captured || l.san.includes('+') || l.san.includes('#'))
-            ) ||
-            legal.find((l) => l.san !== currentMove.san) ||
-            legal[0];
-          if (alt) {
-            return {
-              from: alt.from as Square,
-              to: alt.to as Square,
-              san: alt.san,
-              isCurrentMoveBest: false,
-            };
-          }
-        } catch {}
       }
     }
 
-    // In analysis mode or start position, use Stockfish evaluation
+    // In analysis mode or start position, use Stockfish 19 Lite evaluation
     if (currentEval.bestMoveUci && currentEval.bestMoveUci.length >= 4) {
       const from = currentEval.bestMoveUci.slice(0, 2) as Square;
       const to = currentEval.bestMoveUci.slice(2, 4) as Square;
@@ -1087,13 +1193,24 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         to,
         san: currentEval.bestMoveSan || currentEval.bestMoveUci,
         isCurrentMoveBest: false,
+        classification: 'best' as ChessComBadgeType,
       };
     }
 
     return null;
-  }, [currentPlyIndex, moveHistory, currentEval]);
+  }, [currentPlyIndex, moveHistory, decisionEval, currentEval]);
 
-  // Arrow line coordinates on a 100x100 grid
+  // Dynamic color for Best Move arrow & highlights (Brilliant: #31c4b9, Great: #5091c5, Best: #81b64c)
+  const bestMoveColor = useMemo(() => {
+    const classification =
+      bestMoveInfo?.classification ||
+      (currentPlyIndex >= 0 ? moveHistory[currentPlyIndex]?.classification : null);
+    if (classification === 'brilliant') return '#31c4b9';
+    if (classification === 'great') return '#5091c5';
+    return '#81b64c';
+  }, [bestMoveInfo, currentPlyIndex, moveHistory]);
+
+  // Arrow line coordinates on a 100x100 grid (sleek & minimal proportions)
   const bestMoveArrowCoords = useMemo(() => {
     if (!bestMoveInfo || !bestMoveInfo.from || !bestMoveInfo.to) return null;
     const fromStr = bestMoveInfo.from.toLowerCase();
@@ -1125,8 +1242,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const dist = Math.hypot(dx, dy);
     if (dist < 0.1) return null;
 
-    const shortenHead = 3.2;
-    const shortenTail = 1.8;
+    const shortenHead = 3.6;
+    const shortenTail = 2.4;
     return {
       x1: x1 + (dx / dist) * shortenTail,
       y1: y1 + (dy / dist) * shortenTail,
@@ -1135,29 +1252,97 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     };
   }, [bestMoveInfo, isFlipped]);
 
-  // Effective board FEN to display (if Best Move is toggled on a mistake in Review, show previous position before mistake)
+  // Effective board FEN to display (if Best Move is toggled in Review, show previous position before the move so the piece makes the arrow)
   const effectiveBoardFen = useMemo(() => {
-    if (
-      showBestMove &&
-      activeTab === 'review' &&
-      currentPlyIndex >= 0 &&
-      bestMoveInfo &&
-      !bestMoveInfo.isCurrentMoveBest
-    ) {
+    if (showBestMove && currentPlyIndex >= 0) {
       if (currentPlyIndex === 0) {
         return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
       }
       return moveHistory[currentPlyIndex - 1]?.fen || currentBoardFen;
     }
     return currentBoardFen;
-  }, [showBestMove, activeTab, currentPlyIndex, bestMoveInfo, moveHistory, currentBoardFen]);
+  }, [showBestMove, currentPlyIndex, moveHistory, currentBoardFen]);
 
-  // Interactive square click: allows exploring alternative positions manually from current position
-  const handleSquareClick = (square: Square) => {
-    // Current chess state at the active board position
+  // Core move execution for both click-to-move and drag-and-drop
+  const executeMove = (from: Square, to: Square): boolean => {
     const currentChess = new Chess();
     try {
-      currentChess.load(currentBoardFen);
+      currentChess.load(effectiveBoardFen);
+    } catch {
+      currentChess.reset();
+    }
+
+    try {
+      const moveAttempt = currentChess.move({
+        from,
+        to,
+        promotion: 'q',
+      });
+
+      if (moveAttempt) {
+        // Branch from current ply (or pre-move if best move preview was active)
+        const baseHistory = showBestMove
+          ? currentPlyIndex <= 0
+            ? []
+            : moveHistory.slice(0, currentPlyIndex)
+          : currentPlyIndex === -1
+            ? []
+            : moveHistory.slice(0, currentPlyIndex + 1);
+
+        const rawItem: MoveHistoryItem = {
+          ply: baseHistory.length + 1,
+          moveNumber: Math.floor(baseHistory.length / 2) + 1,
+          color: moveAttempt.color,
+          san: moveAttempt.san,
+          from: moveAttempt.from,
+          to: moveAttempt.to,
+          fen: currentChess.fen(),
+          piece: moveAttempt.piece,
+          captured: moveAttempt.captured,
+          promotion: moveAttempt.promotion,
+          timeSpent: '0.5s',
+          classification: 'best',
+          feedbackTitle: 'Manual Analysis Move',
+          feedbackDescription: `${moveAttempt.san} - Analisis alternatif langkah manual`,
+          bestAlternativeMove: {
+            from: moveAttempt.from,
+            to: moveAttempt.to,
+            san: moveAttempt.san,
+            uci: `${moveAttempt.from}${moveAttempt.to}`,
+          },
+        };
+
+        const newHistoryItem = classifySingleMove(rawItem, baseHistory);
+        const updated = [...baseHistory, newHistoryItem];
+        setMoveHistory(updated);
+        setCurrentPlyIndex(updated.length - 1);
+        setSelectedSquare(null);
+        setLegalMoves([]);
+        setShowBestMove(false);
+
+        // Play sound effect for manual move
+        getChessAudioManager().playMoveSound({
+          san: moveAttempt.san,
+          isCapture: !!moveAttempt.captured,
+          isCheck: moveAttempt.san.includes('+') || moveAttempt.san.includes('#'),
+          isCastle: moveAttempt.san.startsWith('O-O'),
+          isPromotion: !!moveAttempt.promotion,
+          color: moveAttempt.color,
+        });
+        return true;
+      }
+    } catch {
+      // Illegal move attempt
+      getChessAudioManager().play('illegal');
+    }
+    return false;
+  };
+
+  // Interactive square click: allows exploring alternative positions manually via clicking
+  const handleSquareClick = (square: Square) => {
+    const currentChess = new Chess();
+    try {
+      currentChess.load(effectiveBoardFen);
     } catch {
       currentChess.reset();
     }
@@ -1180,53 +1365,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       // Try making the move
-      try {
-        const moveAttempt = currentChess.move({
-          from: selectedSquare,
-          to: square,
-          promotion: 'q',
-        });
-
-        if (moveAttempt) {
-          // Branch from current ply
-          const baseHistory =
-            currentPlyIndex === -1 ? [] : moveHistory.slice(0, currentPlyIndex + 1);
-
-          const rawItem: MoveHistoryItem = {
-            ply: baseHistory.length + 1,
-            moveNumber: Math.floor(baseHistory.length / 2) + 1,
-            color: moveAttempt.color,
-            san: moveAttempt.san,
-            from: moveAttempt.from,
-            to: moveAttempt.to,
-            fen: currentChess.fen(),
-            piece: moveAttempt.piece,
-            captured: moveAttempt.captured,
-            promotion: moveAttempt.promotion,
-            timeSpent: '0.5s',
-            classification: 'best',
-            feedbackTitle: 'Manual Analysis Move',
-            feedbackDescription: `${moveAttempt.san} - Analisis alternatif langkah manual`,
-            bestAlternativeMove: {
-              from: moveAttempt.from,
-              to: moveAttempt.to,
-              san: moveAttempt.san,
-              uci: `${moveAttempt.from}${moveAttempt.to}`,
-            },
-          };
-
-          const newHistoryItem = classifySingleMove(rawItem, baseHistory);
-          const updated = [...baseHistory, newHistoryItem];
-          setMoveHistory(updated);
-          setCurrentPlyIndex(updated.length - 1);
-          setSelectedSquare(null);
-          setLegalMoves([]);
-          setShowBestMove(false);
-          return;
-        }
-      } catch {
-        // Not a legal move to that square
+      const success = executeMove(selectedSquare, square);
+      if (!success) {
+        setSelectedSquare(null);
+        setLegalMoves([]);
       }
+      return;
     }
 
     // Select piece
@@ -1238,6 +1382,94 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     } else {
       setSelectedSquare(null);
       setLegalMoves([]);
+    }
+  };
+
+  // Interactive drag-and-drop: allows dragging pieces by click-and-hold or touch gesture
+  const handleSquarePointerDown = (e: React.PointerEvent<HTMLDivElement>, square: Square) => {
+    // Only primary button
+    if (e.button !== 0) return;
+
+    const currentChess = new Chess();
+    try {
+      currentChess.load(effectiveBoardFen);
+    } catch {
+      currentChess.reset();
+    }
+
+    const piece = currentChess.get(square);
+    const isFriendly = piece && piece.color === currentChess.turn();
+
+    // If a friendly piece is clicked, initiate drag tracking
+    if (isFriendly) {
+      const pieceCode = (piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase()) as PieceCode;
+
+      const info = {
+        piece: pieceCode,
+        fromSquare: square,
+        startX: e.clientX,
+        startY: e.clientY,
+        currentX: e.clientX,
+        currentY: e.clientY,
+        moved: false,
+      };
+      dragInfoRef.current = info;
+
+      const onGlobalPointerMove = (moveEvt: PointerEvent) => {
+        if (!dragInfoRef.current) return;
+        const dx = moveEvt.clientX - dragInfoRef.current.startX;
+        const dy = moveEvt.clientY - dragInfoRef.current.startY;
+        if (Math.hypot(dx, dy) > 4) {
+          if (!dragInfoRef.current.moved) {
+            dragInfoRef.current.moved = true;
+            // Activate selection & legal dots immediately when drag starts
+            setSelectedSquare(square);
+            const moves = currentChess.moves({ square, verbose: true }).map((m) => m.to);
+            setLegalMoves(moves);
+          }
+          dragInfoRef.current.currentX = moveEvt.clientX;
+          dragInfoRef.current.currentY = moveEvt.clientY;
+          setActiveDrag({ ...dragInfoRef.current });
+
+          // Detect target square under pointer
+          const el = document.elementFromPoint(moveEvt.clientX, moveEvt.clientY)?.closest('[data-square]');
+          const sq = (el?.getAttribute('data-square') as Square) || null;
+          setDragHoverSquare(sq);
+        }
+      };
+
+      const onGlobalPointerUp = (upEvt: PointerEvent) => {
+        window.removeEventListener('pointermove', onGlobalPointerMove);
+        window.removeEventListener('pointerup', onGlobalPointerUp);
+
+        const dInfo = dragInfoRef.current;
+        dragInfoRef.current = null;
+        setActiveDrag(null);
+        setDragHoverSquare(null);
+
+        if (!dInfo) return;
+
+        if (dInfo.moved) {
+          lastDragDropTimeRef.current = Date.now();
+          // Drop onto target square
+          const el = document.elementFromPoint(upEvt.clientX, upEvt.clientY)?.closest('[data-square]');
+          const targetSquare = el?.getAttribute('data-square') as Square | undefined;
+
+          if (targetSquare && targetSquare !== dInfo.fromSquare) {
+            executeMove(dInfo.fromSquare, targetSquare);
+          } else if (targetSquare === dInfo.fromSquare) {
+            // Dropped back onto original square: keep selected for click-to-move
+            setSelectedSquare(dInfo.fromSquare);
+          } else {
+            // Dropped off-board
+            setSelectedSquare(null);
+            setLegalMoves([]);
+          }
+        }
+      };
+
+      window.addEventListener('pointermove', onGlobalPointerMove);
+      window.addEventListener('pointerup', onGlobalPointerUp);
     }
   };
 
@@ -1606,37 +1838,40 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     let comment = '';
     switch (m.classification) {
       case 'brilliant':
-        comment = `${m.san} is a brilliant move! A sacrifice that creates decisive tactical advantage.`;
+        comment = `${m.san} adalah langkah brilian (Brilliant)!! Pengorbanan perwira (sacrifice) yang secara taktis dinilai akurat dan mengarah pada kemenangan mutlak.`;
         break;
       case 'great':
-        comment = `${m.san} is a great find! Finding the only move that maintains the initiative.`;
+        comment = `${m.san} adalah langkah hebat (Great Move)! Langkah krusial dan merupakan satu-satunya langkah terbaik yang mempertahankan posisi Anda.`;
         break;
-      case 'book':
+      case 'book': {
         const nextMove = moveHistory[currentPlyIndex + 1];
         const isLastBook = !nextMove || nextMove.classification !== 'book';
-        comment = isLastBook ? `${m.san} is the last book move` : `${m.san} is a book move`;
+        comment = isLastBook
+          ? `${m.san} adalah langkah teori pembukaan terakhir (Book Move)`
+          : `${m.san} adalah langkah pembukaan standar (Book Move) yang terekam dalam teori catur.`;
         break;
+      }
       case 'best':
-        comment = `${m.san} is the best move. Maintains maximum pressure.`;
+        comment = `${m.san} adalah langkah terbaik (Best Move) ★ pilihan pertama dari kalkulasi Stockfish pada posisi tersebut.`;
         break;
       case 'excellent':
-        comment = `${m.san} is an excellent move, keeping a strong position.`;
+        comment = `${m.san} adalah langkah sangat bagus (Excellent). Bukan pilihan #1 Stockfish, namun evaluasinya sangat dekat dan posisi tetap prima.`;
         break;
       case 'good':
-        comment = `${m.san} is a good, solid move.`;
+        comment = `${m.san} adalah langkah bagus (Good). Aman, masuk akal, dan mempertahankan stabilitas permainan.`;
         break;
       case 'inaccuracy':
-        comment = `${m.san} is an inaccuracy. ${m.feedbackDescription || 'Allows opponent counterplay.'}`;
+        comment = `${m.san} adalah ketidakakuratan (Inaccuracy) ?! ${m.feedbackDescription || 'Kesalahan kecil yang membuat kehilangan sedikit keunggulan (setara ±0.50 centipawn).'}`;
         break;
       case 'mistake':
-        comment = `${m.san} is a mistake. ${m.feedbackDescription || 'Immediately worsens your position.'}`;
+        comment = `${m.san} adalah kesalahan (Mistake) ? ${m.feedbackDescription || 'Langkah buruk yang jelas merusak posisi Anda (membuang evaluasi sekitar 1-2 pion).'}`;
         break;
       case 'miss':
       case 'missed_win':
-        comment = `${m.san} is a miss. Missed an opportunity to punish the opponent.`;
+        comment = `${m.san} adalah Miss ✖ Melewatkan peluang taktis atau kesempatan emas untuk menghukum kesalahan lawan.`;
         break;
       case 'blunder':
-        comment = `${m.san} is a blunder. ${m.feedbackDescription || 'A costly oversight that severely hurts your winning chances.'}`;
+        comment = `${m.san} adalah Blunder fatal ?? ${m.feedbackDescription || 'Kesalahan fatal yang mengubah jalannya permainan drastis (membuang evaluasi di atas 2-3 pion).'}`;
         break;
       default:
         comment = m.feedbackDescription || `${m.san} dimainkan.`;
@@ -1685,32 +1920,32 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         {/* Top Navbar */}
         <header className="chesscom-navbar">
           <div className="chesscom-nav-left">
-            <span className="chesscom-logo-badge">♟ Chess.com Engine</span>
+            <img
+              src="/images/logo-chess-club-text.png"
+              alt="Chess Club Politeknik Sorowako"
+              className="chesscom-navbar-logo"
+            />
             <span className="chesscom-match-badge">
               {match ? `Babak ${match.round} • Papan ${match.boardNumber}` : 'Analisis Bebas'}
             </span>
           </div>
 
           <div className="chesscom-nav-center">
-            <button
-              type="button"
-              onClick={() => setActiveTab('review')}
-              className={`chesscom-nav-tab ${activeTab === 'review' ? 'active' : ''}`}
-            >
+            <div className="chesscom-nav-tab active" style={{ cursor: 'default' }}>
               <Award size={15} className="tab-icon-review" />
               <span>Game Review</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('analysis')}
-              className={`chesscom-nav-tab ${activeTab === 'analysis' ? 'active' : ''}`}
-            >
-              <Clock size={15} className="tab-icon-analysis" />
-              <span>Analysis</span>
-            </button>
+            </div>
           </div>
 
           <div className="chesscom-nav-right">
+            <button
+              type="button"
+              onClick={() => setIsSoundModalOpen(true)}
+              className="chesscom-btn-icon"
+              title="Pengaturan Efek Suara & Tema Audio Catur"
+            >
+              <Volume2 size={16} />
+            </button>
             <button
               type="button"
               onClick={() => setIsFullscreen(!isFullscreen)}
@@ -1788,7 +2023,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               </div>
 
               {/* 8x8 Chessboard Grid */}
-              <div className="chesscom-board-grid">
+              <div className="chesscom-board-grid" ref={boardGridRef}>
                 {(isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7]).map(
                   (r) =>
                     (isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7]).map(
@@ -1815,11 +2050,25 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         return (
                           <div
                             key={squareName}
-                            onClick={() => handleSquareClick(squareName)}
+                            onPointerDown={(e) => handleSquarePointerDown(e, squareName)}
+                            onClick={() => {
+                              if (Date.now() - lastDragDropTimeRef.current < 250) return;
+                              handleSquareClick(squareName);
+                            }}
+                            style={
+                              isBestMoveSq
+                                ? {
+                                    backgroundColor: `${bestMoveColor}44`,
+                                    boxShadow: `inset 0 0 0 2px ${bestMoveColor}`,
+                                  }
+                                : undefined
+                            }
                             className={`chesscom-square ${isLight ? 'light-sq' : 'dark-sq'} ${
                               isSelected ? 'is-selected' : ''
                             } ${!showBestMove && (isLastMoveFrom || isLastMoveTo) ? 'is-last-move' : ''} ${
                               isBestMoveSq ? 'is-best-move' : ''
+                            } ${dragHoverSquare === squareName ? 'is-drag-hover' : ''} ${
+                              activeDrag?.fromSquare === squareName ? 'is-drag-origin' : ''
                             }`}
                             data-square={squareName}
                           >
@@ -1844,7 +2093,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
                             {/* Chess Piece Vector */}
                             {piece && (
-                              <div className="piece-container">
+                              <div
+                                className="piece-container"
+                                draggable={false}
+                                onDragStart={(e) => e.preventDefault()}
+                              >
                                 <ChessComNeoPiece piece={piece} />
                               </div>
                             )}
@@ -1867,7 +2120,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     )
                 )}
 
-                {/* SVG Arrow Overlay for Best Move */}
+                {/* SVG Arrow Overlay for Best Move (Minimal & Category Colored) */}
                 {showBestMove && bestMoveArrowCoords && (
                   <svg
                     className="chesscom-board-arrow-overlay"
@@ -1877,13 +2130,17 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     <defs>
                       <marker
                         id="arrowhead-best-move"
-                        markerWidth="6"
-                        markerHeight="6"
-                        refX="4.5"
-                        refY="3"
+                        markerWidth="4.2"
+                        markerHeight="3.6"
+                        refX="3.4"
+                        refY="1.8"
                         orient="auto"
+                        markerUnits="userSpaceOnUse"
                       >
-                        <path d="M 0 0 L 6 3 L 0 6 z" fill="#81b64c" />
+                        <path
+                          d="M 0 0.3 L 3.8 1.8 L 0 3.3 L 0.8 1.8 Z"
+                          fill={bestMoveColor}
+                        />
                       </marker>
                     </defs>
                     <line
@@ -1891,13 +2148,32 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       y1={bestMoveArrowCoords.y1}
                       x2={bestMoveArrowCoords.x2}
                       y2={bestMoveArrowCoords.y2}
-                      stroke="#81b64c"
-                      strokeWidth="2.8"
+                      stroke={bestMoveColor}
+                      strokeWidth="1.6"
                       strokeLinecap="round"
                       markerEnd="url(#arrowhead-best-move)"
-                      opacity="0.95"
+                      opacity="0.88"
                     />
                   </svg>
+                )}
+
+                {/* Floating Dragged Piece following cursor during drag */}
+                {activeDrag && (
+                  <div
+                    className="chesscom-floating-drag-piece"
+                    style={{
+                      position: 'fixed',
+                      left: activeDrag.currentX,
+                      top: activeDrag.currentY,
+                      width: boardGridRef.current ? boardGridRef.current.offsetWidth / 8 : 64,
+                      height: boardGridRef.current ? boardGridRef.current.offsetHeight / 8 : 64,
+                      transform: 'translate(-50%, -50%)',
+                      pointerEvents: 'none',
+                      zIndex: 99999,
+                    }}
+                  >
+                    <ChessComNeoPiece piece={activeDrag.piece} />
+                  </div>
                 )}
               </div>
             </div>
@@ -1941,12 +2217,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             </div>
           </section>
 
-          {/* RIGHT: Analysis / Review Sidebar Panel */}
+          {/* RIGHT: Game Review Sidebar Panel (Default & Exclusive Mode) */}
           <aside className="chesscom-sidebar-section">
-            {activeTab === 'review' ? (
-              !isReviewActive ? (
-                /* REVIEW SUMMARY VIEW (Matching Chess.com Image 1 & 3) */
-                <div className="review-panel-container">
+            {!isReviewActive ? (
+              /* REVIEW SUMMARY VIEW (Matching Chess.com Image 1 & 3) */
+              <div className="review-panel-container">
                   <div className="review-header-title">
                     <div className="title-left">
                       <span className="review-star-badge">★</span>
@@ -2193,8 +2468,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
                     <button
                       type="button"
+                      onClick={() => setIsSoundModalOpen(true)}
                       className="review-header-icon-btn"
-                      title="Pengaturan Ulasan"
+                      title="Pengaturan Suara & Tema Catur"
                     >
                       <Settings size={16} />
                     </button>
@@ -2244,9 +2520,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           <>
                             <ChessComBadgeIcon type="best" size={18} />
                             <span>
-                              {bestMoveInfo?.isCurrentMoveBest
-                                ? `${bestMoveInfo.san} adalah langkah terbaik catur komputer!`
-                                : `Langkah terbaik adalah ${bestMoveInfo?.san || 'langkah alternatif mesin'}`}
+                              {`Langkah terbaik adalah ${bestMoveInfo?.san || 'langkah catur komputer'}`}
                             </span>
                           </>
                         ) : (
@@ -2326,6 +2600,21 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       ) : (
                         <p style={{ margin: 0 }}>Papan catur dalam posisi awal pembukaan.</p>
                       )}
+                    </div>
+                  )}
+
+                  {/* Reset Manual Variation */}
+                  {isVariationActive && (
+                    <div style={{ padding: '0.25rem 0.9rem', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={handleResetToOriginalGame}
+                        className="variation-reset-badge-btn"
+                        title="Kembalikan ke notasi pertandingan asli"
+                      >
+                        <RotateCcw size={12} />
+                        <span>Reset Variasi Manual</span>
+                      </button>
                     </div>
                   )}
 
@@ -2576,416 +2865,65 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <Share2 size={14} />
                       <span>Share</span>
                     </button>
-                  </div>
-                </div>
-              )
-            ) : (
-              /* TAB 2: ANALYSIS BOARD (Matching Chess.com Screenshot 1) */
-              <div className="analysis-panel-container">
-                {/* Secondary subtabs */}
-                <div className="analysis-subtabs-row">
-                  <button
-                    type="button"
-                    onClick={() => setAnalysisSubTab('moves')}
-                    className={`subtab-btn ${analysisSubTab === 'moves' ? 'active' : ''}`}
-                  >
-                    Moves
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnalysisSubTab('info')}
-                    className={`subtab-btn ${analysisSubTab === 'info' ? 'active' : ''}`}
-                  >
-                    Info
-                  </button>
-                </div>
-
-                {/* Engine Control Bar */}
-                <div className="engine-control-bar">
-                  <label className="engine-toggle-label">
-                    <input
-                      type="checkbox"
-                      checked={isEngineActive}
-                      onChange={(e) => setIsEngineActive(e.target.checked)}
-                      className="engine-toggle-checkbox"
-                    />
-                    <span className="engine-toggle-slider" />
-                    <span className="engine-toggle-text">Analysis</span>
-                  </label>
-
-                  <div className="engine-info-cluster">
-                    <span className="engine-pulse-dot" />
-                    <span className="engine-name-text">Stockfish 19 Lite</span>
-                    <Settings size={13} className="engine-settings-icon" />
-                  </div>
-                </div>
-
-                {/* Best Move Interactive Button (Matching Image 1) */}
-                {isEngineActive && currentEval.bestMoveUci && (
-                  <button
-                    type="button"
-                    onClick={() => setShowBestMove(!showBestMove)}
-                    className={`engine-bestmove-btn ${showBestMove ? 'active' : ''}`}
-                    title="Klik untuk memperlihatkan langkah terbaik di papan catur"
-                  >
-                    <div className="bestmove-left-cluster">
-                      <Star
-                        size={14}
-                        className="bestmove-star-icon"
-                        fill={showBestMove ? '#81b64c' : 'none'}
-                      />
-                      <span className="bestmove-title">Saran Terbaik:</span>
-                      <span className="bestmove-code">
-                        {currentEval.bestMoveSan || currentEval.bestMoveUci} (
-                        {currentEval.scoreDisplay})
-                      </span>
-                    </div>
-                    <div className="bestmove-right-cluster">
-                      <span className="bestmove-status-tag">
-                        {showBestMove ? 'Tampil di Papan' : 'Lihat'}
-                      </span>
-                      <span className="depth-tag">Depth {currentEval.depth || 14}</span>
-                    </div>
-                  </button>
-                )}
-
-                {/* Move List Notation Table */}
-                <div className="moves-notation-wrapper">
-                  <div className="moves-table-header">
-                    <span className="opening-name-text" title={openingName}>
-                      {openingName}
-                    </span>
-                    <div className="header-action-icons">
-                      {isVariationActive && (
-                        <button
-                          type="button"
-                          onClick={handleResetToOriginalGame}
-                          className="variation-reset-badge-btn"
-                          title="Kembalikan ke notasi pertandingan asli"
-                        >
-                          <RotateCcw size={12} />
-                          <span>Reset Variasi</span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="icon-subtle-btn"
-                        title="Simpan Variasi Pembukaan"
-                      >
-                        <Bookmark size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-subtle-btn"
-                        title="Eksplorasi Teori Pembukaan"
-                      >
-                        <Compass size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Move Feedback Card / Banner */}
-                  {currentPlyIndex === -1 ? (
-                    <div className="chesscom-move-feedback-banner start-pos">
-                      <div className="feedback-banner-header">
-                        <div className="feedback-badge-and-title">
-                          <span className="start-pos-icon">♟</span>
-                          <div className="feedback-title-group">
-                            <span className="feedback-classification-title">
-                              Posisi Awal Pertandingan
-                            </span>
-                            <span className="feedback-move-notation">Langkah 1</span>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="feedback-description-text">
-                        Papan catur dalam posisi standar pembukaan. Putar langkah dengan
-                        tombol navigasi di bawah untuk melihat umpan balik pedagogis
-                        setiap langkah catur dan analisis Stockfish.
-                      </p>
-                    </div>
-                  ) : moveHistory[currentPlyIndex] ? (
-                    <div
-                      className={`chesscom-move-feedback-banner classification-${
-                        moveHistory[currentPlyIndex].classification || 'good'
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => setIsFlipped(!isFlipped)}
+                      className="review-footer-btn"
+                      title="Putar Papan Catur"
                     >
-                      <div className="feedback-banner-header">
-                        <div className="feedback-badge-and-title">
-                          {moveHistory[currentPlyIndex].classification && (
-                            <ChessComBadgeIcon
-                              type={moveHistory[currentPlyIndex].classification!}
-                              size={24}
-                            />
-                          )}
-                          <div className="feedback-title-group">
-                            <span className="feedback-classification-title">
-                              {moveHistory[currentPlyIndex].feedbackTitle || 'Ulasan Langkah'}
-                            </span>
-                            <span className="feedback-move-notation">
-                              {moveHistory[currentPlyIndex].moveNumber}.
-                              {moveHistory[currentPlyIndex].color === 'b' ? '..' : ''}{' '}
-                              {moveHistory[currentPlyIndex].san}
-                            </span>
-                          </div>
-                        </div>
-                        {moveHistory[currentPlyIndex].timeSpent && (
-                          <span className="feedback-time-spent">
-                            ⏱ {moveHistory[currentPlyIndex].timeSpent}
-                          </span>
-                        )}
-                      </div>
-                      <p className="feedback-description-text">
-                        {moveHistory[currentPlyIndex].feedbackDescription ||
-                          'Analisis posisi langkah catur.'}
-                      </p>
-                      {moveHistory[currentPlyIndex].bestAlternative && (
-                        <div className="feedback-best-alternative">
-                          <span className="alt-label">Saran Alternatif:</span>
-                          <span className="alt-text">
-                            {moveHistory[currentPlyIndex].bestAlternative}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-
-                  <div className="moves-scroll-body" ref={movesScrollRef}>
-                    {moveRows.length === 0 ? (
-                      <div className="empty-moves-notice">
-                        Belum ada riwayat langkah. Gerakkan bidak catur di papan untuk mulai
-                        analisis!
-                      </div>
-                    ) : (
-                      moveRows.map((row) => {
-                        const isWhiteActive =
-                          row.white && currentPlyIndex === row.white.ply - 1;
-                        const isBlackActive =
-                          row.black && currentPlyIndex === row.black.ply - 1;
-
-                        return (
-                          <div key={row.number} className="move-table-row">
-                            <span className="move-number-col">{row.number}.</span>
-
-                            {/* White Move */}
-                            {row.white ? (
-                              <button
-                                type="button"
-                                onClick={() => row.white && jumpToPly(row.white.ply - 1)}
-                                className={`move-btn white ${isWhiteActive ? 'active' : ''}`}
-                                title={`${row.white.feedbackTitle || ''}: ${row.white.san}`}
-                              >
-                                <div className="move-content-inline">
-                                  {renderMoveFigurine(row.white.piece, 'w', row.white.san)}
-                                  <span className="move-san-text">
-                                    {formatSanWithoutPiece(row.white.san)}
-                                  </span>
-                                  {row.white.classification && (
-                                    <ChessComBadgeIcon
-                                      type={row.white.classification}
-                                      size={14}
-                                    />
-                                  )}
-                                </div>
-                              </button>
-                            ) : (
-                              <div className="move-empty-cell" />
-                            )}
-
-                            {/* Black Move */}
-                            {row.black ? (
-                              <button
-                                type="button"
-                                onClick={() => row.black && jumpToPly(row.black.ply - 1)}
-                                className={`move-btn black ${isBlackActive ? 'active' : ''}`}
-                                title={`${row.black.feedbackTitle || ''}: ${row.black.san}`}
-                              >
-                                <div className="move-content-inline">
-                                  {renderMoveFigurine(row.black.piece, 'b', row.black.san)}
-                                  <span className="move-san-text">
-                                    {formatSanWithoutPiece(row.black.san)}
-                                  </span>
-                                  {row.black.classification && (
-                                    <ChessComBadgeIcon
-                                      type={row.black.classification}
-                                      size={14}
-                                    />
-                                  )}
-                                </div>
-                              </button>
-                            ) : (
-                              <div className="move-empty-cell" />
-                            )}
-
-                            {/* Times column with evaluation bars */}
-                            <div className="move-times-col">
-                              {row.white?.timeSpent && (
-                                <div className="move-time-item">
-                                  <span
-                                    className="time-bar white-bar"
-                                    style={{
-                                      width: `${Math.min(
-                                        18,
-                                        Math.max(
-                                          4,
-                                          Math.round(parseFloat(row.white.timeSpent) * 2.5)
-                                        )
-                                      )}px`,
-                                    }}
-                                  />
-                                  <span>{row.white.timeSpent}</span>
-                                </div>
-                              )}
-                              {row.black?.timeSpent && (
-                                <div className="move-time-item">
-                                  <span
-                                    className="time-bar black-bar"
-                                    style={{
-                                      width: `${Math.min(
-                                        18,
-                                        Math.max(
-                                          4,
-                                          Math.round(parseFloat(row.black.timeSpent) * 2.5)
-                                        )
-                                      )}px`,
-                                    }}
-                                  />
-                                  <span>{row.black.timeSpent}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
+                      <RotateCcw size={13} />
+                      <span>Putar</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyFen}
+                      className="review-footer-btn"
+                      title="Salin FEN"
+                    >
+                      {copiedFen ? <Check size={13} /> : <Copy size={13} />}
+                      <span>{copiedFen ? 'Tersalin' : 'FEN'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyPgn}
+                      className="review-footer-btn"
+                      title="Salin PGN"
+                    >
+                      {copiedPgn ? <Check size={13} /> : <Share2 size={13} />}
+                      <span>{copiedPgn ? 'Tersalin' : 'PGN'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsSoundModalOpen(true)}
+                      className="review-footer-btn"
+                      title="Pengaturan Efek Suara Catur"
+                    >
+                      <Volume2 size={13} />
+                      <span>Suara</span>
+                    </button>
+                    {match?.chessComUrl && (
+                      <a
+                        href={match.chessComUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="review-footer-btn"
+                        title="Buka langsung di Chess.com"
+                      >
+                        <ExternalLink size={13} />
+                        <span>Chess.com</span>
+                      </a>
                     )}
                   </div>
-
-                  {/* Moves Footer Summary Chips - Synchronized with Analysis Data */}
-                  <div className="moves-footer-summary">
-                    {REVIEW_CLASSIFICATIONS.map((c) => {
-                      const count =
-                        (calculatedCounts[c.type]?.w ?? 0) + (calculatedCounts[c.type]?.b ?? 0);
-                      if (count === 0) return null;
-                      return (
-                        <div
-                          key={c.type}
-                          className={`summary-chip summary-chip-${c.type}`}
-                          onClick={() => handleJumpToClassification(c.type)}
-                          style={{ cursor: 'pointer' }}
-                          title={`Klik untuk melihat langkah ${c.label} (${count} langkah)`}
-                        >
-                          <ChessComBadgeIcon type={c.type} size={14} />
-                          <span>
-                            <b style={{ color: c.color }}>{count}</b>{' '}
-                            <span style={{ color: c.color }}>{c.label}</span>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
-
-                {/* Media Playback Navigation Toolbar */}
-                <div className="media-playback-toolbar">
-                  <button
-                    type="button"
-                    onClick={handleFirstMove}
-                    disabled={currentPlyIndex <= -1}
-                    className="media-nav-btn"
-                    title="Awal Pertandingan"
-                  >
-                    <ChevronsLeft size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handlePrevMove}
-                    disabled={currentPlyIndex <= -1}
-                    className="media-nav-btn"
-                    title="Langkah Sebelumnya"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsPlayingReplay(!isPlayingReplay)}
-                    className="media-nav-btn play-btn"
-                    title={isPlayingReplay ? 'Jeda' : 'Putar Replay'}
-                  >
-                    {isPlayingReplay ? (
-                      <Pause size={17} fill="currentColor" />
-                    ) : (
-                      <Play size={17} fill="currentColor" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNextMove}
-                    disabled={currentPlyIndex >= moveHistory.length - 1}
-                    className="media-nav-btn"
-                    title="Langkah Berikutnya"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLastMove}
-                    disabled={currentPlyIndex >= moveHistory.length - 1}
-                    className="media-nav-btn"
-                    title="Akhir Pertandingan"
-                  >
-                    <ChevronsRight size={16} />
-                  </button>
-                </div>
-
-                {/* Bottom Utility Controls */}
-                <div className="analysis-utility-row">
-                  <button
-                    type="button"
-                    onClick={() => setIsFlipped(!isFlipped)}
-                    className="util-btn"
-                    title="Putar Papan Catur (Flip Board)"
-                  >
-                    <RotateCcw size={14} />
-                    <span>Putar Papan</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyFen}
-                    className="util-btn"
-                    title="Salin Notasi FEN Posisi Ini"
-                  >
-                    {copiedFen ? <Check size={14} className="copied-icon" /> : <Copy size={14} />}
-                    <span>{copiedFen ? 'Tersalin!' : 'Copy FEN'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyPgn}
-                    className="util-btn"
-                    title="Salin Notasi Lengkap PGN"
-                  >
-                    {copiedPgn ? <Check size={14} className="copied-icon" /> : <Share2 size={14} />}
-                    <span>{copiedPgn ? 'Tersalin!' : 'Copy PGN'}</span>
-                  </button>
-
-                  {match?.chessComUrl && (
-                    <a
-                      href={match.chessComUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="util-btn link-chesscom"
-                      title="Buka langsung di Chess.com"
-                    >
-                      <ExternalLink size={13} />
-                      <span>Chess.com</span>
-                    </a>
-                  )}
-                </div>
-              </div>
-            )}
+              )}
           </aside>
         </div>
+
+        {/* Chess Sound Effects & Theme Settings Modal */}
+        <ChessSoundSettingsModal
+          isOpen={isSoundModalOpen}
+          onClose={() => setIsSoundModalOpen(false)}
+        />
       </div>
     </div>
   );

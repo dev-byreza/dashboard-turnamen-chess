@@ -32,7 +32,9 @@ import {
   setCachedTournamentStore,
   getCachedDbStatus,
 } from '../utils/tournamentStoreCache';
-import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles } from 'lucide-react';
+import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles, Volume2 } from 'lucide-react';
+import { ChessSoundSettingsModal } from '../components/ChessSoundSettingsModal';
+
 
 export default function SwissTournamentPage() {
   const cachedStore = getCachedTournamentStore();
@@ -71,6 +73,7 @@ export default function SwissTournamentPage() {
   const [isManagerOpen, setIsManagerOpen] = useState<boolean>(false);
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
+  const [isSoundModalOpen, setIsSoundModalOpen] = useState<boolean>(false);
   const [managerTab, setManagerTab] = useState<'tournaments' | 'roster'>('tournaments');
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
@@ -614,6 +617,16 @@ export default function SwissTournamentPage() {
 
                 <button
                   type="button"
+                  onClick={() => setIsSoundModalOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Pengaturan Suara & Tema Audio Bidak Catur (9 Tema)"
+                >
+                  <Volume2 size={15} style={{ color: '#a78bfa' }} />
+                  <span>Suara</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleLogout}
                   className="btn-glass-secondary btn-logout"
                   title="Keluar dari sesi Admin"
@@ -651,6 +664,16 @@ export default function SwissTournamentPage() {
                 >
                   <Clock size={15} style={{ color: '#7dd3fc' }} />
                   <span>Jam catur</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSoundModalOpen(true)}
+                  className="btn-glass-secondary"
+                  title="Pengaturan Suara & Tema Audio Bidak Catur (9 Tema)"
+                >
+                  <Volume2 size={15} style={{ color: '#a78bfa' }} />
+                  <span>Suara</span>
                 </button>
 
                 <button
@@ -803,6 +826,12 @@ export default function SwissTournamentPage() {
           onClose={() => setIsAnalysisModalOpen(false)}
         />
       )}
+
+      {/* Chess Sound Effects & Theme Settings Modal */}
+      <ChessSoundSettingsModal
+        isOpen={isSoundModalOpen}
+        onClose={() => setIsSoundModalOpen(false)}
+      />
     </main>
   );
 }

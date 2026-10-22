@@ -164,12 +164,42 @@ class StockfishEngineService {
 
   /**
    * Evaluate a single FEN position up to given depth
+   * Prioritizes /api/stockfish backend (Lichess Cloud Eval & Stockfish 16 Engine)
+   * Falls back to local Web Worker if network is unavailable
    */
   public async evaluatePosition(
     fen: string,
     depth = 14,
     onProgress?: (progress: PositionEvaluation) => void
   ): Promise<PositionEvaluation> {
+    const cleanFen = fen.trim();
+
+    // 1. Try Next.js Backend Stockfish Route first (super fast, depth 40-62)
+    try {
+      const res = await fetch(`/api/stockfish?fen=${encodeURIComponent(cleanFen)}&depth=${depth}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success) {
+          const evalResult: PositionEvaluation = {
+            fen: cleanFen,
+            depth: data.depth || depth,
+            scoreCp: data.scoreCp || 0,
+            scoreDisplay: data.scoreDisplay || '0.0',
+            mateIn: data.mateIn,
+            winChanceWhite: data.winChanceWhite ?? centipawnsToWinChance(data.scoreCp || 0, data.mateIn),
+            bestMoveUci: data.bestMoveUci,
+            bestMoveSan: data.bestMoveSan,
+            isThinking: false,
+          };
+          if (onProgress) onProgress(evalResult);
+          return evalResult;
+        }
+      }
+    } catch {
+      // Backend unavailable or offline, continue to local Web Worker
+    }
+
+    // 2. Local Web Worker fallback
     await this.init();
 
     this.stopEvaluation();
@@ -178,7 +208,7 @@ class StockfishEngineService {
       this.currentEvalReject = reject;
 
       let latestEval: PositionEvaluation = {
-        fen,
+        fen: cleanFen,
         depth: 0,
         scoreCp: 0,
         scoreDisplay: '0.0',
@@ -186,7 +216,7 @@ class StockfishEngineService {
         isThinking: true,
       };
 
-      const isBlackToMove = fen.trim().split(' ')[1] === 'b';
+      const isBlackToMove = cleanFen.split(' ')[1] === 'b';
 
       const lineHandler = (line: string) => {
         // e.g.: info depth 14 seldepth 18 score cp 85 nodes 45000 nps 1200000 pv e2e4 e7e5
@@ -221,7 +251,7 @@ class StockfishEngineService {
           const bestUci = pvMoves && pvMoves.length > 0 ? pvMoves[0] : latestEval.bestMoveUci;
 
           latestEval = {
-            fen,
+            fen: cleanFen,
             depth: currentDepth,
             scoreCp: cp,
             scoreDisplay: scoreText,
@@ -256,7 +286,7 @@ class StockfishEngineService {
       this.addMessageListener(lineHandler);
 
       this.sendCommand('ucinewgame');
-      this.sendCommand(`position fen ${fen}`);
+      this.sendCommand(`position fen ${cleanFen}`);
       this.sendCommand(`go depth ${depth}`);
     });
   }
@@ -281,3 +311,17 @@ export function getStockfishEngine(): StockfishEngineService {
   }
   return engineSingleton;
 }
+
+export async function fetchStockfishEvaluation(
+  fen: string,
+  depth = 14
+): Promise<PositionEvaluation | null> {
+  try {
+    const engine = getStockfishEngine();
+    return await engine.evaluatePosition(fen, depth);
+  } catch (err) {
+    console.warn('[Stockfish] Evaluation failed:', err);
+    return null;
+  }
+}
+

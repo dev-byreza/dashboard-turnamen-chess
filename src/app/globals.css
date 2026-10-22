@@ -6344,6 +6344,389 @@ button, input, select, textarea {
   border-top: 1px solid rgba(20, 33, 61, 0.08);
 }
 
+/* ==========================================================================
+   CHESS.COM SOUND EFFECTS & THEME SETTINGS MODAL
+   ========================================================================== */
+.chess-sound-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  animation: chessSoundFadeIn 0.2s ease-out;
+}
+
+@keyframes chessSoundFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chess-sound-modal-content {
+  background: #262421;
+  color: #ffffff;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid #3d3b37;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  animation: chessSoundSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes chessSoundSlideUp {
+  from {
+    transform: translateY(18px) scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.chess-sound-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1px solid #363430;
+  background: #211f1c;
+}
+
+.modal-title-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modal-title-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(129, 182, 76, 0.16);
+  color: #81b64c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chess-sound-modal-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.chess-sound-modal-header p {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.78rem;
+  color: #989795;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #989795;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+/* Sound Global Toggle Card */
+.chess-sound-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 1rem 1.4rem 0.5rem;
+  padding: 0.85rem 1.1rem;
+  background: #1e1d1a;
+  border: 1px solid #363430;
+  border-radius: 10px;
+}
+
+.toggle-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sound-status-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sound-status-icon.active {
+  background: rgba(129, 182, 76, 0.15);
+  color: #81b64c;
+}
+
+.sound-status-icon.muted {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.toggle-info h4 {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.toggle-info p {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.74rem;
+  color: #989795;
+}
+
+.btn-sound-toggle-switch {
+  width: 48px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s ease;
+  padding: 2px;
+}
+
+.btn-sound-toggle-switch.on {
+  background: #81b64c;
+}
+
+.btn-sound-toggle-switch.off {
+  background: #45433e;
+}
+
+.btn-sound-toggle-switch .toggle-thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.2s ease;
+}
+
+.btn-sound-toggle-switch.on .toggle-thumb {
+  transform: translateX(22px);
+}
+
+.btn-sound-toggle-switch.off .toggle-thumb {
+  transform: translateX(0);
+}
+
+/* Sound Theme List Section */
+.chess-sound-theme-section {
+  padding: 0.75rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #8b8987;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.65rem;
+  text-transform: uppercase;
+}
+
+.sound-themes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  max-height: 380px;
+  padding-right: 0.35rem;
+}
+
+.sound-themes-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sound-themes-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.sound-themes-list::-webkit-scrollbar-thumb {
+  background: #45433e;
+  border-radius: 4px;
+}
+
+.sound-theme-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.95rem;
+  background: #1e1d1a;
+  border: 1px solid #363430;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sound-theme-card:hover {
+  background: #2b2926;
+  border-color: #4f4c47;
+}
+
+.sound-theme-card.is-selected {
+  background: rgba(129, 182, 76, 0.1);
+  border-color: #81b64c;
+}
+
+.theme-card-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.theme-emoji-badge {
+  font-size: 1.35rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.theme-text-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.theme-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.theme-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.theme-active-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #81b64c;
+  color: #ffffff;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+
+.theme-desc {
+  font-size: 0.73rem;
+  color: #989795;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.1rem;
+}
+
+.theme-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.btn-preview-audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #dddddd;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-preview-audio:hover {
+  background: #81b64c;
+  border-color: #81b64c;
+  color: #ffffff;
+}
+
+.btn-preview-audio.capture:hover {
+  background: #e27236;
+  border-color: #e27236;
+  color: #ffffff;
+}
+
+/* Modal Footer */
+.chess-sound-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.4rem;
+  background: #211f1c;
+  border-top: 1px solid #363430;
+}
+
+.footer-note {
+  font-size: 0.74rem;
+  color: #8b8987;
+}
+
+.btn-modal-done {
+  background: #81b64c;
+  color: #ffffff;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.5rem 1.25rem;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-modal-done:hover {
+  background: #73a642;
+}
+
+
 
 
 
