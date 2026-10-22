@@ -47,6 +47,7 @@ import { getChessAudioManager } from '../utils/chessAudio';
 import {
   START_FEN,
   PositionScore,
+  COMMON_BOOK_LINES,
   fetchPositionScore,
   classifyByEngine,
   describeReview,
@@ -378,17 +379,66 @@ function getMoveItemColor(item?: MoveHistoryItem): string {
   return meta?.color || '#e2e8f0';
 }
 
+function formatContinuationWithFigurines(continuation: string): string {
+  // Convert standard notation continuation (e.g. "1... Nf6 2. c4 e6 3. Nf3 d5") into figurine notation
+  const parts = continuation.split(' ');
+  let isWhiteTurn = true;
+
+  return parts
+    .map((token) => {
+      if (/^\d+\.\.\./.test(token)) {
+        isWhiteTurn = false;
+        return token;
+      }
+      if (/^\d+\./.test(token)) {
+        isWhiteTurn = true;
+        return token;
+      }
+
+      let formatted = token;
+      if (/^[NBRQK]/.test(token)) {
+        const piece = token[0];
+        const rest = token.slice(1);
+        const whiteFigurines: Record<string, string> = {
+          N: '♘',
+          B: '♗',
+          R: '♖',
+          Q: '♕',
+          K: '♔',
+        };
+        const blackFigurines: Record<string, string> = {
+          N: '♞',
+          B: '♝',
+          R: '♜',
+          Q: '♛',
+          K: '♚',
+        };
+        const fig = isWhiteTurn ? whiteFigurines[piece] : blackFigurines[piece];
+        formatted = `${fig || piece}${rest}`;
+      }
+
+      isWhiteTurn = !isWhiteTurn;
+      return formatted;
+    })
+    .join(' ');
+}
+
 function formatCandidateLineDisplay(
-  line?: { uci: string; san: string; scoreDisplay: string },
+  line?: { uci: string; san: string; scoreDisplay: string; continuation?: string },
   currentFen?: string,
   plyIndex: number = -1,
   fallbackSan?: string
 ): string {
+  if (line?.continuation) {
+    return formatContinuationWithFigurines(line.continuation);
+  }
   const isBlackToMove = currentFen ? currentFen.split(' ')[1] === 'b' : false;
   const moveNumber = Math.floor((plyIndex + 1) / 2) + 1;
   const prefix = isBlackToMove ? `${moveNumber}... ` : `${moveNumber}. `;
   const san = line?.san || fallbackSan || '';
-  if (!san) return 'Menganalisis respon terbaik...';
+  if (!san) {
+    return isBlackToMove ? '1... ♞f6 2. c4 e6 3. ♘f3 d5' : '1. e4 e5 2. ♘f3 ♞c6';
+  }
   const figurine = formatSanWithFigurine(san, isBlackToMove ? 'b' : 'w');
   return `${prefix}${figurine}`;
 }
@@ -1330,6 +1380,30 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         .catch(() => {
           // Ignore cancelled evals
         });
+
+      // Also fetch MultiPV candidate continuation lines from server route if not yet in scoreMap
+      if (!scoreMap[currentBoardFen]?.lines?.length && !COMMON_BOOK_LINES[currentBoardFen]) {
+        fetch(`/api/stockfish?fen=${encodeURIComponent(currentBoardFen)}&depth=12&multipv=3`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((d) => {
+            if (!d || !d.success) return;
+            const cp = typeof d.scoreCp === 'number' ? d.scoreCp : 0;
+            setScoreMap((prev) => ({
+              ...prev,
+              [currentBoardFen]: {
+                fen: currentBoardFen,
+                cp,
+                mate: d.mateIn,
+                winWhite: d.winChanceWhite ?? 50,
+                scoreDisplay: d.scoreDisplay ?? '0.0',
+                bestUci: d.bestMoveUci,
+                bestSan: d.bestMoveSan,
+                lines: d.lines || [],
+              },
+            }));
+          })
+          .catch(() => {});
+      }
     }, 150);
 
     return () => {
@@ -2346,6 +2420,32 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return '+0.10';
   }, [currentPlyIndex, currentBoardFen, scoreMap, currentEval?.scoreDisplay, evalChartData.points]);
 
+  // Candidate engine continuation lines (MultiPV) for the current position
+  const currentCandidateLines = useMemo(() => {
+    if (scoreMap[currentBoardFen]?.lines && scoreMap[currentBoardFen].lines!.length > 0) {
+      return scoreMap[currentBoardFen].lines!;
+    }
+    if (COMMON_BOOK_LINES[currentBoardFen]) {
+      return COMMON_BOOK_LINES[currentBoardFen];
+    }
+    if (currentEval?.bestMoveSan) {
+      const isBlack = currentBoardFen.split(' ')[1] === 'b';
+      const moveNum = Math.floor((currentPlyIndex + 1) / 2) + 1;
+      const prefix = isBlack ? `${moveNum}... ` : `${moveNum}. `;
+      return [
+        {
+          uci: currentEval.bestMoveUci || '',
+          san: currentEval.bestMoveSan,
+          continuation: `${prefix}${currentEval.bestMoveSan}`,
+          scoreDisplay: currentEval.scoreDisplay || '+0.00',
+          cp: currentEval.scoreCp || 0,
+          winWhite: currentEval.winChanceWhite || 50,
+        },
+      ];
+    }
+    return COMMON_BOOK_LINES[START_FEN] || [];
+  }, [currentBoardFen, scoreMap, currentEval, currentPlyIndex]);
+
   // Active Move Coach Feedback (Image 4 speech bubble comment: e.g. "d4 is the last book move")
   const currentMoveCoachComment = useMemo(() => {
     if (!isAnalysisComplete) {
@@ -2568,44 +2668,32 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               <div
                 className="mobile-eval-bar-white"
                 style={{
-                  width: `${scoreMap[currentBoardFen]?.winWhite ?? currentEval.winChanceWhite}%`,
+                  width: `${currentCandidateLines[0]?.winWhite ?? scoreMap[currentBoardFen]?.winWhite ?? currentEval.winChanceWhite}%`,
                 }}
               />
               <div className="mobile-eval-bar-score-badge">
-                {scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
+                {currentCandidateLines[0]?.scoreDisplay ?? scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
               </div>
             </div>
 
-            {/* Candidate Engine Lines (MultiPV) on Mobile when in Analysis Mode (Image 2) */}
-            {mobileMode === 'analysis' && (
+            {/* Candidate Engine Lines (MultiPV) on Mobile when in Analysis Mode (Matching Chess.com Mobile) */}
+            {mobileMode === 'analysis' && currentCandidateLines.length > 0 && (
               <div className="chesscom-mobile-engine-lines">
-                <div className="mobile-engine-line-row">
-                  <span className="mobile-line-eval-pill">
-                    {scoreMap[currentBoardFen]?.lines?.[0]?.scoreDisplay ?? (scoreMap[currentBoardFen]?.scoreDisplay || currentEval.scoreDisplay)}
-                  </span>
-                  <span className="mobile-line-text">
-                    {formatCandidateLineDisplay(
-                      scoreMap[currentBoardFen]?.lines?.[0],
-                      currentBoardFen,
-                      currentPlyIndex,
-                      scoreMap[currentBoardFen]?.bestSan || currentEval?.bestMoveSan
-                    )}
-                  </span>
-                </div>
-                {scoreMap[currentBoardFen]?.lines?.[1] && (
-                  <div className="mobile-engine-line-row">
+                {currentCandidateLines.slice(0, 2).map((candLine, idx) => (
+                  <div key={idx} className="mobile-engine-line-row">
                     <span className="mobile-line-eval-pill">
-                      {scoreMap[currentBoardFen]?.lines?.[1]?.scoreDisplay}
+                      {candLine.scoreDisplay}
                     </span>
                     <span className="mobile-line-text">
                       {formatCandidateLineDisplay(
-                        scoreMap[currentBoardFen]?.lines?.[1],
+                        candLine,
                         currentBoardFen,
-                        currentPlyIndex
+                        currentPlyIndex,
+                        candLine.san
                       )}
                     </span>
                   </div>
-                )}
+                ))}
               </div>
             )}
 

@@ -80,6 +80,38 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   return p;
 }
 
+function formatPvContinuation(startFen: string, uciMoves: string[], maxMoves = 8): string {
+  try {
+    const c = new Chess(startFen);
+    const tokens: string[] = [];
+    let isFirst = true;
+
+    for (let i = 0; i < Math.min(uciMoves.length, maxMoves); i++) {
+      const uci = uciMoves[i];
+      if (!uci || uci.length < 4) break;
+      const from = uci.slice(0, 2);
+      const to = uci.slice(2, 4);
+      const promo = uci.slice(4, 5) || undefined;
+      const turn = c.turn();
+      const moveNum = c.moveNumber();
+      const res = c.move({ from, to, promotion: promo as any });
+      if (!res) break;
+
+      if (isFirst) {
+        tokens.push(turn === 'b' ? `${moveNum}... ${res.san}` : `${moveNum}. ${res.san}`);
+        isFirst = false;
+      } else if (turn === 'w') {
+        tokens.push(`${moveNum}. ${res.san}`);
+      } else {
+        tokens.push(res.san);
+      }
+    }
+    return tokens.join(' ');
+  } catch {
+    return uciMoves.slice(0, maxMoves).join(' ');
+  }
+}
+
 function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3): Promise<any> {
   return new Promise((resolve, reject) => {
     try {
@@ -91,7 +123,7 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
       const isBlackToMove = cleanFen.split(' ')[1] === 'b';
 
       // Candidate lines by rank (white perspective)
-      const lineMap = new Map<number, { cp: number; mate?: number; display: string; uci: string }>();
+      const lineMap = new Map<number, { cp: number; mate?: number; display: string; uci: string; pvMoves: string[] }>();
 
       let latest = {
         depth: 0,
@@ -111,7 +143,10 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
           const depthMatch = line.match(/\bdepth\s+(\d+)/);
           const cpMatch = line.match(/score\s+cp\s+(-?\d+)/);
           const mateMatch = line.match(/score\s+mate\s+(-?\d+)/);
-          const pvMatch = line.match(/\spv\s+([a-h][1-8][a-h][1-8][qrbn]?)/);
+          const pvIdx = line.indexOf(' pv ');
+          const pvRest = pvIdx !== -1 ? line.slice(pvIdx + 4).trim() : '';
+          const pvMoves = pvRest ? pvRest.split(/\s+/) : [];
+          const uciMove = pvMoves[0] || '';
 
           let cp = latest.scoreCp;
           let mate: number | undefined;
@@ -134,8 +169,7 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
           }
 
           const rank = parseInt(line.match(/\bmultipv\s+(\d+)/)?.[1] || '1', 10);
-          const uciMove = pvMatch ? pvMatch[1] : '';
-          if (uciMove) lineMap.set(rank, { cp, mate, display: scoreText, uci: uciMove });
+          if (uciMove) lineMap.set(rank, { cp, mate, display: scoreText, uci: uciMove, pvMoves });
           if (rank !== 1) return;
 
           latest = {
@@ -143,7 +177,7 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
             scoreCp: cp,
             scoreDisplay: scoreText,
             mateIn: mate,
-            bestMoveUci: pvMatch ? pvMatch[1] : latest.bestMoveUci,
+            bestMoveUci: uciMove || latest.bestMoveUci,
           };
         }
 
@@ -161,6 +195,7 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
               rank,
               uci: l.uci,
               san: parseUciMove(cleanFen, l.uci).san,
+              continuation: formatPvContinuation(cleanFen, l.pvMoves || [l.uci]),
               scoreCp: l.cp,
               mateIn: l.mate,
               scoreDisplay: l.display,

@@ -18,7 +18,14 @@ export interface PositionScore {
   bestUci?: string;
   bestSan?: string;
   /** Top engine candidate lines (MultiPV), white perspective */
-  lines?: { uci: string; san: string; cp: number; winWhite: number; scoreDisplay: string }[];
+  lines?: {
+    uci: string;
+    san: string;
+    continuation?: string;
+    cp: number;
+    winWhite: number;
+    scoreDisplay: string;
+  }[];
 }
 
 export type ReviewLabel =
@@ -42,6 +49,69 @@ export interface ReviewedMove {
   evalAfter: PositionScore;
 }
 
+export const COMMON_BOOK_LINES: Record<
+  string,
+  { uci: string; san: string; continuation: string; cp: number; winWhite: number; scoreDisplay: string }[]
+> = {
+  // START_FEN (White to move)
+  'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1': [
+    {
+      uci: 'e2e4',
+      san: 'e4',
+      continuation: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6',
+      cp: 20,
+      winWhite: 52.0,
+      scoreDisplay: '+0.20',
+    },
+    {
+      uci: 'd2d4',
+      san: 'd4',
+      continuation: '1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7',
+      cp: 18,
+      winWhite: 51.8,
+      scoreDisplay: '+0.18',
+    },
+  ],
+  // 1. d4 (Black to move - Queen's Pawn Game)
+  'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq d3 0 1': [
+    {
+      uci: 'g8f6',
+      san: 'Nf6',
+      continuation: '1... Nf6 2. c4 e6 3. Nf3 d5 4. Nc3 Be7 5. Bf4 O-O',
+      cp: 17,
+      winWhite: 51.5,
+      scoreDisplay: '+0.17',
+    },
+    {
+      uci: 'd7d5',
+      san: 'd5',
+      continuation: '1... d5 2. Nf3 Nf6 3. c4 e6 4. Nc3 Bb4 5. Bg5 h6',
+      cp: 23,
+      winWhite: 52.3,
+      scoreDisplay: '+0.23',
+    },
+  ],
+  // 1. e4 (Black to move - King's Pawn Game)
+  'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1': [
+    {
+      uci: 'e7e5',
+      san: 'e5',
+      continuation: '1... e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O',
+      cp: 22,
+      winWhite: 52.2,
+      scoreDisplay: '+0.22',
+    },
+    {
+      uci: 'c7c5',
+      san: 'c5',
+      continuation: '1... c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3',
+      cp: 28,
+      winWhite: 52.8,
+      scoreDisplay: '+0.28',
+    },
+  ],
+};
+
 import { getStockfishEngine } from './stockfishEngine';
 
 export async function fetchPositionScore(
@@ -49,13 +119,17 @@ export async function fetchPositionScore(
   depth: number,
   signal?: AbortSignal
 ): Promise<PositionScore | null> {
-  // 1. Fast book check: START_FEN and known opening theory are neutral/book
-  if (fen === START_FEN || isBookPosition(fen)) {
+  // 1. Fast book check with full theoretical candidate lines
+  if (COMMON_BOOK_LINES[fen]) {
+    const bookLines = COMMON_BOOK_LINES[fen];
     return {
       fen,
-      cp: 15,
-      winWhite: 50.5,
-      scoreDisplay: '+0.1',
+      cp: bookLines[0].cp,
+      winWhite: bookLines[0].winWhite,
+      scoreDisplay: bookLines[0].scoreDisplay,
+      bestUci: bookLines[0].uci,
+      bestSan: bookLines[0].san,
+      lines: bookLines,
     };
   }
 
@@ -84,6 +158,7 @@ export async function fetchPositionScore(
             ? d.lines.map((l: any) => ({
                 uci: l.uci,
                 san: l.san,
+                continuation: l.continuation,
                 cp: l.scoreCp,
                 winWhite: l.winChanceWhite,
                 scoreDisplay: l.scoreDisplay,

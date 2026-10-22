@@ -2364,11 +2364,11 @@
     transform: translateY(-50%) !important;
     background: #ffffff !important;
     color: #121212 !important;
-    font-size: 0.72rem !important;
+    font-size: 0.74rem !important;
     font-weight: 800 !important;
     padding: 1px 6px !important;
     border-radius: 3px !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
     font-family: ui-monospace, SFMono-Regular, monospace !important;
     line-height: 1.2 !important;
   }
@@ -2377,38 +2377,41 @@
   .chesscom-mobile-engine-lines {
     display: flex !important;
     flex-direction: column !important;
-    background: #21201d !important;
+    background: #181715 !important;
     border-bottom: 1px solid #2e2c28 !important;
-    padding: 0.35rem 0.65rem !important;
+    padding: 0.3rem 0.65rem !important;
     gap: 0.25rem !important;
     flex-shrink: 0 !important;
   }
   .mobile-engine-line-row {
     display: flex !important;
     align-items: center !important;
-    gap: 0.5rem !important;
-    font-size: 0.82rem !important;
-    color: #d1d5db !important;
+    gap: 0.55rem !important;
+    font-size: 0.84rem !important;
+    color: #ffffff !important;
     font-family: ui-monospace, SFMono-Regular, monospace !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
   }
   .mobile-line-eval-pill {
-    background: #312f2b !important;
-    color: #e2e4e8 !important;
-    border: 1px solid #4a4742 !important;
+    background: #ffffff !important;
+    color: #121212 !important;
+    border: none !important;
     font-size: 0.72rem !important;
     font-weight: 800 !important;
-    padding: 0.05rem 0.4rem !important;
+    padding: 1px 6px !important;
     border-radius: 4px !important;
     flex-shrink: 0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45) !important;
+    line-height: 1.2 !important;
   }
   .mobile-line-text {
-    font-weight: 600 !important;
-    color: #e5e7eb !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+    letter-spacing: -0.01em !important;
   }
 
   /* STRICT 1:1 SQUARE CHESSBOARD on mobile */
