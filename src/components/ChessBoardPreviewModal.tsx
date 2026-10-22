@@ -1125,6 +1125,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   }, [isOpen]);
 
   const replayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const moveHistoryRef = useRef<MoveHistoryItem[]>([]);
+  moveHistoryRef.current = moveHistory;
   const evalDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const reviewMovesScrollRef = useRef<HTMLDivElement>(null);
 
@@ -1295,6 +1297,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Jump to specific ply in move history with sound effects
   const jumpToPly = (plyIndex: number, playAudio = true) => {
+    setIsPlayingReplay(false);
     setCurrentPlyIndex(plyIndex);
     setSelectedSquare(null);
     setLegalMoves([]);
@@ -1315,21 +1318,61 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
 
   // Step navigation
-  const handleFirstMove = () => jumpToPly(-1);
-  const handlePrevMove = () => jumpToPly(Math.max(-1, currentPlyIndex - 1));
-  const handleNextMove = () => jumpToPly(Math.min(moveHistory.length - 1, currentPlyIndex + 1));
-  const handleLastMove = () => jumpToPly(moveHistory.length - 1);
+  const handleFirstMove = () => {
+    setIsPlayingReplay(false);
+    jumpToPly(-1);
+  };
+  const handlePrevMove = () => {
+    setIsPlayingReplay(false);
+    jumpToPly(Math.max(-1, currentPlyIndex - 1));
+  };
+  const handleNextMove = () => {
+    setIsPlayingReplay(false);
+    jumpToPly(Math.min(moveHistory.length - 1, currentPlyIndex + 1));
+  };
+  const handleLastMove = () => {
+    setIsPlayingReplay(false);
+    jumpToPly(moveHistory.length - 1);
+  };
 
-  // Auto-play replay loop
+  const handleTogglePlayReplay = () => {
+    if (!isPlayingReplay) {
+      if (currentPlyIndex >= moveHistory.length - 1) {
+        // If at the end, restart from opening move with sound
+        jumpToPly(0, true);
+      }
+      setIsPlayingReplay(true);
+    } else {
+      setIsPlayingReplay(false);
+    }
+  };
+
+  // Auto-play replay loop with audio sound effects on every move
   useEffect(() => {
     if (isPlayingReplay) {
       replayTimerRef.current = setInterval(() => {
         setCurrentPlyIndex((prev) => {
-          if (prev >= moveHistory.length - 1) {
+          const history = moveHistoryRef.current;
+          if (prev >= history.length - 1) {
             setIsPlayingReplay(false);
             return prev;
           }
-          return prev + 1;
+          const nextIndex = prev + 1;
+          const m = history[nextIndex];
+          if (m) {
+            getChessAudioManager().playMoveSound({
+              san: m.san,
+              isCapture: !!m.captured,
+              isCheck: m.san.includes('+') || m.san.includes('#'),
+              isCastle: m.san.startsWith('O-O'),
+              isPromotion: !!m.promotion,
+              color: m.color,
+            });
+          }
+          setSelectedSquare(null);
+          setLegalMoves([]);
+          setShowBestMove(false);
+          return nextIndex;
         });
       }, 1000);
     } else {
@@ -1338,7 +1381,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return () => {
       if (replayTimerRef.current) clearInterval(replayTimerRef.current);
     };
-  }, [isPlayingReplay, moveHistory.length]);
+  }, [isPlayingReplay]);
 
   // Evaluate the decision position (prevFen) with Stockfish 19 Lite to verify the best move
   useEffect(() => {
@@ -1812,13 +1855,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       P: 8, N: 2, B: 2, R: 2, Q: 1,
       p: 8, n: 2, b: 2, r: 2, q: 1,
     };
-    const whiteCaptured: string[] = [];
-    ['P', 'N', 'B', 'R', 'Q'].forEach((p) => {
+    const whiteCaptured: PieceCode[] = [];
+    (['P', 'N', 'B', 'R', 'Q'] as PieceCode[]).forEach((p) => {
       const lost = Math.max(0, initialCounts[p] - counts[p]);
-      for (let i = 0; i < lost; i++) whiteCaptured.push(p.toLowerCase());
+      for (let i = 0; i < lost; i++) whiteCaptured.push(p);
     });
-    const blackCaptured: string[] = [];
-    ['p', 'n', 'b', 'r', 'q'].forEach((p) => {
+    const blackCaptured: PieceCode[] = [];
+    (['p', 'n', 'b', 'r', 'q'] as PieceCode[]).forEach((p) => {
       const lost = Math.max(0, initialCounts[p] - counts[p]);
       for (let i = 0; i < lost; i++) blackCaptured.push(p);
     });
@@ -2412,9 +2455,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   )}
                   <div className="player-captured-row">
                     <div className="captured-icons-list">
-                      {(isFlipped ? capturedPieces.blackCapturedByWhite : capturedPieces.whiteCapturedByBlack).slice(0, 8).map((p, idx) => (
+                      {(isFlipped ? capturedPieces.blackCapturedByWhite : capturedPieces.whiteCapturedByBlack).map((p, idx) => (
                         <span key={idx} className="captured-piece-mini">
-                          {p === 'p' ? '♟' : p.toUpperCase()}
+                          <ChessComNeoPiece piece={p} size={15} />
                         </span>
                       ))}
                     </div>
@@ -2424,16 +2467,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       </span>
                     )}
                   </div>
-                  {isAnalysisComplete && (
-                    <div className="player-profile-stats-row">
-                      <span className={`player-profile-acc-pill ${isFlipped ? 'white' : 'black'}`}>
-                        Akurasi {isFlipped ? reviewStats.whiteAccuracy : reviewStats.blackAccuracy}%
-                      </span>
-                      <span className="player-profile-rating-pill" title="Estimasi Performa Rating Permainan">
-                        Est. {isFlipped ? reviewStats.whiteGameRating : reviewStats.blackGameRating}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
               <div className="player-clock-box">
@@ -2652,9 +2685,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   )}
                   <div className="player-captured-row">
                     <div className="captured-icons-list">
-                      {(isFlipped ? capturedPieces.whiteCapturedByBlack : capturedPieces.blackCapturedByWhite).slice(0, 8).map((p, idx) => (
+                      {(isFlipped ? capturedPieces.whiteCapturedByBlack : capturedPieces.blackCapturedByWhite).map((p, idx) => (
                         <span key={idx} className="captured-piece-mini">
-                          {p === 'p' ? '♙' : p.toUpperCase()}
+                          <ChessComNeoPiece piece={p} size={15} />
                         </span>
                       ))}
                     </div>
@@ -2664,16 +2697,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       </span>
                     )}
                   </div>
-                  {isAnalysisComplete && (
-                    <div className="player-profile-stats-row">
-                      <span className={`player-profile-acc-pill ${isFlipped ? 'black' : 'white'}`}>
-                        Akurasi {isFlipped ? reviewStats.blackAccuracy : reviewStats.whiteAccuracy}%
-                      </span>
-                      <span className="player-profile-rating-pill" title="Estimasi Performa Rating Permainan">
-                        Est. {isFlipped ? reviewStats.blackGameRating : reviewStats.whiteGameRating}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
               <div className="player-clock-box active-clock">
@@ -3384,7 +3407,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIsPlayingReplay(!isPlayingReplay)}
+                      onClick={handleTogglePlayReplay}
                       className="review-nav-btn btn-play-pause"
                       title={
                         isPlayingReplay

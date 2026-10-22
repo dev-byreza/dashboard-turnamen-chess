@@ -169,13 +169,23 @@ class ChessAudioManager {
       let audio = this.audioCache.get(url);
       if (!audio) {
         audio = new Audio(url);
+        audio.preload = 'auto';
         this.audioCache.set(url, audio);
       }
-      audio.currentTime = 0;
-      const playPromise = audio.play();
+
+      // Clone audio instance to support rapid and uninterrupted autoplay
+      const clone = audio.cloneNode(true) as HTMLAudioElement;
+      clone.volume = 0.9;
+      const playPromise = clone.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
-          // Ignore autoplay restriction errors before user interaction
+          // Fallback to original audio element
+          try {
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+          } catch {
+            // Audio playback failed
+          }
         });
       }
     } catch {

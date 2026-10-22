@@ -381,27 +381,41 @@
 .player-captured-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.35rem;
   margin-top: 0.15rem;
+  min-height: 18px;
 }
 
 .captured-icons-list {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 1px;
+  flex-wrap: wrap;
+  gap: 1.5px;
 }
 
 .captured-piece-mini {
-  font-size: 0.85rem;
-  line-height: 1;
-  color: #c4c2be;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.captured-piece-mini .chess-piece-vector {
+  width: 15px;
+  height: 15px;
+  display: block;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.45)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
 
 .captured-advantage-score {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 800;
   color: #9ca3af;
   margin-left: 0.2rem;
+  line-height: 1;
 }
 
 /* Board + Eval Bar Wrapper */
