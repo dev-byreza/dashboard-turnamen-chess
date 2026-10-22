@@ -55,7 +55,14 @@ import {
   LABEL_TITLE,
   calculateGameRating,
 } from '../utils/gameReview';
-import { detectOpeningFromFens, isBookPosition } from '../utils/openingBook';
+import {
+  detectOpeningFromFens,
+  isBookPosition,
+  lookupOpening,
+  getOpeningBookMoves,
+  BookMoveInfo,
+  OpeningInfo,
+} from '../utils/openingBook';
 import { ChessSoundSettingsModal } from './ChessSoundSettingsModal';
 import { ChessEngineSettingsModal } from './ChessEngineSettingsModal';
 
@@ -2200,6 +2207,41 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return detectOpening(moveHistory, pgnData);
   }, [moveHistory, recentGame?.pgn, match?.chessComPgn]);
 
+  // Current board position opening info (for Opening Explorer & real-time opening bar)
+  const currentBoardOpening = useMemo<OpeningInfo | null>(() => {
+    // 1. Direct hit on current FEN
+    const directHit = lookupOpening(currentBoardFen);
+    if (directHit) return directHit;
+
+    // 2. Deepest opening from move history up to current ply
+    if (currentPlyIndex >= 0 && rawMoveHistory.length > 0) {
+      const fensUpToCurrent = [
+        START_FEN,
+        ...rawMoveHistory.slice(0, currentPlyIndex + 1).map((m) => m.fen),
+      ];
+      const deepHit = detectOpeningFromFens(fensUpToCurrent);
+      if (deepHit) return deepHit;
+    }
+
+    if (currentBoardFen === START_FEN) {
+      return { eco: 'A00', name: 'Starting Position (Posisi Awal)', plies: 0 };
+    }
+
+    // 3. Fallback to game opening if available
+    const gameOpening = detectOpeningFromFens(rawMoveHistory.map((m) => m.fen));
+    if (gameOpening) return gameOpening;
+
+    return null;
+  }, [currentBoardFen, currentPlyIndex, rawMoveHistory]);
+
+  const isCurrentPositionInBook = useMemo(() => {
+    return isBookPosition(currentBoardFen);
+  }, [currentBoardFen]);
+
+  const currentBookMoves = useMemo<BookMoveInfo[]>(() => {
+    return getOpeningBookMoves(currentBoardFen);
+  }, [currentBoardFen]);
+
   // Synchronized counts directly from moveHistory classifications
   const calculatedCounts = useMemo(() => {
     const counts: Record<ChessComBadgeType, { w: number; b: number }> = {
@@ -2761,6 +2803,146 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setIsReviewActive(true);
   };
 
+  const renderOpeningExplorerContent = () => (
+    <div className="chesscom-explorer-container">
+      {/* Explorer Header */}
+      <div className="explorer-header">
+        <div className="explorer-header-left">
+          <Compass size={16} className="explorer-header-icon" />
+          <span className="explorer-header-title">Opening Explorer</span>
+          <span className="explorer-ply-badge">
+            {currentPlyIndex < 0
+              ? 'Posisi Awal'
+              : `Langkah ${Math.floor(currentPlyIndex / 2) + 1} (${currentPlyIndex % 2 === 0 ? 'Putih' : 'Hitam'})`}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowExplorer(false)}
+          className="explorer-close-btn"
+          title="Tutup Explorer"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Current Opening Card */}
+      <div className="explorer-opening-card">
+        <div className="explorer-eco-pill">
+          {currentBoardOpening?.eco || 'A00'}
+        </div>
+        <div className="explorer-opening-info">
+          <h4 className="explorer-opening-name">
+            {currentBoardOpening?.name || (currentBoardFen === START_FEN ? 'Starting Position (Posisi Awal)' : openingName || 'Standard Opening')}
+          </h4>
+          <div className="explorer-book-status">
+            {isCurrentPositionInBook ? (
+              <span className="status-in-book">
+                <span className="status-dot green" /> Teori Pembukaan (Book Position)
+              </span>
+            ) : (
+              <span className="status-out-book">
+                <span className="status-dot amber" /> Luar Teori Buku (Out of Book)
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Theoretical Book Continuation Moves */}
+      {currentBookMoves.length > 0 ? (
+        <div className="explorer-moves-section">
+          <div className="explorer-section-title">
+            <span>Langkah Teori Pembukaan ({currentBookMoves.length})</span>
+            <span className="explorer-hint">Klik langkah untuk memainkan variasi</span>
+          </div>
+          <div className="explorer-moves-list">
+            {currentBookMoves.map((bMove, idx) => {
+              const moveColor = currentPlyIndex % 2 === 0 ? 'w' : 'b';
+              return (
+                <div
+                  key={`${bMove.uci}-${idx}`}
+                  className="explorer-move-row"
+                  onClick={() => {
+                    executeMove(bMove.from as Square, bMove.to as Square);
+                  }}
+                  title={`Mainkan langkah ${bMove.san} (${bMove.name})`}
+                >
+                  <div className="explorer-move-rank">{idx + 1}</div>
+                  <div className="explorer-move-badge">
+                    <span className="explorer-move-san">
+                      {formatSanWithFigurine(bMove.san, moveColor)}
+                    </span>
+                  </div>
+                  <div className="explorer-move-target">
+                    <span className="explorer-target-eco">{bMove.eco}</span>
+                    <span className="explorer-target-name">{bMove.name}</span>
+                  </div>
+                  <ChevronRight size={14} className="explorer-arrow-icon" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* Out of Book fallback to Engine Candidates */
+        <div className="explorer-out-of-book-section">
+          <div className="out-of-book-notice">
+            <p>Posisi catur ini telah keluar dari buku teori pembukaan master.</p>
+            <span className="out-of-book-sub">Pilihan langkah terbaik dari Stockfish 19:</span>
+          </div>
+          {currentCandidateLines.length > 0 ? (
+            <div className="explorer-engine-candidates">
+              {currentCandidateLines.map((candLine, cIdx) => (
+                <div
+                  key={cIdx}
+                  className="explorer-engine-row"
+                  onClick={() => {
+                    if (candLine.uci && candLine.uci.length >= 4) {
+                      executeMove(candLine.uci.slice(0, 2) as Square, candLine.uci.slice(2, 4) as Square);
+                    }
+                  }}
+                  title="Klik untuk memainkan langkah rekomendasi engine ini"
+                >
+                  <span className="explorer-engine-rank">#{cIdx + 1}</span>
+                  <span className="explorer-engine-eval">{candLine.scoreDisplay}</span>
+                  <span className="explorer-engine-san">
+                    {buildMultiMoveContinuation(
+                      currentBoardFen,
+                      candLine.san || candLine.uci,
+                      candLine.continuation?.split(' ').filter(Boolean),
+                      moveHistory.slice(currentPlyIndex + 1),
+                      6
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="explorer-calculating-notice">
+              <Cpu size={14} className="analysis-cpu-pulse" />
+              <span>Stockfish sedang menghitung alternatif langkah terbaik...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reset Variation Button if branched */}
+      {isVariationActive && (
+        <div className="explorer-reset-bar">
+          <button
+            type="button"
+            onClick={handleResetToOriginalGame}
+            className="btn-explorer-reset"
+          >
+            <RotateCcw size={14} />
+            <span>Reset Variasi (Kembali ke Notasi Asli)</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -2774,22 +2956,47 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         <header className="chesscom-mobile-header">
           <button
             type="button"
-            onClick={isReviewActive ? () => setIsReviewActive(false) : onClose}
+            onClick={
+              showExplorer
+                ? () => setShowExplorer(false)
+                : isReviewActive
+                ? () => setIsReviewActive(false)
+                : onClose
+            }
             className="mobile-header-btn"
-            title={isReviewActive ? 'Kembali ke Statistik Ulasan' : 'Kembali (Esc)'}
+            title={
+              showExplorer
+                ? 'Tutup Opening Explorer'
+                : isReviewActive
+                ? 'Kembali ke Statistik Ulasan'
+                : 'Kembali (Esc)'
+            }
           >
             <ChevronLeft size={22} />
           </button>
           <div
             className="mobile-header-title-group"
             onClick={() => {
-              if (isReviewActive) {
+              if (showExplorer) {
+                setShowExplorer(false);
+              } else if (isReviewActive) {
                 setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'));
               }
             }}
-            title={isReviewActive ? 'Beralih Mode Analysis / Game Review' : 'Game Review'}
+            title={
+              showExplorer
+                ? 'Tutup Explorer'
+                : isReviewActive
+                ? 'Beralih Mode Analysis / Game Review'
+                : 'Game Review'
+            }
           >
-            {isReviewActive && mobileMode === 'analysis' ? (
+            {showExplorer ? (
+              <>
+                <Compass size={16} className="mobile-title-icon" style={{ color: '#81b64c' }} />
+                <span className="mobile-title-text">Opening Explorer</span>
+              </>
+            ) : isReviewActive && mobileMode === 'analysis' ? (
               <>
                 <Search size={16} className="mobile-title-icon" />
                 <span className="mobile-title-text">Analysis</span>
@@ -3382,13 +3589,31 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               </div>
             </div>
 
-            {/* Mobile Opening Bar (Matching Chess.com Mobile Image 2) */}
-            <div className="chesscom-mobile-opening-bar">
-              <span>{openingName || 'Standard Opening'}</span>
+            {/* Mobile Opening Bar (Interactive, links to Explorer) */}
+            <div
+              className={`chesscom-mobile-opening-bar ${showExplorer ? 'is-active' : ''}`}
+              onClick={() => setShowExplorer(!showExplorer)}
+              title="Buka Opening Explorer untuk posisi ini"
+            >
+              <div className="mobile-opening-bar-left">
+                <Compass size={14} style={{ color: '#81b64c', flexShrink: 0 }} />
+                <span className="mobile-opening-bar-text">
+                  {currentBoardOpening
+                    ? `${currentBoardOpening.eco} • ${currentBoardOpening.name}`
+                    : (openingName || 'Standard Opening')}
+                </span>
+              </div>
+              <span className="mobile-opening-bar-badge">
+                {showExplorer ? 'Tutup' : 'Explorer ›'}
+              </span>
             </div>
 
-            {/* Mobile Content: Mode Switch between Analysis Moves Sheet (Image 2) and Review Card */}
-            {mobileMode === 'analysis' ? (
+            {/* Mobile Content: Explorer, Analysis Moves Sheet, or Review Card */}
+            {showExplorer ? (
+              <div className="chesscom-mobile-explorer-sheet">
+                {renderOpeningExplorerContent()}
+              </div>
+            ) : mobileMode === 'analysis' ? (
               <div className="chesscom-mobile-moves-sheet">
                 {moveRows.map((row) => (
                   <div key={row.number} className="mobile-move-pair">
@@ -3829,6 +4054,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <button
                         type="button"
+                        onClick={() => setShowExplorer(!showExplorer)}
+                        className={`review-header-icon-btn ${showExplorer ? 'active' : ''}`}
+                        title={showExplorer ? 'Tutup Opening Explorer' : 'Buka Opening Explorer'}
+                        style={showExplorer ? { color: '#81b64c', background: 'rgba(129, 182, 76, 0.2)' } : undefined}
+                      >
+                        <Compass size={16} />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setIsEngineModalOpen(true)}
                         className="review-header-icon-btn"
                         title="Pengaturan Engine Stockfish (Kedalaman & Evaluasi)"
@@ -3846,171 +4080,154 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Coach Speech Bubble Banner */}
-                  <div className="review-active-coach-banner">
-                    <div className="coach-avatar">
-                      <svg viewBox="0 0 60 60" className="coach-svg">
-                        <circle cx="30" cy="30" r="28" fill="#3b82f6" />
-                        <circle cx="30" cy="26" r="14" fill="#fed7aa" />
-                        <path
-                          d="M18 20c2-8 22-8 24 0 0 0-3-4-12-4s-12 4-12 4z"
-                          fill="#573418"
-                        />
-                        <path
-                          d="M20 30c1 6 19 6 20 0 0 5-6 9-10 9s-10-4-10-9z"
-                          fill="#573418"
-                        />
-                        <circle
-                          cx="25"
-                          cy="25"
-                          r="3.5"
-                          fill="none"
-                          stroke="#1e293b"
-                          strokeWidth="1.5"
-                        />
-                        <circle
-                          cx="35"
-                          cy="25"
-                          r="3.5"
-                          fill="none"
-                          stroke="#1e293b"
-                          strokeWidth="1.5"
-                        />
-                        <path d="M28.5 25h3" stroke="#1e293b" strokeWidth="1.5" />
-                        <path
-                          d="M12 56c4-12 10-16 18-16s14 4 18 16z"
-                          fill="#1e3a8a"
-                        />
-                        <path d="M30 40v14" stroke="#ffffff" strokeWidth="2" />
-                      </svg>
+                  {showExplorer ? (
+                    <div className="desktop-explorer-panel">
+                      {renderOpeningExplorerContent()}
                     </div>
-                    <div className="active-coach-bubble">
-                      <div className="bubble-text-left">
-                        {showExplanation ? (
-                          <>
-                            <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
-                            <span>
-                              {currentMoveCoachComment.comment}
-                            </span>
-                          </>
-                        ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
-                          <>
-                            <ChessComBadgeIcon type="best" size={18} />
-                            <span>
-                              {`Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            {currentMoveCoachComment.badge && (
-                              <ChessComBadgeIcon
-                                type={currentMoveCoachComment.badge}
-                                size={18}
-                              />
+                  ) : (
+                    <>
+                      {/* Coach Speech Bubble Banner */}
+                      <div className="review-active-coach-banner">
+                        <div className="coach-avatar">
+                          <CoachAvatarSvg size={44} />
+                        </div>
+                        <div className="active-coach-bubble">
+                          <div className="bubble-text-left">
+                            {showExplanation ? (
+                              <>
+                                <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
+                                <span>
+                                  {currentMoveCoachComment.comment}
+                                </span>
+                              </>
+                            ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
+                              <>
+                                <ChessComBadgeIcon type="best" size={18} />
+                                <span>
+                                  {`Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                {currentMoveCoachComment.badge && (
+                                  <ChessComBadgeIcon
+                                    type={currentMoveCoachComment.badge}
+                                    size={18}
+                                  />
+                                )}
+                                <span>{currentMoveCoachComment.comment}</span>
+                              </>
                             )}
-                            <span>{currentMoveCoachComment.comment}</span>
-                          </>
-                        )}
-                      </div>
-                      <span
-                        className="bubble-eval-pill"
-                        style={
-                          (!showExplanation && isSuboptimalMove) || showBestMove
-                            ? { background: '#81b64c', color: '#ffffff' }
-                            : undefined
-                        }
-                      >
-                        {(!showExplanation && isSuboptimalMove) || showBestMove
-                          ? 'Best'
-                          : currentMoveEvalDisplay}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Action Row: Best + Explain + Next (Matching Chess.com Image 2) */}
-                  <div className="review-action-row">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowBestMove(!showBestMove);
-                        setShowExplanation(false);
-                      }}
-                      className={`btn-best-move ${(!showExplanation && isSuboptimalMove) || showBestMove ? 'active' : ''}`}
-                      title="Perlihatkan langkah terbaik di papan catur"
-                    >
-                      <Star size={15} fill={(!showExplanation && isSuboptimalMove) || showBestMove ? '#ffffff' : 'none'} />
-                      <span>Best</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowExplanation(!showExplanation);
-                        setShowBestMove(false);
-                      }}
-                      className={`btn-explain ${showExplanation ? 'active' : ''}`}
-                      title="Penjelasan Taktis Langkah"
-                    >
-                      <Lightbulb size={15} />
-                      <span>Explain</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowBestMove(false);
-                        setShowExplanation(false);
-                        handleNextMove();
-                      }}
-                      className="btn-next-review"
-                      title="Lanjut ke langkah berikutnya"
-                    >
-                      <Play size={14} fill="currentColor" />
-                      <span>Next</span>
-                    </button>
-                  </div>
-
-                  {/* Opening (lichess-org/chess-openings) + Engine candidate lines (MultiPV) */}
-                  {(() => {
-                    const prevFen =
-                      currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
-                    const cand = currentPlyIndex >= 0 ? scoreMap[prevFen]?.lines : undefined;
-                    const played = currentPlyIndex >= 0 ? moveHistory[currentPlyIndex] : null;
-                    const opening = detectOpeningFromFens(
-                      rawMoveHistory.slice(0, Math.max(0, currentPlyIndex + 1)).map((m) => m.fen)
-                    );
-                    if (!cand?.length && !opening) return null;
-                    return (
-                      <div className="review-variations-card">
-                        {opening && (
-                          <div className="review-opening-row">
-                            <span className="review-opening-eco">{opening.eco}</span>
-                            <span className="review-opening-name">{opening.name}</span>
                           </div>
-                        )}
-                        {cand && cand.length > 0 && (
-                          <>
-                            <div className="review-variations-title">
-                              Alternatif engine (posisi sebelum {played?.san})
-                            </div>
-                            {cand.map((l, i) => {
-                              const isPlayed =
-                                !!played && l.uci === `${played.from}${played.to}${played.promotion || ''}`;
-                              return (
-                                <div
-                                  key={l.uci}
-                                  className={`review-variation-line ${isPlayed ? 'played' : ''}`}
-                                >
-                                  <span className="rv-rank">{i + 1}</span>
-                                  <span className="rv-san">{l.san}</span>
-                                  <span className="rv-eval">{l.scoreDisplay}</span>
-                                  {isPlayed && <span className="rv-tag">dimainkan</span>}
-                                </div>
-                              );
-                            })}
-                          </>
-                        )}
+                          <span
+                            className="bubble-eval-pill"
+                            style={
+                              (!showExplanation && isSuboptimalMove) || showBestMove
+                                ? { background: '#81b64c', color: '#ffffff' }
+                                : undefined
+                            }
+                          >
+                            {(!showExplanation && isSuboptimalMove) || showBestMove
+                              ? 'Best'
+                              : currentMoveEvalDisplay}
+                          </span>
+                        </div>
                       </div>
-                    );
-                  })()}
+
+                      {/* Action Row: Best + Explain + Next (Matching Chess.com Image 2) */}
+                      <div className="review-action-row">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBestMove(!showBestMove);
+                            setShowExplanation(false);
+                          }}
+                          className={`btn-best-move ${(!showExplanation && isSuboptimalMove) || showBestMove ? 'active' : ''}`}
+                          title="Perlihatkan langkah terbaik di papan catur"
+                        >
+                          <Star size={15} fill={(!showExplanation && isSuboptimalMove) || showBestMove ? '#ffffff' : 'none'} />
+                          <span>Best</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowExplanation(!showExplanation);
+                            setShowBestMove(false);
+                          }}
+                          className={`btn-explain ${showExplanation ? 'active' : ''}`}
+                          title="Penjelasan Taktis Langkah"
+                        >
+                          <Lightbulb size={15} />
+                          <span>Explain</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBestMove(false);
+                            setShowExplanation(false);
+                            handleNextMove();
+                          }}
+                          className="btn-next-review"
+                          title="Lanjut ke langkah berikutnya"
+                        >
+                          <Play size={14} fill="currentColor" />
+                          <span>Next</span>
+                        </button>
+                      </div>
+
+                      {/* Opening (lichess-org/chess-openings) + Engine candidate lines (MultiPV) */}
+                      {(() => {
+                        const prevFen =
+                          currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
+                        const cand = currentPlyIndex >= 0 ? scoreMap[prevFen]?.lines : undefined;
+                        const played = currentPlyIndex >= 0 ? moveHistory[currentPlyIndex] : null;
+                        const opening = currentBoardOpening || detectOpeningFromFens(
+                          rawMoveHistory.slice(0, Math.max(0, currentPlyIndex + 1)).map((m) => m.fen)
+                        );
+                        if (!cand?.length && !opening) return null;
+                        return (
+                          <div className="review-variations-card">
+                            {opening && (
+                              <div
+                                className="review-opening-row"
+                                onClick={() => setShowExplorer(true)}
+                                title="Buka Opening Explorer untuk variasi dan teori lengkap"
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <span className="review-opening-eco">{opening.eco}</span>
+                                <span className="review-opening-name">{opening.name}</span>
+                                <span className="review-opening-explore-pill">
+                                  <Compass size={12} /> Explorer
+                                </span>
+                              </div>
+                            )}
+                            {cand && cand.length > 0 && (
+                              <>
+                                <div className="review-variations-title">
+                                  Alternatif engine (posisi sebelum {played?.san})
+                                </div>
+                                {cand.map((l, i) => {
+                                  const isPlayed =
+                                    !!played && l.uci === `${played.from}${played.to}${played.promotion || ''}`;
+                                  return (
+                                    <div
+                                      key={l.uci}
+                                      className={`review-variation-line ${isPlayed ? 'played' : ''}`}
+                                    >
+                                      <span className="rv-rank">{i + 1}</span>
+                                      <span className="rv-san">{l.san}</span>
+                                      <span className="rv-eval">{l.scoreDisplay}</span>
+                                      {isPlayed && <span className="rv-tag">dimainkan</span>}
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
 
 
 
@@ -4341,7 +4558,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'))}
+            onClick={() => {
+              setShowExplorer(false);
+              setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'));
+            }}
             className="mobile-hero-btn"
             title={mobileMode === 'analysis' ? 'Buka Game Review' : 'Buka Mode Analysis'}
           >

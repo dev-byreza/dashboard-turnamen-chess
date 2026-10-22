@@ -2714,16 +2714,34 @@
   .chesscom-mobile-opening-bar {
     display: flex !important;
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
     background: #191816 !important;
-    padding: 0.4rem 0.75rem !important;
+    padding: 0.45rem 0.85rem !important;
     border-bottom: 1px solid #2a2825 !important;
-    color: #9ca3af !important;
-    font-size: 0.78rem !important;
+    color: #d1d5db !important;
+    font-size: 0.8rem !important;
     font-weight: 700 !important;
-    letter-spacing: 0.02em !important;
-    text-align: center !important;
+    letter-spacing: 0.01em !important;
     flex-shrink: 0 !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    transition: background 0.15s ease !important;
+  }
+  .chesscom-mobile-opening-bar:hover,
+  .chesscom-mobile-opening-bar.active {
+    background: #252420 !important;
+    border-bottom-color: #81b64c !important;
+  }
+  .chesscom-mobile-explorer-sheet {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    background: #1c1b18 !important;
+    padding: 0.75rem 0.85rem 4.5rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.65rem !important;
+    -webkit-overflow-scrolling: touch !important;
+    min-height: 220px !important;
   }
 
   /* Move history sheet (Image 2) */
@@ -2993,5 +3011,419 @@
   line-height: 1.45;
   margin: 0;
   max-width: 300px;
+}
+
+/* Opening Explorer Component (Desktop & Mobile) */
+.chesscom-explorer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.explorer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #363430;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+
+.explorer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.explorer-header-icon {
+  color: #81b64c;
+  flex-shrink: 0;
+}
+
+.explorer-header-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.explorer-ply-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9ca3af;
+  background: #2b2926;
+  border: 1px solid #3d3b37;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.explorer-close-btn {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+}
+
+.explorer-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.explorer-opening-card {
+  background: #262421;
+  border: 1px solid #3d3b37;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.explorer-eco-pill {
+  background: #81b64c;
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(129, 182, 76, 0.35);
+}
+
+.explorer-opening-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.explorer-opening-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-book-status {
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.status-in-book {
+  color: #81b64c;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.status-out-book {
+  color: #f1b332;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.green {
+  background: #81b64c;
+  box-shadow: 0 0 6px rgba(129, 182, 76, 0.8);
+}
+
+.status-dot.amber {
+  background: #f1b332;
+  box-shadow: 0 0 6px rgba(241, 179, 50, 0.8);
+}
+
+.explorer-moves-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.explorer-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #9ca3af;
+  padding: 0.15rem 0.1rem;
+}
+
+.explorer-hint {
+  font-size: 0.7rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.explorer-moves-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow-y: auto;
+  max-height: 250px;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+.explorer-move-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: #262421;
+  border: 1px solid #363430;
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.explorer-move-row:hover {
+  background: #32302c;
+  border-color: #81b64c;
+  transform: translateX(2px);
+}
+
+.explorer-move-rank {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.explorer-move-badge {
+  background: #383531;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #4a4742;
+  min-width: 44px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.explorer-move-san {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.explorer-move-target {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.explorer-target-eco {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #81b64c;
+  background: rgba(129, 182, 76, 0.12);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  flex-shrink: 0;
+}
+
+.explorer-target-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explorer-arrow-icon {
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.explorer-out-of-book-section {
+  background: #262421;
+  border: 1px dashed #423f3a;
+  border-radius: 8px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.out-of-book-notice p {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #f1b332;
+}
+
+.out-of-book-sub {
+  font-size: 0.76rem;
+  color: #9ca3af;
+  margin-top: 0.2rem;
+  display: block;
+}
+
+.explorer-engine-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.explorer-engine-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #302e2b;
+  border: 1px solid #3d3b37;
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.explorer-engine-row:hover {
+  background: #3a3834;
+  border-color: #81b64c;
+}
+
+.explorer-engine-rank {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #81b64c;
+  width: 22px;
+  flex-shrink: 0;
+}
+
+.explorer-engine-eval {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: #1c1b18;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  min-width: 40px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.explorer-engine-san {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-calculating-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  padding: 0.5rem 0;
+}
+
+.explorer-reset-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+}
+
+.btn-explorer-reset {
+  background: #363430;
+  border: 1px solid #4a4742;
+  color: #e5e7eb;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-explorer-reset:hover {
+  background: #423f3a;
+  color: #ffffff;
+}
+
+.desktop-explorer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.95rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.review-opening-explore-pill {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #81b64c;
+  background: rgba(129, 182, 76, 0.15);
+  border: 1px solid rgba(129, 182, 76, 0.35);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.mobile-opening-bar-icon {
+  margin-right: 0.4rem;
+  color: #81b64c;
+  flex-shrink: 0;
+}
+
+.mobile-opening-bar-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-opening-bar-badge {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #81b64c;
+  background: rgba(129, 182, 76, 0.15);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  flex-shrink: 0;
 }
 
