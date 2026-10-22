@@ -1472,36 +1472,33 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.95rem;
-  padding: 0.55rem 0.85rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+  padding: 0.5rem 0.85rem;
   background: #1b1a18;
   border-top: 1px solid #2d2b27;
   font-size: 0.76rem;
   font-weight: 700;
+  max-height: 72px;
+  overflow-y: auto;
 }
 
 .summary-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #bab8b4;
   user-select: none;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+}
+
+.summary-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .summary-chip b {
   font-weight: 800;
-}
-
-.summary-chip.great {
-  color: #5c8bb0;
-}
-
-.summary-chip.best {
-  color: #85a94e;
-}
-
-.summary-chip.excellent {
-  color: #45b649;
 }
 
 /* Media Playback Toolbar */

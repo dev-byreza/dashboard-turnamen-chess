@@ -2441,41 +2441,28 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     )}
                   </div>
 
-                  {/* Moves Footer Summary Chips */}
+                  {/* Moves Footer Summary Chips - Synchronized with Analysis Data */}
                   <div className="moves-footer-summary">
-                    <div
-                      className="summary-chip great"
-                      onClick={() => handleJumpToClassification('excellent')}
-                      style={{ cursor: 'pointer' }}
-                      title="Klik untuk melihat langkah Great / Excellent"
-                    >
-                      <ChessComBadgeIcon type="excellent" size={14} />
-                      <span>
-                        <b>{calculatedCounts.excellent.w + calculatedCounts.excellent.b}</b> Great
-                      </span>
-                    </div>
-                    <div
-                      className="summary-chip best"
-                      onClick={() => handleJumpToClassification('best')}
-                      style={{ cursor: 'pointer' }}
-                      title="Klik untuk melihat langkah Best Move"
-                    >
-                      <ChessComBadgeIcon type="best" size={14} />
-                      <span>
-                        <b>{calculatedCounts.best.w + calculatedCounts.best.b}</b> Best
-                      </span>
-                    </div>
-                    <div
-                      className="summary-chip excellent"
-                      onClick={() => handleJumpToClassification('good')}
-                      style={{ cursor: 'pointer' }}
-                      title="Klik untuk melihat langkah Good"
-                    >
-                      <ChessComBadgeIcon type="good" size={14} />
-                      <span>
-                        <b>{calculatedCounts.good.w + calculatedCounts.good.b}</b> Good
-                      </span>
-                    </div>
+                    {REVIEW_CLASSIFICATIONS.map((c) => {
+                      const count =
+                        (calculatedCounts[c.type]?.w ?? 0) + (calculatedCounts[c.type]?.b ?? 0);
+                      if (count === 0) return null;
+                      return (
+                        <div
+                          key={c.type}
+                          className={`summary-chip summary-chip-${c.type}`}
+                          onClick={() => handleJumpToClassification(c.type)}
+                          style={{ cursor: 'pointer' }}
+                          title={`Klik untuk melihat langkah ${c.label} (${count} langkah)`}
+                        >
+                          <ChessComBadgeIcon type={c.type} size={14} />
+                          <span>
+                            <b style={{ color: c.color }}>{count}</b>{' '}
+                            <span style={{ color: c.color }}>{c.label}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
