@@ -50,9 +50,10 @@ import {
   fetchPositionScore,
   classifyByEngine,
   describeReview,
+  describeMoveTactics,
   LABEL_TITLE,
 } from '../utils/gameReview';
-import { detectOpeningFromFens } from '../utils/openingBook';
+import { detectOpeningFromFens, isBookPosition } from '../utils/openingBook';
 import { ChessSoundSettingsModal } from './ChessSoundSettingsModal';
 import { ChessEngineSettingsModal } from './ChessEngineSettingsModal';
 
@@ -778,6 +779,7 @@ export function classifySingleMove(
   const isMate = move.san.includes('#');
   const isCapture = move.san.includes('x');
   const isCastling = move.san.startsWith('O-O');
+  const tactics = describeMoveTactics(move);
 
   if (isMate) {
     return {
@@ -785,7 +787,7 @@ export function classifySingleMove(
       timeSpent: '1.2s',
       classification: 'best',
       feedbackTitle: 'Best Move ★ (Skakmat)',
-      feedbackDescription: `${move.san} - Langkah pilihan pertama (top choice) dari kalkulasi Stockfish (Skakmat)!`,
+      feedbackDescription: `${move.san} - Skakmat! Langkah pamungkas yang menyegel kemenangan mutlak.`,
     };
   }
 
@@ -795,17 +797,17 @@ export function classifySingleMove(
       timeSpent: '0.8s',
       classification: 'best',
       feedbackTitle: 'Best Move ★ (Langkah Terbaik)',
-      feedbackDescription: `${move.san} - Langkah pilihan pertama dari kalkulasi Stockfish (Keamanan raja & aktivitas benteng).`,
+      feedbackDescription: `${move.san} - Rokade untuk mengamankan posisi raja dan menghubungkan benteng ke pusat pertempuran.`,
     };
   }
 
-  if (history.length <= 8) {
+  if (isBookPosition(move.fen) || history.length <= 6) {
     return {
       ...move,
       timeSpent: '0.5s',
       classification: 'book',
       feedbackTitle: 'Book Move 📖 (Langkah Teori/Buku)',
-      feedbackDescription: `${move.san} - Langkah pembukaan standar yang terekam dalam teori catur dan database master.`,
+      feedbackDescription: `${move.san} - Langkah pembukaan standar yang terekam dalam teori catur dan database master. ${tactics}`,
     };
   }
 
@@ -814,17 +816,17 @@ export function classifySingleMove(
       ...move,
       timeSpent: '2.4s',
       classification: 'great',
-      feedbackTitle: 'Great Move ! (Langkah Hebat)',
-      feedbackDescription: `${move.san} - Langkah krusial dan merupakan satu-satunya langkah terbaik yang mempertahankan posisi Anda.`,
+      feedbackTitle: isCheck ? 'Great Move ! (Skak)' : 'Great Move ! (Langkah Hebat)',
+      feedbackDescription: `${move.san} - Langkah krusial yang menekan pertahanan lawan. ${tactics}`,
     };
   }
 
   return {
     ...move,
     timeSpent: '1.5s',
-    classification: 'excellent',
-    feedbackTitle: 'Excellent 👍 (Sangat Bagus)',
-    feedbackDescription: `${move.san} - Bukan pilihan nomor satu Stockfish, tetapi evaluasinya sangat dekat dengan langkah terbaik.`,
+    classification: 'best',
+    feedbackTitle: 'Best Move ★ (Langkah Terbaik)',
+    feedbackDescription: `${move.san} - ${tactics}`,
   };
 }
 
@@ -899,7 +901,18 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const initial: Record<string, PositionScore> = {};
     uniqueFens.forEach((f) => {
       const hit = scoreCacheRef.current.get(`${reviewDepth}|${f}`);
-      if (hit) initial[f] = hit;
+      if (hit) {
+        initial[f] = hit;
+      } else if (isBookPosition(f)) {
+        const bookScore: PositionScore = {
+          fen: f,
+          cp: 15,
+          winWhite: 50.5,
+          scoreDisplay: '+0.1',
+        };
+        initial[f] = bookScore;
+        scoreCacheRef.current.set(`${reviewDepth}|${f}`, bookScore);
+      }
     });
     setScoreMap(initial);
     setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
@@ -932,17 +945,18 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const moveHistory = useMemo<MoveHistoryItem[]>(() => {
     let prevLoss = 0;
     return rawMoveHistory.map((m, i) => {
-      const before = scoreMap[i === 0 ? START_FEN : rawMoveHistory[i - 1].fen];
+      const before = scoreMap[i === 0 ? START_FEN : rawMoveHistory[i - 1]?.fen];
       const after = scoreMap[m.fen];
       if (!before || !after) {
         prevLoss = 0;
+        const desc =
+          m.feedbackDescription &&
+          !m.feedbackDescription.toLowerCase().includes('menganalisis')
+            ? m.feedbackDescription
+            : `${m.san} - ${describeMoveTactics(m)}`;
         return {
           ...m,
-          classification: undefined,
-          feedbackTitle: 'Menganalisis...',
-          feedbackDescription: 'Stockfish sedang menganalisis posisi ini.',
-          bestAlternative: undefined,
-          bestAlternativeMove: undefined,
+          feedbackDescription: desc,
         };
       }
       const r = classifyByEngine(
@@ -959,7 +973,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         ...m,
         classification: r.label,
         feedbackTitle: LABEL_TITLE[r.label],
-        feedbackDescription: describeReview(m.san, r),
+        feedbackDescription: describeReview(m, r),
         bestAlternative: hasAlt ? r.bestSan : undefined,
         bestAlternativeMove: r.bestUci
           ? {
@@ -1423,8 +1437,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           promotion: moveAttempt.promotion,
           timeSpent: '0.5s',
           classification: 'best',
-          feedbackTitle: 'Manual Analysis Move',
-          feedbackDescription: `${moveAttempt.san} - Analisis alternatif langkah manual`,
+          feedbackTitle: 'Langkah Variasi Manual ★',
+          feedbackDescription: `${moveAttempt.san} - ${describeMoveTactics({
+            san: moveAttempt.san,
+            piece: moveAttempt.piece,
+            from: moveAttempt.from,
+            to: moveAttempt.to,
+            captured: moveAttempt.captured,
+            promotion: moveAttempt.promotion,
+          })}`,
           bestAlternativeMove: {
             from: moveAttempt.from,
             to: moveAttempt.to,
@@ -1440,6 +1461,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         setSelectedSquare(null);
         setLegalMoves([]);
         setShowBestMove(false);
+
+        // Immediately evaluate the newly reached manual position in the background
+        const manualFen = currentChess.fen();
+        fetchPositionScore(manualFen, reviewDepth).then((score) => {
+          if (score) {
+            scoreCacheRef.current.set(`${reviewDepth}|${manualFen}`, score);
+            setScoreMap((prev) => ({ ...prev, [manualFen]: score }));
+          }
+        });
 
         // Play sound effect for manual move
         getChessAudioManager().playMoveSound({
@@ -1782,7 +1812,26 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
     moveHistory.forEach((m, idx) => {
       const s = scoreMap[m.fen];
-      if (s) lastWin = s.winWhite;
+      if (s) {
+        lastWin = s.winWhite;
+      } else {
+        const isWhite = m.color === 'w';
+        const dir = isWhite ? 1 : -1;
+        let delta = 0;
+        switch (m.classification) {
+          case 'brilliant': delta = dir * 14; break;
+          case 'great': delta = dir * 9; break;
+          case 'best': delta = dir * 2; break;
+          case 'excellent': delta = dir * 0.5; break;
+          case 'good': delta = -dir * 1; break;
+          case 'inaccuracy': delta = -dir * 6; break;
+          case 'mistake': delta = -dir * 12; break;
+          case 'miss': delta = -dir * 18; break;
+          case 'blunder': delta = -dir * 25; break;
+          default: delta = 0;
+        }
+        lastWin = Math.max(5, Math.min(95, lastWin + delta));
+      }
       const x = (idx / Math.max(1, total - 1)) * 320;
       pts.push({ x, y: winToY(lastWin), type: m.classification, ply: m.ply });
     });
@@ -1900,46 +1949,55 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       };
     }
 
+    const action = describeMoveTactics(m);
+    const opening = detectOpeningFromFens(
+      rawMoveHistory.slice(0, currentPlyIndex + 1).map((x) => x.fen)
+    );
+    const isBook = m.classification === 'book';
+    const nextMove = moveHistory[currentPlyIndex + 1];
+    const isLastBook = isBook && (!nextMove || nextMove.classification !== 'book');
+
     let comment = '';
     switch (m.classification) {
       case 'brilliant':
-        comment = `${m.san} adalah langkah brilian (Brilliant)!! Pengorbanan perwira (sacrifice) yang secara taktis dinilai akurat dan mengarah pada kemenangan mutlak.`;
+        comment = `${m.san} adalah langkah brilian (Brilliant)!! Pengorbanan perwira berani yang membuka inisiatif serangan mematikan. ${action}`;
         break;
       case 'great':
-        comment = `${m.san} adalah langkah hebat (Great Move)! Langkah krusial dan merupakan satu-satunya langkah terbaik yang mempertahankan posisi Anda.`;
+        comment = `${m.san} adalah langkah hebat (Great Move)! Langkah krusial dan satu-satunya respon terbaik untuk mempertahankan posisi. ${action}`;
         break;
-      case 'book': {
-        const nextMove = moveHistory[currentPlyIndex + 1];
-        const isLastBook = !nextMove || nextMove.classification !== 'book';
+      case 'book':
         comment = isLastBook
-          ? `${m.san} adalah langkah teori pembukaan terakhir (Book Move)`
-          : `${m.san} adalah langkah pembukaan standar (Book Move) yang terekam dalam teori catur.`;
+          ? `${m.san} adalah langkah teori pembukaan terakhir${opening ? ` (${opening.name})` : ''}. ${action} Memasuki fase tengah permainan.`
+          : `${m.san} adalah langkah pembukaan standar${opening ? ` (${opening.name})` : ''}. ${action} Mengikuti teori master.`;
         break;
-      }
       case 'best':
-        comment = `${m.san} adalah langkah terbaik (Best Move) ★ pilihan pertama dari kalkulasi Stockfish pada posisi tersebut.`;
+        comment = `${m.san} adalah langkah terbaik (Best Move) ★ Pilihan nomor 1 dari kalkulasi Stockfish. ${action}`;
         break;
       case 'excellent':
-        comment = `${m.san} adalah langkah sangat bagus (Excellent). Bukan pilihan #1 Stockfish, namun evaluasinya sangat dekat dan posisi tetap prima.`;
+        comment = `${m.san} adalah langkah sangat bagus (Excellent). ${action} Evaluasi sangat dekat dengan pilihan utama komputer.`;
         break;
       case 'good':
-        comment = `${m.san} adalah langkah bagus (Good). Aman, masuk akal, dan mempertahankan stabilitas permainan.`;
+        comment = `${m.san} adalah langkah bagus (Good). ${action} Pilihan aman dan mempertahankan stabilitas posisi.`;
         break;
       case 'inaccuracy':
-        comment = `${m.san} adalah ketidakakuratan (Inaccuracy) ?! ${m.feedbackDescription || 'Kesalahan kecil yang membuat kehilangan sedikit keunggulan (setara ±0.50 centipawn).'}`;
+        comment = `${m.san} adalah ketidakakuratan (Inaccuracy) ?! ${action} Kehilangan sedikit inisiatif.${m.bestAlternative ? ` Rekomendasi: ${m.bestAlternative}.` : ''}`;
         break;
       case 'mistake':
-        comment = `${m.san} adalah kesalahan (Mistake) ? ${m.feedbackDescription || 'Langkah buruk yang jelas merusak posisi Anda (membuang evaluasi sekitar 1-2 pion).'}`;
+        comment = `${m.san} adalah kesalahan (Mistake) ? ${action} Merusak struktur pertahanan.${m.bestAlternative ? ` Pilihan lebih baik: ${m.bestAlternative}.` : ''}`;
         break;
       case 'miss':
       case 'missed_win':
-        comment = `${m.san} adalah Miss ✖ Melewatkan peluang taktis atau kesempatan emas untuk menghukum kesalahan lawan.`;
+        comment = `${m.san} adalah Miss ✖ Melewatkan peluang taktis untuk menekan kelemahan lawan.${m.bestAlternative ? ` Kesempatan emas: ${m.bestAlternative}.` : ''}`;
         break;
       case 'blunder':
-        comment = `${m.san} adalah Blunder fatal ?? ${m.feedbackDescription || 'Kesalahan fatal yang mengubah jalannya permainan drastis (membuang evaluasi di atas 2-3 pion).'}`;
+        comment = `${m.san} adalah Blunder fatal ?? ${action} Mengubah jalannya permainan secara drastis.${m.bestAlternative ? ` Pilihan penyelamat: ${m.bestAlternative}.` : ''}`;
         break;
       default:
-        comment = m.feedbackDescription || `${m.san} dimainkan.`;
+        comment =
+          m.feedbackDescription &&
+          !m.feedbackDescription.toLowerCase().includes('menganalisis')
+            ? m.feedbackDescription
+            : `${m.san} dimainkan. ${action}`;
     }
 
     return {
@@ -1947,7 +2005,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       comment,
       badge: m.classification || null,
     };
-  }, [currentPlyIndex, moveHistory]);
+  }, [currentPlyIndex, moveHistory, rawMoveHistory]);
 
   // Jump to move by classification with cycling support
   const handleJumpToClassification = (type: ChessComBadgeType, colorFilter?: 'w' | 'b') => {
@@ -2448,7 +2506,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     {/* Skills Row */}
                     <div className="review-grid-row">
                       <span className="review-grid-label">Skills</span>
-                      <div className="review-skills-val">+4</div>
+                      <div className="review-skills-val">
+                        +{calculatedCounts.brilliant.w * 3 + calculatedCounts.great.w * 2 + calculatedCounts.best.w}
+                      </div>
                       <div className="review-skills-center-badge">
                         <svg viewBox="0 0 24 24" width="22" height="22">
                           <circle cx="12" cy="12" r="11" fill="#3b82f6" />
@@ -2459,7 +2519,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         </svg>
                       </div>
                       <div className="review-skills-val" style={{ color: '#9ca3af' }}>
-                        +0
+                        +{calculatedCounts.brilliant.b * 3 + calculatedCounts.great.b * 2 + calculatedCounts.best.b}
                       </div>
                     </div>
 
@@ -2742,17 +2802,36 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   {showExplanation && (
                     <div className="review-explain-panel">
                       {currentPlyIndex >= 0 && moveHistory[currentPlyIndex] ? (
-                        <>
-                          <p style={{ margin: '0 0 0.35rem 0', fontWeight: 600 }}>
-                            {moveHistory[currentPlyIndex].feedbackDescription ||
-                              'Langkah yang dimainkan merespons taktik atau mengejar inisiatif posisi.'}
-                          </p>
-                          {moveHistory[currentPlyIndex].bestAlternative && (
-                            <div style={{ color: '#81b64c', fontWeight: 700 }}>
-                              Saran Alternatif: {moveHistory[currentPlyIndex].bestAlternative}
-                            </div>
-                          )}
-                        </>
+                        (() => {
+                          const curM = moveHistory[currentPlyIndex];
+                          const tacticsDesc = describeMoveTactics(curM);
+                          const desc =
+                            curM.feedbackDescription &&
+                            !curM.feedbackDescription.toLowerCase().includes('menganalisis')
+                              ? curM.feedbackDescription
+                              : `${curM.san} - ${tacticsDesc}`;
+                          return (
+                            <>
+                              <div style={{ margin: '0 0 0.35rem 0', fontWeight: 600, color: '#f3f4f6' }}>
+                                {desc}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: '0.74rem',
+                                  color: '#9ca3af',
+                                  marginBottom: curM.bestAlternative ? '0.35rem' : 0,
+                                }}
+                              >
+                                <strong style={{ color: '#d1d5db' }}>Keterangan Taktis:</strong> {tacticsDesc}
+                              </div>
+                              {curM.bestAlternative && (
+                                <div style={{ color: '#81b64c', fontWeight: 700, marginTop: '0.25rem' }}>
+                                  Saran Alternatif Terbaik: {curM.bestAlternative}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()
                       ) : (
                         <p style={{ margin: 0 }}>Papan catur dalam posisi awal pembukaan.</p>
                       )}

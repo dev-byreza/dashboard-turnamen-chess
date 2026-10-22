@@ -42,38 +42,82 @@ export interface ReviewedMove {
   evalAfter: PositionScore;
 }
 
+import { getStockfishEngine } from './stockfishEngine';
+
 export async function fetchPositionScore(
   fen: string,
   depth: number,
   signal?: AbortSignal
 ): Promise<PositionScore | null> {
-  try {
-    const res = await fetch(`/api/stockfish?fen=${encodeURIComponent(fen)}&depth=${depth}&multipv=3`, { signal });
-    if (!res.ok) return null;
-    const d = await res.json();
-    if (!d?.success) return null;
-    const cp = typeof d.scoreCp === 'number' ? d.scoreCp : 0;
+  // 1. Fast book check from opening database: known book positions are equal
+  if (isBookPosition(fen)) {
     return {
       fen,
-      cp,
-      mate: d.mateIn,
-      winWhite: d.winChanceWhite ?? centipawnsToWinChance(cp, d.mateIn),
-      scoreDisplay: d.scoreDisplay ?? '0.0',
-      bestUci: d.bestMoveUci || undefined,
-      bestSan: d.bestMoveSan || undefined,
-      lines: Array.isArray(d.lines)
-        ? d.lines.map((l: any) => ({
-            uci: l.uci,
-            san: l.san,
-            cp: l.scoreCp,
-            winWhite: l.winChanceWhite,
-            scoreDisplay: l.scoreDisplay,
-          }))
-        : undefined,
+      cp: 15,
+      winWhite: 50.5,
+      scoreDisplay: '+0.1',
     };
-  } catch {
-    return null;
   }
+
+  // 2. Try Next.js API route first with timeout
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(
+      `/api/stockfish?fen=${encodeURIComponent(fen)}&depth=${depth}&multipv=3`,
+      { signal: signal || controller.signal }
+    );
+    clearTimeout(timeout);
+    if (res.ok) {
+      const d = await res.json();
+      if (d && d.success) {
+        const cp = typeof d.scoreCp === 'number' ? d.scoreCp : 0;
+        return {
+          fen,
+          cp,
+          mate: d.mateIn,
+          winWhite: d.winChanceWhite ?? centipawnsToWinChance(cp, d.mateIn),
+          scoreDisplay: d.scoreDisplay ?? '0.0',
+          bestUci: d.bestMoveUci || undefined,
+          bestSan: d.bestMoveSan || undefined,
+          lines: Array.isArray(d.lines)
+            ? d.lines.map((l: any) => ({
+                uci: l.uci,
+                san: l.san,
+                cp: l.scoreCp,
+                winWhite: l.winChanceWhite,
+                scoreDisplay: l.scoreDisplay,
+              }))
+            : undefined,
+        };
+      }
+    }
+  } catch {
+    // API route failed or timed out, fallback to client-side Web Worker
+  }
+
+  // 3. Fallback: Client-side Stockfish Web Worker
+  try {
+    if (typeof window !== 'undefined') {
+      const engine = getStockfishEngine();
+      const evalRes = await engine.evaluatePosition(fen, Math.min(depth, 12));
+      if (evalRes) {
+        return {
+          fen,
+          cp: evalRes.scoreCp,
+          mate: evalRes.mateIn,
+          winWhite: evalRes.winChanceWhite,
+          scoreDisplay: evalRes.scoreDisplay,
+          bestUci: evalRes.bestMoveUci,
+          bestSan: evalRes.bestMoveSan,
+        };
+      }
+    }
+  } catch {
+    // Both failed
+  }
+
+  return null;
 }
 
 const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
@@ -195,30 +239,83 @@ export const LABEL_TITLE: Record<ReviewLabel, string> = {
   blunder: 'Blunder ?? (Kesalahan Fatal)',
 };
 
-export function describeReview(san: string, r: ReviewedMove): string {
+export function describeMoveTactics(m: string | {
+  san: string;
+  piece?: string;
+  from?: string;
+  to?: string;
+  captured?: string;
+  promotion?: string;
+}): string {
+  const san = typeof m === 'string' ? m : m.san;
+  if (!san) return 'Langkah posisi catur.';
+  if (san === 'O-O') return 'Rokade sayap raja untuk mengamankan raja dan mengaktifkan benteng ke pusat.';
+  if (san === 'O-O-O') return 'Rokade sayap ratu yang dinamis, menyiapkan serangan sayap berlawanan.';
+  if (san.includes('#')) return 'Skakmat! Manuver pamungkas yang menyegel kemenangan mutlak.';
+  if (san.includes('+')) return 'Melancarkan skak tajam terhadap raja lawan, merebut tempo dan inisiatif.';
+
+  const to = typeof m === 'object' && m.to ? m.to : san.replace(/[^a-h1-8]/g, '').slice(-2);
+  const isCap = san.includes('x') || (typeof m === 'object' && !!m.captured);
+
+  if (isCap) {
+    return `Memukul perwira lawan di ${to || 'petak target'} untuk merebut materi dan mempertahankan inisiatif serangan.`;
+  }
+
+  const p = typeof m === 'object' && m.piece ? m.piece.toLowerCase() : san[0] >= 'A' && san[0] <= 'Z' ? san[0].toLowerCase() : 'p';
+  switch (p) {
+    case 'p':
+      if (['e4', 'd4', 'e5', 'd5'].includes(to)) {
+        return `Mendorong pion pusat ke ${to} untuk menguasai petak sentral dan membuka ruang pengembangan perwira.`;
+      }
+      if (['c4', 'f4', 'c5', 'f5'].includes(to)) {
+        return `Mendorong pion ke ${to} untuk menantang dominasi struktur petak tengah lawan.`;
+      }
+      return `Mendorong pion ke ${to} untuk memperkuat rantai bidak dan memperluas ruang permainan.`;
+    case 'n':
+      return `Mengembangkan kuda ke ${to}, mengontrol petak-petak penting di pusat dan memperkuat pertahanan.`;
+    case 'b':
+      return `Mengembangkan gajah ke diagonal terbuka di ${to} untuk meningkatkan daya tekan dan keharmonisan perwira.`;
+    case 'r':
+      return `Mengaktifkan benteng ke petak ${to} untuk menguasai lajur tengah yang penting.`;
+    case 'q':
+      return `Memposisikan ratu ke ${to} untuk menghubungkan benteng-benteng dan melancarkan tekanan ofensif.`;
+    case 'k':
+      return `Menggeser raja ke ${to} untuk perlindungan posisi yang lebih aman.`;
+    default:
+      return `Menempatkan perwira ke ${to || 'petak strategis'} untuk mengontrol posisi.`;
+  }
+}
+
+export function describeReview(
+  moveOrSan: string | { san: string; piece?: string; from?: string; to?: string; captured?: string; promotion?: string },
+  r: ReviewedMove
+): string {
+  const san = typeof moveOrSan === 'string' ? moveOrSan : moveOrSan.san;
+  const tactics = describeMoveTactics(moveOrSan);
   const drop = r.loss.toFixed(1);
-  const best = r.bestSan ? ` Langkah terbaik engine: ${r.bestSan}.` : '';
-  const ev = `Evaluasi ${r.evalBefore.scoreDisplay} → ${r.evalAfter.scoreDisplay}.`;
+  const best = r.bestSan ? ` Saran langkah terbaik: ${r.bestSan}.` : '';
+  const ev = `(Eval: ${r.evalAfter.scoreDisplay})`;
+
   switch (r.label) {
     case 'brilliant':
-      return `${san} - Pengorbanan perwira yang dikonfirmasi engine tetap menjaga posisi. ${ev}`;
+      return `${san} - Langkah Brilian!! Pengorbanan perwira akurat yang membuka serangan mematikan. ${tactics} ${ev}`;
     case 'great':
-      return `${san} - Langkah krusial yang menyelamatkan/menyeimbangkan posisi sulit. ${ev}`;
+      return `${san} - Langkah Hebat! Satu-satunya langkah terbaik yang mempertahankan posisi krusial. ${tactics} ${ev}`;
     case 'book':
-      return `${san} - Langkah pembukaan yang sehat. ${ev}`;
+      return `${san} - Langkah Buku Pembukaan (Book Move). ${tactics} Mengikuti teori master. ${ev}`;
     case 'best':
-      return `${san} - Pilihan teratas Stockfish. ${ev}`;
+      return `${san} - Langkah Terbaik ★ Pilihan nomor satu Stockfish. ${tactics} ${ev}`;
     case 'excellent':
-      return `${san} - Hampir sebaik langkah terbaik (kehilangan ${drop}% peluang menang).${best}`;
+      return `${san} - Langkah Sangat Bagus. ${tactics} Posisi tetap prima (kehilangan hanya ${drop}% peluang menang). ${ev}`;
     case 'good':
-      return `${san} - Aman dan masuk akal (kehilangan ${drop}% peluang menang).${best}`;
+      return `${san} - Langkah Bagus. ${tactics} Pilihan aman dan masuk akal. ${ev}`;
     case 'inaccuracy':
-      return `${san} - Kehilangan sedikit keunggulan (${drop}% peluang menang). ${ev}${best}`;
+      return `${san} - Ketidakakuratan ?! Melepaskan sedikit keunggulan inisiatif (-${drop}% peluang menang). ${ev}${best}`;
     case 'mistake':
-      return `${san} - Merusak posisi (${drop}% peluang menang hilang). ${ev}${best}`;
+      return `${san} - Kesalahan ? Merusak kestabilan posisi (-${drop}% peluang menang hilang). ${ev}${best}`;
     case 'miss':
-      return `${san} - Melewatkan peluang setelah kesalahan lawan (${drop}% peluang menang hilang). ${ev}${best}`;
+      return `${san} - Melewatkan Peluang ✖ Melewatkan kesempatan taktis untuk menghukum lawan (-${drop}%). ${ev}${best}`;
     case 'blunder':
-      return `${san} - Kesalahan fatal (${drop}% peluang menang hilang). ${ev}${best}`;
+      return `${san} - Blunder Fatal ?? Mengubah jalannya permainan secara drastis (-${drop}%). ${ev}${best}`;
   }
 }
