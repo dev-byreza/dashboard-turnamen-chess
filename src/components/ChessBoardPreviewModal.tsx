@@ -50,14 +50,84 @@ export interface ChessBoardPreviewModalProps {
 
 export type ChessComBadgeType =
   | 'brilliant'
+  | 'great'
+  | 'book'
   | 'best'
   | 'excellent'
   | 'good'
-  | 'book'
   | 'inaccuracy'
   | 'mistake'
+  | 'miss'
   | 'blunder'
   | 'missed_win';
+
+export const REVIEW_CLASSIFICATIONS: {
+  type: ChessComBadgeType;
+  label: string;
+  color: string;
+  details: string;
+}[] = [
+  {
+    type: 'brilliant',
+    label: 'Brilliant',
+    color: '#31c4b9',
+    details: 'The best move - and tricky to find too!',
+  },
+  {
+    type: 'great',
+    label: 'Great',
+    color: '#5091c5',
+    details: 'A move that altered the course of the game!',
+  },
+  {
+    type: 'book',
+    label: 'Book',
+    color: '#c3996b',
+    details: 'A conventional opening move',
+  },
+  {
+    type: 'best',
+    label: 'Best',
+    color: '#81b64c',
+    details: "The chess engine's top choice",
+  },
+  {
+    type: 'excellent',
+    label: 'Excellent',
+    color: '#68a846',
+    details: 'Almost as good as the Best move',
+  },
+  {
+    type: 'good',
+    label: 'Good',
+    color: '#7fa650',
+    details: 'A decent move, but not the best',
+  },
+  {
+    type: 'inaccuracy',
+    label: 'Inaccuracy',
+    color: '#f1b332',
+    details: 'A weak move',
+  },
+  {
+    type: 'mistake',
+    label: 'Mistake',
+    color: '#f07d2e',
+    details: 'A bad move that immediately worsens your position',
+  },
+  {
+    type: 'miss',
+    label: 'Miss',
+    color: '#df5353',
+    details: 'A move that missed a tactical opportunity or a chance to punish the opponent',
+  },
+  {
+    type: 'blunder',
+    label: 'Blunder',
+    color: '#ca3431',
+    details: 'A very bad move that also loses material or the game',
+  },
+];
 
 export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: number }> = ({
   type,
@@ -67,7 +137,7 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
     case 'brilliant':
       return (
         <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#1baca6" />
+          <circle cx="12" cy="12" r="11" fill="#31c4b9" />
           <text
             x="12"
             y="16.5"
@@ -81,12 +151,39 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
           </text>
         </svg>
       );
+    case 'great':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#5091c5" />
+          <text
+            x="12"
+            y="17"
+            fill="#ffffff"
+            fontSize="14"
+            fontWeight="900"
+            textAnchor="middle"
+            fontFamily="Arial, Helvetica, sans-serif"
+          >
+            !
+          </text>
+        </svg>
+      );
+    case 'book':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#c3996b" />
+          <path
+            d="M6.5 8.5c1.8-.8 3.5-.8 5.5.5V17c-2-1.2-3.7-1.2-5.5-.5V8.5zm11 0c-1.8-.8-3.5-.8-5.5.5V17c2-1.2 3.7-1.2 5.5-.5V8.5z"
+            fill="#ffffff"
+          />
+        </svg>
+      );
     case 'best':
       return (
         <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#85a94e" />
+          <circle cx="12" cy="12" r="11" fill="#81b64c" />
           <path
-            d="M12 4.5l2.2 4.7 5.2.8-3.7 3.6.9 5.2L12 16.3l-4.6 2.5.9-5.2-3.7-3.6 5.2-.8z"
+            d="M12 4.8l2.2 4.6 5.1.7-3.7 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.7-3.5 5.1-.7z"
             fill="#ffffff"
           />
         </svg>
@@ -94,39 +191,31 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
     case 'excellent':
       return (
         <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#5c8bb0" />
+          <circle cx="12" cy="12" r="11" fill="#68a846" />
           <path
-            d="M7 12.5l3.5 3.5 7-7"
-            stroke="#ffffff"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
+            d="M7.5 10v7H6v-7h1.5zm2 7h5.2c.7 0 1.3-.4 1.5-1.1l1.2-4.2c.1-.4 0-.8-.2-1.1-.3-.3-.7-.5-1.1-.5H13.5V7.5c0-.8-.7-1.5-1.5-1.5-.5 0-.9.2-1.1.6L9.2 10H9.5v7z"
+            fill="#ffffff"
           />
         </svg>
       );
     case 'good':
       return (
         <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#8c8882" />
-          <circle cx="12" cy="12" r="6" fill="none" stroke="#ffffff" strokeWidth="1.8" />
-          <circle cx="12" cy="12" r="2.2" fill="#ffffff" />
-        </svg>
-      );
-    case 'book':
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#a88865" />
+          <circle cx="12" cy="12" r="11" fill="#7fa650" />
           <path
-            d="M6.5 8c1.8-.8 3.5-.8 5.5.5V17c-2-1.2-3.7-1.2-5.5-.5V8zm11 0c-1.8-.8-3.5-.8-5.5.5V17c2-1.2 3.7-1.2 5.5-.5V8z"
-            fill="#ffffff"
+            d="M7.5 12.5l3.2 3.2 6.8-6.8"
+            stroke="#ffffff"
+            strokeWidth="2.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
           />
         </svg>
       );
     case 'inaccuracy':
       return (
         <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#e69d24" />
+          <circle cx="12" cy="12" r="11" fill="#f1b332" />
           <text
             x="12"
             y="16.5"
@@ -143,7 +232,7 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
     case 'mistake':
       return (
         <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#e67828" />
+          <circle cx="12" cy="12" r="11" fill="#f07d2e" />
           <text
             x="12"
             y="17"
@@ -155,6 +244,19 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
           >
             ?
           </text>
+        </svg>
+      );
+    case 'miss':
+    case 'missed_win':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#df5353" />
+          <path
+            d="M8.2 8.2l7.6 7.6M15.8 8.2l-7.6 7.6"
+            stroke="#ffffff"
+            strokeWidth="2.8"
+            strokeLinecap="round"
+          />
         </svg>
       );
     case 'blunder':
@@ -174,18 +276,6 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
           </text>
         </svg>
       );
-    case 'missed_win':
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#db4352" />
-          <path
-            d="M8 8l8 8M16 8l-8 8"
-            stroke="#ffffff"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
   }
 };
 
@@ -193,83 +283,10 @@ export const ChessMovePieceIcon: React.FC<{
   piece: string;
   color: 'w' | 'b';
   size?: number;
-}> = ({ piece, color, size = 14 }) => {
+}> = ({ piece, color, size = 15 }) => {
   const p = piece.toLowerCase();
-  const isWhite = color === 'w';
-  const fillColor = isWhite ? '#ffffff' : '#262522';
-  const strokeColor = isWhite ? '#1e1d1a' : '#ffffff';
-
-  switch (p) {
-    case 'n': // Knight
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="chess-move-symbol">
-          <path
-            d="M6 20h12v-2c0-2-1-3-2-4 1-1 2-3 1-5 0-1-.5-2-1.5-2.5C15 5.5 13 4 10 4 8 4 7 5.5 6 7c-1 1.5-.5 3 0 4l-1.5 2C4 14 4 16 5 17l1 1v2z"
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-          <circle cx="9.5" cy="8.5" r="1.1" fill={isWhite ? '#1e1d1a' : '#ffffff'} />
-        </svg>
-      );
-    case 'b': // Bishop
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="chess-move-symbol">
-          <path
-            d="M12 3.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm-4 16.5h8v-2c0-2-1.5-3.5-2.5-4.5 1.5-1.5 2.5-3.5 2.5-6 0-3-2-5.5-4-5.5s-4 2.5-4 5.5c0 2.5 1 4.5 2.5 6-1 1-2.5 2.5-2.5 4.5v2z"
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-          <path d="M10 10l4 4m0-4l-4 4" stroke={isWhite ? '#1e1d1a' : '#ffffff'} strokeWidth="1.2" />
-        </svg>
-      );
-    case 'r': // Rook
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="chess-move-symbol">
-          <path
-            d="M6 20h12v-3H16v-6h1.5V6H15v2h-2V6h-2v2H9V6H6.5v5H8v6H6v3z"
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case 'q': // Queen
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="chess-move-symbol">
-          <path
-            d="M5 19h14v-2.5H5V19zm14-11l-3 6.5-4-6.5-4 6.5L5 8l1.5 7h11L19 8z"
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-          <circle cx="5" cy="7" r="1.2" fill={fillColor} stroke={strokeColor} strokeWidth="1" />
-          <circle cx="8.5" cy="6.5" r="1.2" fill={fillColor} stroke={strokeColor} strokeWidth="1" />
-          <circle cx="12" cy="6" r="1.2" fill={fillColor} stroke={strokeColor} strokeWidth="1" />
-          <circle cx="15.5" cy="6.5" r="1.2" fill={fillColor} stroke={strokeColor} strokeWidth="1" />
-          <circle cx="19" cy="7" r="1.2" fill={fillColor} stroke={strokeColor} strokeWidth="1" />
-        </svg>
-      );
-    case 'k': // King
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="chess-move-symbol">
-          <path
-            d="M12 3v3m-1.5-1.5h3M7 20h10v-2.5c0-1.5-1-2.5-2-3.5 1.5-1 2.5-2.5 2.5-4.5 0-3-2.5-4.5-5.5-4.5S6.5 6.5 6.5 9.5c0 2 1 3.5 2.5 4.5-1 1-2 2-2 3.5V20z"
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    default:
-      return null;
-  }
+  const pieceCode = (color === 'w' ? p.toUpperCase() : p.toLowerCase()) as PieceCode;
+  return <ChessComNeoPiece piece={pieceCode} size={size} className="move-piece-symbol" />;
 };
 
 export interface MoveHistoryItem {
@@ -304,7 +321,11 @@ export const renderMoveFigurine = (
   if (!piece) return null;
   const p = piece.toLowerCase();
   if (p === 'p' || san.startsWith('O-O')) return null;
-  return <ChessMovePieceIcon piece={p} color={color} size={14} />;
+  return (
+    <span className="inline-move-piece-icon">
+      <ChessMovePieceIcon piece={p} color={color} size={15} />
+    </span>
+  );
 };
 
 export function detectOpening(moves: MoveHistoryItem[], pgn?: string): string {
@@ -428,12 +449,28 @@ export function classifyGameMoves(
     }
   }
 
+  // Candidate Great Moves
+  const greatPlies = new Set<number>();
+  rawMoves.forEach((m) => {
+    if (
+      m.ply > 6 &&
+      (m.san.includes('x') || m.san.includes('+')) &&
+      !blunderPlies.has(m.ply) &&
+      m.ply !== whiteBrilliantPly &&
+      m.ply !== blackBrilliantPly &&
+      (m.ply * 7) % 9 === 0
+    ) {
+      greatPlies.add(m.ply);
+    }
+  });
+
   // Candidate Mistakes
   const mistakePlies = new Set<number>();
   const candMistakes = rawMoves.filter(
     (m) =>
       m.ply > 6 &&
       !blunderPlies.has(m.ply) &&
+      !greatPlies.has(m.ply) &&
       m.ply !== whiteBrilliantPly &&
       m.ply !== blackBrilliantPly
   );
@@ -449,6 +486,7 @@ export function classifyGameMoves(
     if (
       m.ply > 4 &&
       !blunderPlies.has(m.ply) &&
+      !greatPlies.has(m.ply) &&
       !mistakePlies.has(m.ply) &&
       m.ply !== whiteBrilliantPly &&
       m.ply !== blackBrilliantPly &&
@@ -458,22 +496,31 @@ export function classifyGameMoves(
     }
   });
 
-  // Candidate Missed Win
-  let missedWinPly = -1;
+  // Candidate Miss Moves
+  const missPlies = new Set<number>();
   const missedCand = rawMoves.find(
     (m) =>
-      m.ply > 10 &&
+      m.ply > 8 &&
       !blunderPlies.has(m.ply) &&
+      !greatPlies.has(m.ply) &&
       !mistakePlies.has(m.ply) &&
       !inaccuracyPlies.has(m.ply) &&
       (isWhiteWin ? m.color === 'b' : isBlackWin ? m.color === 'w' : false)
   );
-  if (missedCand) missedWinPly = missedCand.ply;
+  if (missedCand) missPlies.add(missedCand.ply);
+  const secondMiss = rawMoves.find(
+    (m) =>
+      m.ply > 12 &&
+      !missPlies.has(m.ply) &&
+      !blunderPlies.has(m.ply) &&
+      !greatPlies.has(m.ply) &&
+      (m.ply * 11) % 13 === 0
+  );
+  if (secondMiss) missPlies.add(secondMiss.ply);
 
   return rawMoves.map((m) => {
     const timeSpent = getSimulatedTime(m.ply, m.san);
-    const pieceUpper = m.piece.toUpperCase();
-    const colorLabel = m.color === 'w' ? 'Putih' : 'Hitam';
+    const colorLabel = m.color === 'w' ? 'White' : 'Black';
 
     // 1. BRILLIANT
     if (m.ply === whiteBrilliantPly || m.ply === blackBrilliantPly) {
@@ -481,163 +528,142 @@ export function classifyGameMoves(
         ...m,
         timeSpent,
         classification: 'brilliant',
-        feedbackTitle: 'Langkah Brilian !!',
-        feedbackDescription: `${colorLabel} menemukan manuver taktis brilian dengan ${m.san}! Pengorbanan perwira yang membongkar pertahanan lawan dan mengunci inisiatif kemenangan.`,
+        feedbackTitle: 'Brilliant !!',
+        feedbackDescription: `${colorLabel} finds ${m.san} - The best move - and tricky to find too!`,
       };
     }
 
-    // 2. BLUNDER
+    // 2. GREAT
+    if (greatPlies.has(m.ply)) {
+      return {
+        ...m,
+        timeSpent,
+        classification: 'great',
+        feedbackTitle: 'Great Move !',
+        feedbackDescription: `${m.san} - A move that altered the course of the game!`,
+      };
+    }
+
+    // 3. BLUNDER
     if (blunderPlies.has(m.ply)) {
       return {
         ...m,
         timeSpent,
         classification: 'blunder',
-        feedbackTitle: 'Blunder Fatal ??',
-        feedbackDescription: `Langkah ${m.san} merupakan kesalahan fatal yang merugikan posisi secara drastis, membiarkan lawan merebut materi atau melancarkan taktik mematikan.`,
-        bestAlternative: 'Alternatif mesin: Menjaga perwira di petak aman atau memindahkan raja ke posisi terlindung.',
+        feedbackTitle: 'Blunder ??',
+        feedbackDescription: `${m.san} - A very bad move that also loses material or the game`,
+        bestAlternative: 'Engine advice: Keep the piece defended or secure the king.',
       };
     }
 
-    // 3. MISSED WIN
-    if (m.ply === missedWinPly) {
+    // 4. MISS
+    if (missPlies.has(m.ply)) {
       return {
         ...m,
         timeSpent,
-        classification: 'missed_win',
-        feedbackTitle: 'Melewatkan Kemenangan',
-        feedbackDescription: `${colorLabel} melewatkan kelanjutan taktis tajam yang sebenarnya dapat mengunci keunggulan mutlak lebih awal.`,
-        bestAlternative: 'Alternatif mesin: Serangan langsung ke sayap raja atau pertukaran perwira yang menguntungkan.',
+        classification: 'miss',
+        feedbackTitle: 'Miss ✖',
+        feedbackDescription: `${m.san} - A move that missed a tactical opportunity or a chance to punish the opponent`,
+        bestAlternative: 'Engine advice: Strike immediately at the opponent weakness.',
       };
     }
 
-    // 4. MISTAKE
+    // 5. MISTAKE
     if (mistakePlies.has(m.ply)) {
       return {
         ...m,
         timeSpent,
         classification: 'mistake',
-        feedbackTitle: 'Kesalahan ?',
-        feedbackDescription: `Langkah ${m.san} menempatkan perwira di posisi pasif dan melepaskan tekanan penting, memberi kesempatan lawan mengorganisir serangan balasan.`,
-        bestAlternative: 'Alternatif mesin: Langkah profilaksis atau perbaikan struktur perwira.',
+        feedbackTitle: 'Mistake ?',
+        feedbackDescription: `${m.san} - A bad move that immediately worsens your position`,
+        bestAlternative: 'Engine advice: Consider active prophylaxis or piece coordination.',
       };
     }
 
-    // 5. INACCURACY
+    // 6. INACCURACY
     if (inaccuracyPlies.has(m.ply)) {
       return {
         ...m,
         timeSpent,
         classification: 'inaccuracy',
-        feedbackTitle: 'Kurang Akurat ?!',
-        feedbackDescription: `Langkah ${m.san} sedikit melepaskan keunggulan dinamis. Ada kelanjutan langkah yang lebih aktif dan menekan posisi musuh.`,
-        bestAlternative: 'Alternatif mesin: Mengaktifkan perwira sayap atau mendorong bidak pusat.',
+        feedbackTitle: 'Inaccuracy ?!',
+        feedbackDescription: `${m.san} - A weak move`,
+        bestAlternative: 'Engine advice: Activate a piece or challenge the center.',
       };
     }
 
-    // 6. BOOK MOVE (Opening phase)
+    // 7. BOOK MOVE (Opening phase)
     if (m.ply <= 6 && !m.san.includes('#')) {
-      let desc = 'Langkah standar teori pembukaan untuk menguasai petak pusat dan mempercepat perkembangan perwira.';
-      if (m.san === 'e4' || m.san === 'e5') {
-        desc = 'Langkah pembukaan buku klasik mengontrol petak pusat d4/d5 dan membuka ruang bagi menteri dan gajah.';
-      } else if (m.san === 'd4' || m.san === 'd5') {
-        desc = 'Klaim langsung atas petak pusat dengan perlindungan alami bidak.';
-      } else if (
-        m.san.startsWith('Nf3') ||
-        m.san.startsWith('Nc3') ||
-        m.san.startsWith('Nf6') ||
-        m.san.startsWith('Nc6')
-      ) {
-        desc = 'Mengembangkan kuda ke petak ideal untuk mengawasi petak-petak sentral dan mempersiapkan rokade.';
-      } else if (
-        m.san.startsWith('Bc4') ||
-        m.san.startsWith('Bb5') ||
-        m.san.startsWith('Be2') ||
-        m.san.startsWith('Bc5')
-      ) {
-        desc = 'Menempatkan gajah pada diagonal terbuka untuk menekan sayap lawan.';
-      } else if (m.san.startsWith('c4') || m.san.startsWith('c5')) {
-        desc = 'Menantang struktur pusat lawan dari sayap menteri.';
-      }
-
       return {
         ...m,
         timeSpent,
         classification: 'book',
-        feedbackTitle: 'Langkah Buku (Teori)',
-        feedbackDescription: desc,
+        feedbackTitle: 'Book Move 📖',
+        feedbackDescription: `${m.san} - A conventional opening move`,
       };
     }
 
-    // 7. CHECKMATE
+    // 8. CHECKMATE
     if (m.san.includes('#')) {
       return {
         ...m,
         timeSpent,
         classification: 'best',
-        feedbackTitle: 'Langkah Terbaik ★ (Skakmat)',
-        feedbackDescription: `Skakmat sempurna dengan ${m.san}! Menuntaskan pertandingan dengan kemenangan mutlak.`,
+        feedbackTitle: 'Best Move ★ (Checkmate)',
+        feedbackDescription: `${m.san} - The chess engine's top choice (Checkmate!)`,
       };
     }
 
-    // 8. CASTLING
+    // 9. CASTLING
     if (m.san === 'O-O' || m.san === 'O-O-O') {
       return {
         ...m,
         timeSpent,
         classification: 'best',
-        feedbackTitle: 'Langkah Terbaik ★',
-        feedbackDescription: 'Rokade mengamankan raja ke sudut terlindung dan mengaktifkan benteng ke lajur tengah yang strategis.',
+        feedbackTitle: 'Best Move ★',
+        feedbackDescription: `${m.san} - The chess engine's top choice (King safety & rook activity)`,
       };
     }
 
-    // 9. CAPTURES & CHECKS & STRONG MOVES
+    // 10. CAPTURES & CHECKS
     if (m.san.includes('x') || m.san.includes('+')) {
       const isBest = m.ply % 2 === 0;
       return {
         ...m,
         timeSpent,
         classification: isBest ? 'best' : 'excellent',
-        feedbackTitle: isBest ? 'Langkah Terbaik ★' : 'Sangat Bagus',
-        feedbackDescription: m.san.includes('+')
-          ? `Skak tajam ${m.san} memaksa reaksi raja lawan dan menjaga tempo serangan yang kuat.`
-          : `Pertukaran taktis ${m.san} menyederhanakan posisi secara menguntungkan dan mempertahankan koordinasi perwira.`,
+        feedbackTitle: isBest ? 'Best Move ★' : 'Excellent 👍',
+        feedbackDescription: isBest
+          ? `${m.san} - The chess engine's top choice`
+          : `${m.san} - Almost as good as the Best move`,
       };
     }
 
-    // 10. REGULAR MOVES: Distributed among BEST, EXCELLENT, and GOOD
+    // 11. REGULAR MOVES: Distributed among BEST, EXCELLENT, and GOOD
     const variant = (m.ply * 7) % 3;
     if (variant === 0) {
-      let desc = 'Langkah terkuat menurut Stockfish, memaksimalkan aktivitas dan menekan kelemahan lawan.';
-      if (pieceUpper === 'N') desc = 'Manuver kuda yang sangat terukur untuk menguasai petak kunci sentral.';
-      if (pieceUpper === 'B') desc = 'Penempatan gajah optimal yang mendominasi diagonal krusial.';
-      if (pieceUpper === 'R') desc = 'Benteng mengambil alih lajur penting untuk mendukung penetrasi taktis.';
-      if (pieceUpper === 'Q') desc = 'Sentralisasi menteri yang sangat kuat untuk mengoordinasi tekanan menyeluruh.';
-      if (pieceUpper === 'P') desc = 'Dorongan bidak yang solid memperkuat rantai pertahanan dan membuka ruang.';
       return {
         ...m,
         timeSpent,
         classification: 'best',
-        feedbackTitle: 'Langkah Terbaik ★',
-        feedbackDescription: desc,
+        feedbackTitle: 'Best Move ★',
+        feedbackDescription: `${m.san} - The chess engine's top choice`,
       };
     } else if (variant === 1) {
-      let desc = 'Langkah sangat solid yang menjaga keunggulan posisi dan memperkuat koordinasi perwira.';
-      if (pieceUpper === 'N') desc = 'Kuda bermanuver aktif ke petak yang lebih strategis.';
-      if (pieceUpper === 'B') desc = 'Gajah aktif memberikan tekanan tidak langsung ke formasi pertahanan lawan.';
       return {
         ...m,
         timeSpent,
         classification: 'excellent',
-        feedbackTitle: 'Sangat Bagus',
-        feedbackDescription: desc,
+        feedbackTitle: 'Excellent 👍',
+        feedbackDescription: `${m.san} - Almost as good as the Best move`,
       };
     } else {
       return {
         ...m,
         timeSpent,
         classification: 'good',
-        feedbackTitle: 'Langkah Bagus',
-        feedbackDescription: `Langkah wajar dan aman (${m.san}) yang menjaga kestabilan posisi tanpa memberikan kelemahan baru.`,
+        feedbackTitle: 'Good ✔',
+        feedbackDescription: `${m.san} - A decent move, but not the best`,
       };
     }
   });
@@ -657,8 +683,8 @@ export function classifySingleMove(
       ...move,
       timeSpent: '1.2s',
       classification: 'best',
-      feedbackTitle: 'Langkah Terbaik ★ (Skakmat)',
-      feedbackDescription: `Skakmat sempurna dengan ${move.san}! Kemenangan mutlak di papan.`,
+      feedbackTitle: 'Best Move ★ (Checkmate)',
+      feedbackDescription: `${move.san} - The chess engine's top choice!`,
     };
   }
 
@@ -667,8 +693,8 @@ export function classifySingleMove(
       ...move,
       timeSpent: '0.8s',
       classification: 'best',
-      feedbackTitle: 'Langkah Terbaik ★',
-      feedbackDescription: 'Rokade mengamankan raja ke sudut aman dan menghubungkan benteng ke lajur tengah.',
+      feedbackTitle: 'Best Move ★',
+      feedbackDescription: `${move.san} - The chess engine's top choice!`,
     };
   }
 
@@ -677,8 +703,8 @@ export function classifySingleMove(
       ...move,
       timeSpent: '0.5s',
       classification: 'book',
-      feedbackTitle: 'Langkah Buku (Teori)',
-      feedbackDescription: `Langkah pengembangan standar teori pembukaan dengan ${move.san}.`,
+      feedbackTitle: 'Book Move 📖',
+      feedbackDescription: `${move.san} - A conventional opening move`,
     };
   }
 
@@ -686,11 +712,9 @@ export function classifySingleMove(
     return {
       ...move,
       timeSpent: '2.4s',
-      classification: 'best',
-      feedbackTitle: 'Langkah Terbaik ★',
-      feedbackDescription: isCheck
-        ? `Skak tajam ${move.san} yang membatasi pergerakan raja lawan.`
-        : `Pertukaran taktis ${move.san} yang menguntungkan inisiatif posisi.`,
+      classification: 'great',
+      feedbackTitle: 'Great Move !',
+      feedbackDescription: `${move.san} - A move that altered the course of the game!`,
     };
   }
 
@@ -698,8 +722,8 @@ export function classifySingleMove(
     ...move,
     timeSpent: '1.5s',
     classification: 'excellent',
-    feedbackTitle: 'Sangat Bagus',
-    feedbackDescription: `Langkah solid ${move.san} yang menjaga koordinasi perwira di medan catur.`,
+    feedbackTitle: 'Excellent 👍',
+    feedbackDescription: `${move.san} - Almost as good as the Best move`,
   };
 }
 
@@ -739,9 +763,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<string[]>([]);
   const [isPlayingReplay, setIsPlayingReplay] = useState(false);
+  const [isReviewActive, setIsReviewActive] = useState<boolean>(false);
+  const [showExplanation, setShowExplanation] = useState<boolean>(false);
 
   const replayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const evalDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const reviewMovesScrollRef = useRef<HTMLDivElement>(null);
 
   // Parse FEN or PGN on modal open
   useEffect(() => {
@@ -1041,22 +1068,26 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const calculatedCounts = useMemo(() => {
     const counts: Record<ChessComBadgeType, { w: number; b: number }> = {
       brilliant: { w: 0, b: 0 },
+      great: { w: 0, b: 0 },
+      book: { w: 0, b: 0 },
       best: { w: 0, b: 0 },
       excellent: { w: 0, b: 0 },
       good: { w: 0, b: 0 },
-      book: { w: 0, b: 0 },
       inaccuracy: { w: 0, b: 0 },
       mistake: { w: 0, b: 0 },
+      miss: { w: 0, b: 0 },
       blunder: { w: 0, b: 0 },
       missed_win: { w: 0, b: 0 },
     };
 
     moveHistory.forEach((m) => {
-      if (m.classification && counts[m.classification]) {
+      let t = m.classification;
+      if (t === 'missed_win') t = 'miss';
+      if (t && counts[t]) {
         if (m.color === 'w') {
-          counts[m.classification].w++;
+          counts[t].w++;
         } else {
-          counts[m.classification].b++;
+          counts[t].b++;
         }
       }
     });
@@ -1076,12 +1107,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
     const weights: Record<ChessComBadgeType, number> = {
       brilliant: 100,
+      great: 95,
       best: 100,
-      excellent: 90,
+      excellent: 88,
       good: 75,
       book: 95,
       inaccuracy: 50,
       mistake: 25,
+      miss: 15,
       blunder: 5,
       missed_win: 15,
     };
@@ -1097,8 +1130,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
     });
 
-    const wAcc = wTotal > 0 ? (wScore / wTotal).toFixed(1) : (isWhiteWin ? '78.4' : '62.5');
-    const bAcc = bTotal > 0 ? (bScore / bTotal).toFixed(1) : (isBlackWin ? '79.2' : '54.8');
+    const wAcc = wTotal > 0 ? (wScore / wTotal).toFixed(1) : (isWhiteWin ? '67.6' : '54.0');
+    const bAcc = bTotal > 0 ? (bScore / bTotal).toFixed(1) : (isBlackWin ? '67.6' : '54.0');
 
     return {
       whiteAccuracy: wAcc,
@@ -1112,6 +1145,93 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     };
   }, [match?.result, whiteName, blackName, moveHistory, calculatedCounts]);
 
+  // Evaluation Chart Data (Image 3)
+  const evalChartData = useMemo(() => {
+    if (moveHistory.length === 0) {
+      return {
+        svgPath: 'M 0 64 L 0 32 L 320 32 L 320 64 Z',
+        dots: [] as { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[],
+      };
+    }
+
+    const isWhiteWin = match?.result === '1-0';
+    const isBlackWin = match?.result === '0-1';
+
+    const total = moveHistory.length;
+    const pts: { x: number; y: number; type?: ChessComBadgeType; ply: number }[] = [];
+
+    moveHistory.forEach((m, idx) => {
+      const x = (idx / Math.max(1, total - 1)) * 320;
+      let y = 32;
+
+      if (idx < total * 0.4) {
+        y = 32 - Math.sin(idx * 1.5) * 2.5;
+      } else if (idx < total * 0.72) {
+        const progress = (idx - total * 0.4) / (total * 0.32);
+        if (isWhiteWin) {
+          y = 32 - progress * 8 - Math.sin(idx * 2) * 3;
+        } else if (isBlackWin) {
+          y = 32 + progress * 8 + Math.sin(idx * 2) * 3;
+        } else {
+          y = 32 + Math.sin(idx * 2) * 2.5;
+        }
+      } else {
+        const progress = (idx - total * 0.72) / (total * 0.28);
+        if (isWhiteWin) {
+          y = 24 - progress * 18 - Math.sin(idx) * 2;
+        } else if (isBlackWin) {
+          y = 40 + progress * 18 + Math.sin(idx) * 2;
+        } else {
+          y = 32 + Math.sin(idx * 3) * 2;
+        }
+      }
+
+      y = Math.max(6, Math.min(58, y));
+      pts.push({ x, y, type: m.classification, ply: m.ply });
+    });
+
+    let pathD = `M 0 64 L 0 ${pts[0].y.toFixed(1)}`;
+    for (let i = 1; i < pts.length; i++) {
+      pathD += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+    }
+    pathD += ` L 320 64 Z`;
+
+    const dots: { x: number; y: number; type: ChessComBadgeType; color: string; ply: number }[] = [];
+    pts.forEach((p) => {
+      let t = p.type;
+      if (t === 'missed_win') t = 'miss';
+      if (
+        t &&
+        ['brilliant', 'great', 'book', 'best', 'inaccuracy', 'mistake', 'miss', 'blunder'].includes(
+          t
+        )
+      ) {
+        const meta = REVIEW_CLASSIFICATIONS.find((c) => c.type === t);
+        if (meta) {
+          dots.push({
+            x: p.x,
+            y: p.y,
+            type: t,
+            color: meta.color,
+            ply: p.ply,
+          });
+        }
+      }
+    });
+
+    return { svgPath: pathD, dots, points: pts };
+  }, [moveHistory, match?.result]);
+
+  // Click handler for evaluation chart (Image 3)
+  const handleChartClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (moveHistory.length === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const targetPly = Math.round(ratio * (moveHistory.length - 1));
+    jumpToPly(targetPly);
+  };
+
   // Auto-scroll moves table to current move
   const movesScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1123,12 +1243,101 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
   }, [currentPlyIndex]);
 
+  // Auto-scroll review moves table
+  useEffect(() => {
+    if (reviewMovesScrollRef.current && currentPlyIndex >= 0) {
+      const activeBtn = reviewMovesScrollRef.current.querySelector('.review-move-pill.active');
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [currentPlyIndex, isReviewActive]);
+
+  // Active Move Evaluation Display (Image 4 speech bubble pill: e.g. "+0.10")
+  const currentMoveEvalDisplay = useMemo(() => {
+    if (currentPlyIndex === -1) return '0.00';
+    if (currentEval?.scoreDisplay) return currentEval.scoreDisplay;
+    if (evalChartData.points && evalChartData.points[currentPlyIndex]) {
+      const pt = evalChartData.points[currentPlyIndex];
+      const scoreVal = (32 - pt.y) / 6;
+      const formatted = Math.abs(scoreVal) < 0.05 ? '0.00' : scoreVal.toFixed(2);
+      return scoreVal > 0.05 ? `+${formatted}` : formatted;
+    }
+    return '+0.10';
+  }, [currentPlyIndex, currentEval?.scoreDisplay, evalChartData.points]);
+
+  // Active Move Coach Feedback (Image 4 speech bubble comment: e.g. "d4 is the last book move")
+  const currentMoveCoachComment = useMemo(() => {
+    if (currentPlyIndex === -1) {
+      return {
+        title: 'Posisi Awal',
+        comment: 'White to move. Tinjau langkah demi langkah atau tekan Next.',
+        badge: null as ChessComBadgeType | null,
+      };
+    }
+    const m = moveHistory[currentPlyIndex];
+    if (!m) {
+      return {
+        title: 'Analisis',
+        comment: 'Meninjau posisi langkah catur.',
+        badge: null as ChessComBadgeType | null,
+      };
+    }
+
+    let comment = '';
+    switch (m.classification) {
+      case 'brilliant':
+        comment = `${m.san} is a brilliant move! A sacrifice that creates decisive tactical advantage.`;
+        break;
+      case 'great':
+        comment = `${m.san} is a great find! Finding the only move that maintains the initiative.`;
+        break;
+      case 'book':
+        const nextMove = moveHistory[currentPlyIndex + 1];
+        const isLastBook = !nextMove || nextMove.classification !== 'book';
+        comment = isLastBook ? `${m.san} is the last book move` : `${m.san} is a book move`;
+        break;
+      case 'best':
+        comment = `${m.san} is the best move. Maintains maximum pressure.`;
+        break;
+      case 'excellent':
+        comment = `${m.san} is an excellent move, keeping a strong position.`;
+        break;
+      case 'good':
+        comment = `${m.san} is a good, solid move.`;
+        break;
+      case 'inaccuracy':
+        comment = `${m.san} is an inaccuracy. ${m.feedbackDescription || 'Allows opponent counterplay.'}`;
+        break;
+      case 'mistake':
+        comment = `${m.san} is a mistake. ${m.feedbackDescription || 'Immediately worsens your position.'}`;
+        break;
+      case 'miss':
+      case 'missed_win':
+        comment = `${m.san} is a miss. Missed an opportunity to punish the opponent.`;
+        break;
+      case 'blunder':
+        comment = `${m.san} is a blunder. ${m.feedbackDescription || 'A costly oversight that severely hurts your winning chances.'}`;
+        break;
+      default:
+        comment = m.feedbackDescription || `${m.san} dimainkan.`;
+    }
+
+    return {
+      title: m.feedbackTitle || 'Move Review',
+      comment,
+      badge: m.classification || null,
+    };
+  }, [currentPlyIndex, moveHistory]);
+
   // Jump to move by classification with cycling support
   const handleJumpToClassification = (type: ChessComBadgeType, colorFilter?: 'w' | 'b') => {
     const matching = moveHistory
       .map((m, idx) => ({ m, idx }))
       .filter((item) => {
-        if (item.m.classification !== type) return false;
+        let t = item.m.classification;
+        if (t === 'missed_win') t = 'miss';
+        if (t !== type) return false;
         if (colorFilter && item.m.color !== colorFilter) return false;
         return true;
       });
@@ -1142,7 +1351,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         : matching[0];
 
     jumpToPly(nextTarget.idx);
-    setActiveTab('analysis');
+    setIsReviewActive(true);
   };
 
   if (!isOpen) return null;
@@ -1377,213 +1586,609 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           {/* RIGHT: Analysis / Review Sidebar Panel */}
           <aside className="chesscom-sidebar-section">
             {activeTab === 'review' ? (
-              /* TAB 1: GAME REVIEW (Matching Chess.com Screenshot 2) */
-              <div className="review-panel-container">
-                <div className="review-header-title">
-                  <div className="title-left">
-                    <span className="review-star-badge">★</span>
-                    <h3>Game Review</h3>
-                  </div>
-                  <span className="engine-verified-pill">Stockfish 19 Verified</span>
-                </div>
-
-                {/* Coach Card with Speech Bubble */}
-                <div className="coach-comment-card">
-                  <div className="coach-avatar">
-                    <svg viewBox="0 0 60 60" className="coach-svg">
-                      <circle cx="30" cy="30" r="28" fill="#3b82f6" />
-                      {/* Coach face illustration */}
-                      <circle cx="30" cy="26" r="14" fill="#fed7aa" />
-                      {/* Hair and beard */}
-                      <path
-                        d="M18 20c2-8 22-8 24 0 0 0-3-4-12-4s-12 4-12 4z"
-                        fill="#573418"
-                      />
-                      <path
-                        d="M20 30c1 6 19 6 20 0 0 5-6 9-10 9s-10-4-10-9z"
-                        fill="#573418"
-                      />
-                      {/* Glasses */}
-                      <circle
-                        cx="25"
-                        cy="25"
-                        r="3.5"
-                        fill="none"
-                        stroke="#1e293b"
-                        strokeWidth="1.5"
-                      />
-                      <circle
-                        cx="35"
-                        cy="25"
-                        r="3.5"
-                        fill="none"
-                        stroke="#1e293b"
-                        strokeWidth="1.5"
-                      />
-                      <path d="M28.5 25h3" stroke="#1e293b" strokeWidth="1.5" />
-                      {/* Shirt */}
-                      <path
-                        d="M12 56c4-12 10-16 18-16s14 4 18 16z"
-                        fill="#1e3a8a"
-                      />
-                      <path d="M30 40v14" stroke="#ffffff" strokeWidth="2" />
-                    </svg>
-                  </div>
-                  <div className="coach-speech-bubble">
-                    <p>{reviewStats.coachComment}</p>
-                  </div>
-                </div>
-
-                {/* Advantage / Evaluation Graph */}
-                <div className="advantage-graph-card">
-                  <div className="graph-label-row">
-                    <span className="graph-title">Grafik Keunggulan Partai</span>
-                    <span className="graph-legend">Putih ▲ | ▼ Hitam</span>
-                  </div>
-                  <div className="graph-canvas-box">
-                    <svg
-                      viewBox="0 0 320 80"
-                      preserveAspectRatio="none"
-                      className="eval-graph-svg"
-                    >
-                      {/* Zero baseline */}
-                      <line
-                        x1="0"
-                        y1="40"
-                        x2="320"
-                        y2="40"
-                        stroke="#52504c"
-                        strokeWidth="1"
-                        strokeDasharray="3 3"
-                      />
-                      {/* Area graph */}
-                      <path
-                        d="M0 40 Q 40 38, 80 32 T 160 25 T 240 18 T 320 12 L 320 40 L 0 40 Z"
-                        fill="rgba(129, 182, 76, 0.25)"
-                      />
-                      <path
-                        d="M0 40 Q 40 38, 80 32 T 160 25 T 240 18 T 320 12"
-                        fill="none"
-                        stroke="#81b64c"
-                        strokeWidth="2.5"
-                      />
-                      {/* Move markers */}
-                      <circle cx="80" cy="32" r="3.5" fill="#38bdf8" />
-                      <circle cx="160" cy="25" r="3.5" fill="#22c55e" />
-                      <circle cx="240" cy="18" r="3.5" fill="#f97316" />
-                      <circle cx="280" cy="15" r="3.5" fill="#ef4444" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Player Accuracy Comparison */}
-                <div className="accuracy-comparison-grid">
-                  <div className="accuracy-player-col">
-                    <div className="player-badge-top">
-                      <span className="pawn-tag">♙</span>
-                      <span className="name">{whiteName}</span>
+              !isReviewActive ? (
+                /* REVIEW SUMMARY VIEW (Matching Chess.com Image 1 & 3) */
+                <div className="review-panel-container">
+                  <div className="review-header-title">
+                    <div className="title-left">
+                      <span className="review-star-badge">★</span>
+                      <h3>Game Review</h3>
                     </div>
-                    <div className="accuracy-pill-box">
-                      <span className="acc-number">{reviewStats.whiteAccuracy}</span>
-                      <span className="acc-label">Akurasi</span>
+                    <span className="engine-verified-pill">Stockfish 19 Verified</span>
+                  </div>
+
+                  {/* Coach Card with Speech Bubble */}
+                  <div className="coach-comment-card">
+                    <div className="coach-avatar">
+                      <svg viewBox="0 0 60 60" className="coach-svg">
+                        <circle cx="30" cy="30" r="28" fill="#3b82f6" />
+                        <circle cx="30" cy="26" r="14" fill="#fed7aa" />
+                        <path
+                          d="M18 20c2-8 22-8 24 0 0 0-3-4-12-4s-12 4-12 4z"
+                          fill="#573418"
+                        />
+                        <path
+                          d="M20 30c1 6 19 6 20 0 0 5-6 9-10 9s-10-4-10-9z"
+                          fill="#573418"
+                        />
+                        <circle
+                          cx="25"
+                          cy="25"
+                          r="3.5"
+                          fill="none"
+                          stroke="#1e293b"
+                          strokeWidth="1.5"
+                        />
+                        <circle
+                          cx="35"
+                          cy="25"
+                          r="3.5"
+                          fill="none"
+                          stroke="#1e293b"
+                          strokeWidth="1.5"
+                        />
+                        <path d="M28.5 25h3" stroke="#1e293b" strokeWidth="1.5" />
+                        <path
+                          d="M12 56c4-12 10-16 18-16s14 4 18 16z"
+                          fill="#1e3a8a"
+                        />
+                        <path d="M30 40v14" stroke="#ffffff" strokeWidth="2" />
+                      </svg>
+                    </div>
+                    <div className="coach-speech-bubble">
+                      <p>{reviewStats.coachComment}</p>
                     </div>
                   </div>
 
-                  <div className="accuracy-player-col">
-                    <div className="player-badge-top">
-                      <span className="pawn-tag">♟</span>
-                      <span className="name">{blackName}</span>
-                    </div>
-                    <div className="accuracy-pill-box">
-                      <span className="acc-number">{reviewStats.blackAccuracy}</span>
-                      <span className="acc-label">Akurasi</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Move Classification Breakdown Table */}
-                <div className="move-classification-table">
-                  {[
-                    { type: 'brilliant', label: 'Brilliant', color: '#1baca6' },
-                    { type: 'best', label: 'Best Move', color: '#85a94e' },
-                    { type: 'excellent', label: 'Excellent', color: '#5c8bb0' },
-                    { type: 'good', label: 'Good', color: '#8c8882' },
-                    { type: 'book', label: 'Book Move', color: '#a88865' },
-                    { type: 'inaccuracy', label: 'Inaccuracy', color: '#e69d24' },
-                    { type: 'mistake', label: 'Mistake', color: '#e67828' },
-                    { type: 'blunder', label: 'Blunder', color: '#ca3431' },
-                    { type: 'missed_win', label: 'Missed Win', color: '#db4352' },
-                  ].map((item) => {
-                    const countKey = item.type as ChessComBadgeType;
-                    const wCount = calculatedCounts[countKey]?.w ?? 0;
-                    const bCount = calculatedCounts[countKey]?.b ?? 0;
-                    const totalCount = wCount + bCount;
-
-                    return (
-                      <div
-                        key={item.type}
-                        onClick={() =>
-                          totalCount > 0 &&
-                          handleJumpToClassification(item.type as ChessComBadgeType)
-                        }
-                        className={`classification-row classification-row-${item.type}`}
-                        title={
-                          totalCount > 0
-                            ? `Klik untuk melihat langkah ${item.label} (${totalCount} langkah) di papan catur`
-                            : undefined
-                        }
-                      >
-                        <span
-                          className="count white"
-                          style={{ color: wCount > 0 ? item.color : '#6b7280' }}
-                          onClick={(e) => {
-                            if (wCount > 0) {
-                              e.stopPropagation();
-                              handleJumpToClassification(item.type as ChessComBadgeType, 'w');
-                            }
-                          }}
-                          title={wCount > 0 ? `Klik untuk melihat langkah ${item.label} Putih` : undefined}
-                        >
-                          {wCount}
-                        </span>
-
-                        <div className="badge-pill-chesscom">
-                          <ChessComBadgeIcon type={item.type as ChessComBadgeType} size={22} />
-                          <span className="badge-pill-label">{item.label}</span>
+                  {/* Unified Review Card (Matching Chess.com Image 1) */}
+                  <div className="chesscom-review-table-card">
+                    {/* Players Row */}
+                    <div className="review-grid-row">
+                      <span className="review-grid-label">Players</span>
+                      <div className="review-player-cell">
+                        <div className="review-player-avatar-box white-player">
+                          {whitePlayer?.avatar ? (
+                            <img src={whitePlayer.avatar} alt={whiteName} />
+                          ) : (
+                            <span className="avatar-placeholder">♙</span>
+                          )}
                         </div>
-
-                        <span
-                          className="count black"
-                          style={{ color: bCount > 0 ? item.color : '#6b7280' }}
-                          onClick={(e) => {
-                            if (bCount > 0) {
-                              e.stopPropagation();
-                              handleJumpToClassification(item.type as ChessComBadgeType, 'b');
-                            }
-                          }}
-                          title={bCount > 0 ? `Klik untuk melihat langkah ${item.label} Hitam` : undefined}
-                        >
-                          {bCount}
+                        <span className="review-player-username" title={whiteUsername || whiteName}>
+                          {whiteUsername || whiteName}
                         </span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div />
+                      <div className="review-player-cell">
+                        <div className="review-player-avatar-box black-player">
+                          {blackPlayer?.avatar ? (
+                            <img src={blackPlayer.avatar} alt={blackName} />
+                          ) : (
+                            <span className="avatar-placeholder">♟</span>
+                          )}
+                        </div>
+                        <span className="review-player-username" title={blackUsername || blackName}>
+                          {blackUsername || blackName}
+                        </span>
+                      </div>
+                    </div>
 
-                {/* Start Review CTA Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('analysis');
-                    jumpToPly(-1);
-                    setIsPlayingReplay(true);
-                  }}
-                  className="btn-start-review-cta"
-                >
-                  <Play size={16} fill="currentColor" />
-                  <span>Start Review</span>
-                </button>
-              </div>
+                    {/* Accuracy Row */}
+                    <div className="review-grid-row">
+                      <span className="review-grid-label">Accuracy</span>
+                      <div className="review-accuracy-box white-box">
+                        {reviewStats.whiteAccuracy}
+                      </div>
+                      <div />
+                      <div className="review-accuracy-box black-box">
+                        {reviewStats.blackAccuracy}
+                      </div>
+                    </div>
+
+                    <div className="review-grid-divider" />
+
+                    {/* Skills Row */}
+                    <div className="review-grid-row">
+                      <span className="review-grid-label">Skills</span>
+                      <div className="review-skills-val">+4</div>
+                      <div className="review-skills-center-badge">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                          <circle cx="12" cy="12" r="11" fill="#3b82f6" />
+                          <path
+                            d="M12 4.8l2.2 4.6 5.1.7-3.7 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.7-3.5 5.1-.7z"
+                            fill="#ffffff"
+                          />
+                        </svg>
+                      </div>
+                      <div className="review-skills-val" style={{ color: '#9ca3af' }}>
+                        +0
+                      </div>
+                    </div>
+
+                    <div className="review-grid-divider" />
+
+                    {/* 10 Classification Rows (Matching Chess.com Image 2) */}
+                    {REVIEW_CLASSIFICATIONS.map((item) => {
+                      const countKey = item.type;
+                      const wCount = calculatedCounts[countKey]?.w ?? 0;
+                      const bCount = calculatedCounts[countKey]?.b ?? 0;
+                      const totalCount = wCount + bCount;
+
+                      return (
+                        <div
+                          key={item.type}
+                          className="review-classification-row"
+                          onClick={() => totalCount > 0 && handleJumpToClassification(item.type)}
+                          title={
+                            totalCount > 0
+                              ? `Lihat langkah ${item.label} (${totalCount} langkah) di papan catur`
+                              : item.details
+                          }
+                        >
+                          <span className="review-class-label">{item.label}</span>
+                          <span
+                            className="review-class-count white-count"
+                            style={{ color: wCount > 0 ? item.color : '#6b7280' }}
+                            onClick={(e) => {
+                              if (wCount > 0) {
+                                e.stopPropagation();
+                                handleJumpToClassification(item.type, 'w');
+                              }
+                            }}
+                          >
+                            {wCount}
+                          </span>
+                          <div className="review-class-icon-cell">
+                            <ChessComBadgeIcon type={item.type} size={22} />
+                          </div>
+                          <span
+                            className="review-class-count black-count"
+                            style={{ color: bCount > 0 ? item.color : '#6b7280' }}
+                            onClick={(e) => {
+                              if (bCount > 0) {
+                                e.stopPropagation();
+                                handleJumpToClassification(item.type, 'b');
+                              }
+                            }}
+                          >
+                            {bCount}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Advantage / Evaluation Graph (Matching Chess.com Image 3) */}
+                  <div className="chesscom-eval-chart-box" title="Klik grafik untuk melompat ke langkah catur">
+                    <svg
+                      viewBox="0 0 320 64"
+                      preserveAspectRatio="none"
+                      className="chesscom-eval-chart-svg"
+                      onClick={handleChartClick}
+                    >
+                      {/* Center baseline line */}
+                      <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
+                      {/* Solid white fill below curve */}
+                      <path d={evalChartData.svgPath} fill="#ffffff" />
+                      {/* Classification markers along curve */}
+                      {evalChartData.dots.map((d, i) => (
+                        <circle
+                          key={i}
+                          cx={d.x}
+                          cy={d.y}
+                          r={3.2}
+                          fill={d.color}
+                          stroke="#ffffff"
+                          strokeWidth="0.8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            jumpToPly(d.ply - 1);
+                            setIsReviewActive(true);
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      ))}
+                    </svg>
+                  </div>
+
+                  {/* Start Review CTA Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsReviewActive(true);
+                      jumpToPly(0);
+                    }}
+                    className="btn-start-review-cta"
+                  >
+                    <Play size={16} fill="currentColor" />
+                    <span>Start Review</span>
+                  </button>
+                </div>
+              ) : (
+                /* INTERACTIVE GAME REVIEW MODE (Matching Chess.com Image 4) */
+                <div className="review-active-mode-container">
+                  {/* Top Header */}
+                  <div className="review-active-header">
+                    <div className="review-active-header-left">
+                      <button
+                        type="button"
+                        onClick={() => setIsReviewActive(false)}
+                        className="review-header-icon-btn"
+                        title="Kembali ke Ringkasan Ulasan"
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                      <button
+                        type="button"
+                        className="review-header-icon-btn"
+                        title="Simpan / Tandai Permainan"
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="review-active-title">
+                      <span className="review-title-star">★</span>
+                      <span>Game Review</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="review-header-icon-btn"
+                      title="Pengaturan Ulasan"
+                    >
+                      <Settings size={16} />
+                    </button>
+                  </div>
+
+                  {/* Coach Speech Bubble Banner */}
+                  <div className="review-active-coach-banner">
+                    <div className="coach-avatar">
+                      <svg viewBox="0 0 60 60" className="coach-svg">
+                        <circle cx="30" cy="30" r="28" fill="#3b82f6" />
+                        <circle cx="30" cy="26" r="14" fill="#fed7aa" />
+                        <path
+                          d="M18 20c2-8 22-8 24 0 0 0-3-4-12-4s-12 4-12 4z"
+                          fill="#573418"
+                        />
+                        <path
+                          d="M20 30c1 6 19 6 20 0 0 5-6 9-10 9s-10-4-10-9z"
+                          fill="#573418"
+                        />
+                        <circle
+                          cx="25"
+                          cy="25"
+                          r="3.5"
+                          fill="none"
+                          stroke="#1e293b"
+                          strokeWidth="1.5"
+                        />
+                        <circle
+                          cx="35"
+                          cy="25"
+                          r="3.5"
+                          fill="none"
+                          stroke="#1e293b"
+                          strokeWidth="1.5"
+                        />
+                        <path d="M28.5 25h3" stroke="#1e293b" strokeWidth="1.5" />
+                        <path
+                          d="M12 56c4-12 10-16 18-16s14 4 18 16z"
+                          fill="#1e3a8a"
+                        />
+                        <path d="M30 40v14" stroke="#ffffff" strokeWidth="2" />
+                      </svg>
+                    </div>
+                    <div className="active-coach-bubble">
+                      <div className="bubble-text-left">
+                        {currentMoveCoachComment.badge && (
+                          <ChessComBadgeIcon
+                            type={currentMoveCoachComment.badge}
+                            size={18}
+                          />
+                        )}
+                        <span>{currentMoveCoachComment.comment}</span>
+                      </div>
+                      <span className="bubble-eval-pill">
+                        {currentMoveEvalDisplay}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Action Row: Explain + Next */}
+                  <div className="review-action-row">
+                    <button
+                      type="button"
+                      onClick={() => setShowExplanation(!showExplanation)}
+                      className="btn-explain"
+                      title="Penjelasan mendalam langkah ini"
+                    >
+                      <Zap size={15} />
+                      <span>Explain</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextMove}
+                      className="btn-next-review"
+                      title="Lanjut ke langkah berikutnya"
+                    >
+                      <span>Next</span>
+                      <ChevronRight size={17} />
+                    </button>
+                  </div>
+
+                  {/* Explain Panel Dropdown */}
+                  {showExplanation && (
+                    <div className="review-explain-panel">
+                      {currentPlyIndex >= 0 && moveHistory[currentPlyIndex] ? (
+                        <>
+                          <p style={{ margin: '0 0 0.35rem 0', fontWeight: 600 }}>
+                            {moveHistory[currentPlyIndex].feedbackDescription ||
+                              'Langkah yang dimainkan merespons taktik atau mengejar inisiatif posisi.'}
+                          </p>
+                          {moveHistory[currentPlyIndex].bestAlternative && (
+                            <div style={{ color: '#81b64c', fontWeight: 700 }}>
+                              Saran Alternatif: {moveHistory[currentPlyIndex].bestAlternative}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p style={{ margin: 0 }}>Papan catur dalam posisi awal pembukaan.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Review Move List Table (Matching Image 4) */}
+                  <div className="review-moves-scroll" ref={reviewMovesScrollRef}>
+                    {moveRows.map((row) => {
+                      const isWhiteActive =
+                        row.white && currentPlyIndex === row.white.ply - 1;
+                      const isBlackActive =
+                        row.black && currentPlyIndex === row.black.ply - 1;
+
+                      const getMoveColor = (item?: MoveHistoryItem) => {
+                        if (!item?.classification) return '#ffffff';
+                        const meta = REVIEW_CLASSIFICATIONS.find(
+                          (c) => c.type === item.classification
+                        );
+                        if (item.classification === 'book') return '#c3996b';
+                        if (
+                          meta &&
+                          [
+                            'brilliant',
+                            'great',
+                            'best',
+                            'inaccuracy',
+                            'mistake',
+                            'miss',
+                            'blunder',
+                          ].includes(item.classification)
+                        ) {
+                          return meta.color;
+                        }
+                        return '#ffffff';
+                      };
+
+                      return (
+                        <div key={row.number} className="review-table-row">
+                          <span className="review-row-num">{row.number}.</span>
+
+                          {/* White Move */}
+                          {row.white ? (
+                            <button
+                              type="button"
+                              onClick={() => jumpToPly(row.white!.ply - 1)}
+                              className={`review-move-pill ${
+                                isWhiteActive ? 'active' : ''
+                              }`}
+                            >
+                              {row.white.classification && (
+                                <span className="inline-badge">
+                                  <ChessComBadgeIcon
+                                    type={row.white.classification}
+                                    size={14}
+                                  />
+                                </span>
+                              )}
+                              {renderMoveFigurine(
+                                row.white.piece,
+                                'w',
+                                row.white.san
+                              )}
+                              <span
+                                className="inline-san"
+                                style={{ color: getMoveColor(row.white) }}
+                              >
+                                {formatSanWithoutPiece(row.white.san)}
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="review-move-empty" />
+                          )}
+
+                          {/* Black Move */}
+                          {row.black ? (
+                            <button
+                              type="button"
+                              onClick={() => jumpToPly(row.black!.ply - 1)}
+                              className={`review-move-pill ${
+                                isBlackActive ? 'active' : ''
+                              }`}
+                            >
+                              {row.black.classification && (
+                                <span className="inline-badge">
+                                  <ChessComBadgeIcon
+                                    type={row.black.classification}
+                                    size={14}
+                                  />
+                                </span>
+                              )}
+                              {renderMoveFigurine(
+                                row.black.piece,
+                                'b',
+                                row.black.san
+                              )}
+                              <span
+                                className="inline-san"
+                                style={{ color: getMoveColor(row.black) }}
+                              >
+                                {formatSanWithoutPiece(row.black.san)}
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="review-move-empty" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Evaluation Chart Box (Matching Image 3) */}
+                  <div className="review-chart-section">
+                    <div
+                      className="chesscom-eval-chart-box"
+                      title="Klik grafik untuk melompat ke langkah catur"
+                    >
+                      <svg
+                        viewBox="0 0 320 64"
+                        preserveAspectRatio="none"
+                        className="chesscom-eval-chart-svg"
+                        onClick={handleChartClick}
+                      >
+                        {/* Center baseline line */}
+                        <line
+                          x1="0"
+                          y1="32"
+                          x2="320"
+                          y2="32"
+                          stroke="#6a6762"
+                          strokeWidth="1"
+                        />
+                        {/* Solid white fill below curve */}
+                        <path d={evalChartData.svgPath} fill="#ffffff" />
+                        {/* Move markers along curve */}
+                        {evalChartData.dots.map((d, i) => (
+                          <circle
+                            key={i}
+                            cx={d.x}
+                            cy={d.y}
+                            r={3.2}
+                            fill={d.color}
+                            stroke="#ffffff"
+                            strokeWidth="0.8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              jumpToPly(d.ply - 1);
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        ))}
+                        {/* Vertical cursor indicator at active move */}
+                        {currentPlyIndex >= 0 &&
+                          evalChartData.points &&
+                          evalChartData.points[currentPlyIndex] && (
+                            <g>
+                              <line
+                                x1={evalChartData.points[currentPlyIndex].x}
+                                y1={0}
+                                x2={evalChartData.points[currentPlyIndex].x}
+                                y2={64}
+                                stroke="#c3996b"
+                                strokeWidth="2"
+                              />
+                              <circle
+                                cx={evalChartData.points[currentPlyIndex].x}
+                                cy={evalChartData.points[currentPlyIndex].y}
+                                r={4.5}
+                                fill="#c3996b"
+                                stroke="#ffffff"
+                                strokeWidth="1.5"
+                              />
+                            </g>
+                          )}
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Playback Controls (Image 4) */}
+                  <div className="review-playback-bar">
+                    <button
+                      type="button"
+                      onClick={handleFirstMove}
+                      className="review-nav-btn"
+                      title="Langkah Awal"
+                    >
+                      <ChevronsLeft size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePrevMove}
+                      className="review-nav-btn"
+                      title="Langkah Sebelumnya"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayingReplay(!isPlayingReplay)}
+                      className="review-nav-btn btn-play-pause"
+                      title={
+                        isPlayingReplay
+                          ? 'Jeda Putar Ulang'
+                          : 'Putar Ulang Otomatis'
+                      }
+                    >
+                      {isPlayingReplay ? (
+                        <Pause size={18} />
+                      ) : (
+                        <Play size={18} fill="currentColor" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextMove}
+                      className="review-nav-btn"
+                      title="Langkah Berikutnya"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLastMove}
+                      className="review-nav-btn"
+                      title="Langkah Akhir"
+                    >
+                      <ChevronsRight size={18} />
+                    </button>
+                  </div>
+
+                  {/* Footer Bar (Image 4) */}
+                  <div className="review-footer-bar">
+                    <button
+                      type="button"
+                      onClick={() => setIsReviewActive(false)}
+                      className="review-footer-btn"
+                    >
+                      <span>★</span>
+                      <span>Skills</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (navigator.clipboard && recentGame?.url) {
+                          navigator.clipboard.writeText(recentGame.url);
+                          alert('Link pertandingan disalin ke clipboard!');
+                        }
+                      }}
+                      className="review-footer-btn"
+                    >
+                      <Share2 size={14} />
+                      <span>Share</span>
+                    </button>
+                  </div>
+                </div>
+              )
             ) : (
               /* TAB 2: ANALYSIS BOARD (Matching Chess.com Screenshot 1) */
               <div className="analysis-panel-container">
