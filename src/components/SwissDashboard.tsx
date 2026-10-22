@@ -33,8 +33,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { fetchRecentGameBetween, fetchChessComProfile } from '../utils/chessComApi';
+import { fetchRecentGameBetween, fetchChessComProfile, ChessComRecentGame } from '../utils/chessComApi';
 import { ChessComProfileModal } from './ChessComProfileModal';
+import { ChessBoardPreviewModal } from './ChessBoardPreviewModal';
 import { TournamentStatistics } from './TournamentStatistics';
 import { TournamentRulesModal } from './TournamentRulesModal';
 import { getPlayerBadge } from '../utils/eloRating';
@@ -154,6 +155,12 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   } | null>(null);
   const [profileModalUsername, setProfileModalUsername] = useState<string | null>(null);
   const [profileModalName, setProfileModalName] = useState<string | undefined>(undefined);
+  const [boardPreviewData, setBoardPreviewData] = useState<{
+    match: SwissMatch;
+    recentGame?: ChessComRecentGame | null;
+    whitePlayer?: Player | null;
+    blackPlayer?: Player | null;
+  } | null>(null);
 
   // Sync avatar to player when fetched from Chess.com
   const handleAvatarSync = (username: string, avatarUrl: string) => {
@@ -330,16 +337,19 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         return;
       }
 
-      // Update match result & store the chess.com URL
+      // Update match result & store the chess.com URL, FEN, PGN, and Termination
+      const updatedMatchData: SwissMatch = {
+        ...match,
+        result: recentGame.tournamentScore,
+        chessComUrl: recentGame.url,
+        chessComSyncedAt: Date.now(),
+        chessComFen: recentGame.fen || undefined,
+        chessComPgn: recentGame.pgn || undefined,
+        chessComTermination: recentGame.termination || undefined,
+      };
+
       const updated = matches.map((m) =>
-        m.id === match.id
-          ? {
-              ...m,
-              result: recentGame.tournamentScore,
-              chessComUrl: recentGame.url,
-              chessComSyncedAt: Date.now(),
-            }
-          : m
+        m.id === match.id ? updatedMatchData : m
       );
       onUpdateMatches(updated);
 
@@ -347,6 +357,14 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         matchId: match.id,
         type: 'success',
         text: `Game terdeteksi! Skor otomatis terisi: ${recentGame.tournamentScore}`,
+      });
+
+      // Otomatis tampilkan preview posisi bidak akhir permainan dari Chess.com
+      setBoardPreviewData({
+        match: updatedMatchData,
+        recentGame,
+        whitePlayer: whiteP,
+        blackPlayer: blackP,
       });
     } catch {
       setMatchSyncMessage({
@@ -946,6 +964,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                       ((canEditMatchScore(match) && whiteP?.chessComUsername && blackP?.chessComUsername) ||
                         matchSyncMessage?.matchId === match.id ||
                         match.chessComUrl ||
+                        match.chessComFen ||
                         whiteP?.chessComUsername ||
                         blackP?.chessComUsername) && (
                         <div className="board-card-bottom-bar">
@@ -980,6 +999,24 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                           )}
 
                           <div className="bottom-bar-center">
+                            {/* Tombol Preview Posisi Akhir Bidak (FEN) */}
+                            {(match.chessComFen || match.chessComUrl) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setBoardPreviewData({
+                                    match,
+                                    whitePlayer: whiteP,
+                                    blackPlayer: blackP,
+                                  })
+                                }
+                                className="btn-preview-board"
+                                title="Lihat posisi akhir bidak (FEN) di atas papan catur"
+                              >
+                                <span>♟️ Papan Akhir</span>
+                              </button>
+                            )}
+
                             {match.chessComUrl ? (
                               <a
                                 href={match.chessComUrl}
@@ -1316,6 +1353,16 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         }}
         localPlayerName={profileModalName}
         onAvatarSync={handleAvatarSync}
+      />
+
+      {/* Chess.com Final Board Preview Modal */}
+      <ChessBoardPreviewModal
+        isOpen={Boolean(boardPreviewData)}
+        match={boardPreviewData?.match || null}
+        recentGame={boardPreviewData?.recentGame || null}
+        whitePlayer={boardPreviewData?.whitePlayer || null}
+        blackPlayer={boardPreviewData?.blackPlayer || null}
+        onClose={() => setBoardPreviewData(null)}
       />
 
       {/* Tournament Rules Modal (Fallback jika onOpenRules tidak disediakan dari luar) */}

@@ -83,6 +83,9 @@ export interface SwissMatch {
   isBye?: boolean;
   chessComUrl?: string;
   chessComSyncedAt?: number;
+  chessComFen?: string;
+  chessComPgn?: string;
+  chessComTermination?: string;
 }
 
 export interface SwissPairingOverride {

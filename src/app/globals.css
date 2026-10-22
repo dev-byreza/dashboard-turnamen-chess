@@ -5510,6 +5510,29 @@ button, input, select, textarea {
   border-color: #81b64c;
 }
 
+.btn-preview-board {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.65rem;
+  background: rgba(224, 168, 46, 0.12);
+  color: #8c5b05;
+  border: 1px solid rgba(224, 168, 46, 0.45);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-preview-board:hover {
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+  color: var(--navy);
+  border-color: var(--gold-bright);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(224, 168, 46, 0.3);
+}
+
 .match-sync-notice {
   font-size: 0.73rem;
   font-weight: 600;
@@ -5945,6 +5968,369 @@ button, input, select, textarea {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* ========================================================
+   CHESSBOARD FINAL POSITION PREVIEW MODAL (CHESS.COM FEN)
+   ======================================================== */
+.chessboard-modal-dialog {
+  max-width: 530px !important;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.chessboard-modal-body {
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  background: #fbfcfe;
+}
+
+/* Match Banner Header */
+.board-preview-match-banner {
+  background: linear-gradient(135deg, rgba(20, 33, 61, 0.04) 0%, rgba(20, 33, 61, 0.08) 100%);
+  border: 1px solid rgba(20, 33, 61, 0.1);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.board-preview-round-tag {
+  text-align: center;
+}
+
+.board-preview-round-tag span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: rgba(224, 168, 46, 0.12);
+  padding: 0.2rem 0.65rem;
+  border-radius: 100px;
+  border: 1px solid rgba(224, 168, 46, 0.3);
+}
+
+.board-preview-players {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.board-preview-player-col {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.board-preview-player-col.white-col {
+  justify-content: flex-start;
+}
+
+.board-preview-player-col.black-col {
+  justify-content: flex-end;
+  text-align: right;
+  flex-direction: row-reverse;
+}
+
+.player-avatar-mini {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border: 2px solid #ffffff;
+  overflow: hidden;
+}
+
+.player-avatar-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.player-avatar-mini.white-avatar {
+  background: #ffffff;
+  color: #1e1e1e;
+  border-color: #d8dee9;
+}
+
+.player-avatar-mini.black-avatar {
+  background: #272522;
+  color: #ffffff;
+  border-color: #4c4a47;
+}
+
+.player-info-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.player-name-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-chesscom-handle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #558b2f;
+}
+
+.board-preview-score-badge {
+  text-align: center;
+  padding: 0.35rem 0.75rem;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 33, 61, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.score-numbers {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--navy);
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+}
+
+.score-desc {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+/* Chessboard Viewport */
+.chessboard-preview-viewport {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.chessboard-board-wrapper {
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(10, 20, 40, 0.25), 0 0 0 2px rgba(0, 0, 0, 0.1);
+  background: #2b2824;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.chessboard-board-wrapper.classic-green {
+  background: #312e2b;
+}
+
+.chessboard-board-wrapper.warm-wood {
+  background: #463020;
+}
+
+.chessboard-grid-table {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.chessboard-rank-row {
+  display: flex;
+  flex: 1;
+  width: 100%;
+}
+
+.chessboard-square {
+  flex: 1;
+  aspect-ratio: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+/* Classic Green Theme (Chess.com standard) */
+.classic-green .light-sq {
+  background-color: #eeeed2;
+}
+
+.classic-green .dark-sq {
+  background-color: #769656;
+}
+
+/* Warm Wood Theme */
+.warm-wood .light-sq {
+  background-color: #f0d9b5;
+}
+
+.warm-wood .dark-sq {
+  background-color: #b58863;
+}
+
+/* Square Coordinates */
+.coord-label {
+  position: absolute;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0.8;
+  z-index: 1;
+}
+
+.rank-coord {
+  top: 3px;
+  left: 3px;
+}
+
+.file-coord {
+  bottom: 2px;
+  right: 3px;
+}
+
+.light-sq .coord-label {
+  color: #769656;
+}
+
+.warm-wood .light-sq .coord-label {
+  color: #b58863;
+}
+
+.dark-sq .coord-label {
+  color: #eeeed2;
+}
+
+.warm-wood .dark-sq .coord-label {
+  color: #f0d9b5;
+}
+
+/* Vector Piece SVG */
+.chess-piece-svg {
+  width: 86%;
+  height: 86%;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
+  transition: transform 0.15s ease;
+  z-index: 2;
+}
+
+.chess-piece-svg:hover {
+  transform: scale(1.08);
+}
+
+/* Board Toolbar */
+.chessboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.btn-toolbar-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid rgba(20, 33, 61, 0.12);
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--navy);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+}
+
+.btn-toolbar-control:hover {
+  background: var(--navy);
+  color: #ffffff;
+  border-color: var(--navy);
+}
+
+/* FEN Box */
+.fen-display-card {
+  background: #ffffff;
+  border: 1px solid rgba(20, 33, 61, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.fen-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fen-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.btn-copy-fen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: 1px solid rgba(20, 33, 61, 0.12);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-copy-fen:hover {
+  background: #f1f5f9;
+  border-color: var(--navy);
+}
+
+.fen-code-block {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  color: #0f172a;
+  word-break: break-all;
+  user-select: all;
+}
+
+.chessboard-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.9rem 1.4rem;
+  background: #ffffff;
+  border-top: 1px solid rgba(20, 33, 61, 0.08);
 }
 
 

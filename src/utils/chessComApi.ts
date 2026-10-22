@@ -42,6 +42,8 @@ export interface ChessComPlayerDetails {
 export interface ChessComRecentGame {
   url: string;
   pgn: string;
+  fen?: string;
+  termination?: string;
   timeClass: string;
   timeControl: string;
   endTime: number;
@@ -199,6 +201,56 @@ function determineScore(whiteResult: string, blackResult: string): '1-0' | '0-1'
 }
 
 /**
+ * Format Chess.com termination results to human-friendly Indonesian text
+ */
+export function formatChessTermination(whiteResult: string, blackResult: string): string {
+  if (whiteResult === 'win') {
+    switch (blackResult) {
+      case 'checkmated':
+        return 'Skakmat (Putih Menang)';
+      case 'resigned':
+        return 'Hitam Menyerah (Resign)';
+      case 'timeout':
+        return 'Waktu Hitam Habis (Flagged)';
+      case 'abandoned':
+        return 'Hitam Meninggalkan Permainan';
+      default:
+        return 'Putih Menang';
+    }
+  } else if (blackResult === 'win') {
+    switch (whiteResult) {
+      case 'checkmated':
+        return 'Skakmat (Hitam Menang)';
+      case 'resigned':
+        return 'Putih Menyerah (Resign)';
+      case 'timeout':
+        return 'Waktu Putih Habis (Flagged)';
+      case 'abandoned':
+        return 'Putih Meninggalkan Permainan';
+      default:
+        return 'Hitam Menang';
+    }
+  } else {
+    if (whiteResult === 'stalemate' || blackResult === 'stalemate') {
+      return 'Remis (Patt / Stalemate)';
+    }
+    if (whiteResult === 'repetition' || blackResult === 'repetition') {
+      return 'Remis (Pengulangan Langkah 3x)';
+    }
+    if (whiteResult === 'insufficient' || blackResult === 'insufficient') {
+      return 'Remis (Materi Kurang / Insufficient Material)';
+    }
+    if (whiteResult === 'agreed' || blackResult === 'agreed') {
+      return 'Remis (Kesepakatan Bersama)';
+    }
+    if (whiteResult === 'timevsinsufficient' || blackResult === 'timevsinsufficient') {
+      return 'Remis (Waktu Habis vs Materi Kurang)';
+    }
+    return 'Remis (Draw)';
+  }
+}
+
+/**
  * Fetch games for a user in a specific month
  */
 async function fetchUserMonthlyGames(username: string, year: number, month: number): Promise<any[]> {
@@ -278,9 +330,19 @@ export async function fetchRecentGameBetween(
     else tournamentScore = '0.5-0.5';
   }
 
+  // Extract FEN string (Chess.com provides fen directly or inside PGN headers)
+  const fen =
+    latestGame.fen ||
+    latestGame.pgn?.match(/\[(?:CurrentPosition|FEN)\s+"([^"]+)"\]/i)?.[1] ||
+    '';
+
+  const termination = formatChessTermination(whiteResult, blackResult);
+
   return {
     url: latestGame.url,
     pgn: latestGame.pgn || '',
+    fen,
+    termination,
     timeClass: latestGame.time_class || 'rapid',
     timeControl: latestGame.time_control || '',
     endTime: latestGame.end_time || 0,
