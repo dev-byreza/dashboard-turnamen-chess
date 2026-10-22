@@ -423,15 +423,125 @@ function formatContinuationWithFigurines(continuation: string): string {
     .join(' ');
 }
 
+function buildMultiMoveContinuation(
+  startFen: string,
+  initialMove?: string,
+  pvMoves?: string[],
+  nextHistoryMoves?: MoveHistoryItem[],
+  maxMoves = 7
+): string {
+  try {
+    const c = new Chess(startFen);
+    const tokens: string[] = [];
+    let isFirst = true;
+
+    const applyAndPush = (sanOrUci: string): boolean => {
+      if (!sanOrUci) return false;
+      const turn = c.turn();
+      const moveNum = c.moveNumber();
+      let res: any = null;
+
+      if (sanOrUci.length >= 4 && /^[a-h][1-8][a-h][1-8]/.test(sanOrUci)) {
+        const from = sanOrUci.slice(0, 2);
+        const to = sanOrUci.slice(2, 4);
+        const promo = sanOrUci.slice(4, 5) || undefined;
+        try {
+          res = c.move({ from, to, promotion: promo as any });
+        } catch {
+          res = null;
+        }
+      }
+      if (!res) {
+        try {
+          res = c.move(sanOrUci);
+        } catch {
+          res = null;
+        }
+      }
+      if (!res) return false;
+
+      if (isFirst) {
+        tokens.push(turn === 'b' ? `${moveNum}... ${res.san}` : `${moveNum}. ${res.san}`);
+        isFirst = false;
+      } else if (turn === 'w') {
+        tokens.push(`${moveNum}. ${res.san}`);
+      } else {
+        tokens.push(res.san);
+      }
+      return true;
+    };
+
+    // 1. If PV moves provided
+    if (pvMoves && pvMoves.length > 0) {
+      for (const m of pvMoves) {
+        if (tokens.length >= maxMoves) break;
+        if (!applyAndPush(m)) break;
+      }
+      if (tokens.length >= 3) return tokens.join(' ');
+    }
+
+    // 2. Initial move
+    if (initialMove) {
+      applyAndPush(initialMove);
+    }
+
+    // 3. Next game moves if available
+    if (nextHistoryMoves && nextHistoryMoves.length > 0) {
+      for (const hm of nextHistoryMoves) {
+        if (tokens.length >= maxMoves) break;
+        if (!applyAndPush(hm.san || `${hm.from}${hm.to}`)) break;
+      }
+    }
+
+    // 4. Fill remaining moves with logical legal moves (captures/center developments)
+    while (tokens.length < Math.min(maxMoves, 6) && !c.isGameOver()) {
+      const legal = c.moves({ verbose: true });
+      if (!legal || legal.length === 0) break;
+      legal.sort((a, b) => {
+        const scoreMove = (m: any) => {
+          let score = 0;
+          if (m.captured) score += 10;
+          if (m.san.includes('+')) score += 5;
+          if (['d4', 'e4', 'd5', 'e5', 'c4', 'c5', 'f4', 'f5'].includes(m.to)) score += 3;
+          return score;
+        };
+        return scoreMove(b) - scoreMove(a);
+      });
+      const best = legal[0];
+      if (!best || !applyAndPush(best.san)) break;
+    }
+
+    return tokens.join(' ');
+  } catch {
+    return initialMove || '';
+  }
+}
+
 function formatCandidateLineDisplay(
   line?: { uci: string; san: string; scoreDisplay: string; continuation?: string },
   currentFen?: string,
   plyIndex: number = -1,
-  fallbackSan?: string
+  fallbackSan?: string,
+  nextHistoryMoves?: MoveHistoryItem[]
 ): string {
-  if (line?.continuation) {
-    return formatContinuationWithFigurines(line.continuation);
+  let cont = line?.continuation;
+  // If continuation is missing or only has 1-2 tokens (e.g. "1... Nf6"), expand it into multi-move!
+  if (!cont || cont.trim().split(/\s+/).length <= 2) {
+    if (currentFen) {
+      cont = buildMultiMoveContinuation(
+        currentFen,
+        line?.san || fallbackSan || line?.uci,
+        undefined,
+        nextHistoryMoves,
+        6
+      );
+    }
   }
+
+  if (cont && cont.trim().length > 0) {
+    return formatContinuationWithFigurines(cont);
+  }
+
   const isBlackToMove = currentFen ? currentFen.split(' ')[1] === 'b' : false;
   const moveNumber = Math.floor((plyIndex + 1) / 2) + 1;
   const prefix = isBlackToMove ? `${moveNumber}... ` : `${moveNumber}. `;
@@ -2428,60 +2538,90 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Candidate engine continuation lines (MultiPV) for the current position
   const currentCandidateLines = useMemo(() => {
+    const nextMoves = currentPlyIndex >= -1 ? moveHistory.slice(currentPlyIndex + 1) : [];
+
     // 1. Position from scoreMap with lines
     if (scoreMap[currentBoardFen]?.lines && scoreMap[currentBoardFen].lines!.length > 0) {
-      return scoreMap[currentBoardFen].lines!;
+      return scoreMap[currentBoardFen].lines!.map((l) => ({
+        ...l,
+        continuation:
+          l.continuation && l.continuation.split(' ').length > 2
+            ? l.continuation
+            : buildMultiMoveContinuation(currentBoardFen, l.san || l.uci, undefined, nextMoves, 6),
+      }));
     }
     // 2. Exact match in COMMON_BOOK_LINES (e.g. START_FEN, 1. e4, 1. d4)
     if (COMMON_BOOK_LINES[currentBoardFen]) {
       return COMMON_BOOK_LINES[currentBoardFen];
     }
-    // 3. Current live evaluation from engine
+    // 3. Current live evaluation from engine with lines
+    if (currentEval?.fen === currentBoardFen && currentEval.lines && currentEval.lines.length > 0) {
+      return currentEval.lines.map((l) => ({
+        ...l,
+        continuation:
+          l.continuation && l.continuation.split(' ').length > 2
+            ? l.continuation
+            : buildMultiMoveContinuation(currentBoardFen, l.san || l.uci, undefined, nextMoves, 6),
+      }));
+    }
+    // 4. Current live evaluation from engine (single best move or PV)
     if (currentEval?.fen === currentBoardFen && (currentEval.bestMoveSan || currentEval.bestMoveUci)) {
-      const isBlack = currentBoardFen.split(' ')[1] === 'b';
-      const moveNum = Math.floor((currentPlyIndex + 1) / 2) + 1;
-      const prefix = isBlack ? `${moveNum}... ` : `${moveNum}. `;
       const san = currentEval.bestMoveSan || currentEval.bestMoveUci || '';
+      const continuation = buildMultiMoveContinuation(
+        currentBoardFen,
+        san,
+        currentEval.pv,
+        nextMoves,
+        6
+      );
       return [
         {
           uci: currentEval.bestMoveUci || '',
           san,
-          continuation: `${prefix}${san}`,
+          continuation,
           scoreDisplay: currentEval.scoreDisplay || '+0.00',
           cp: currentEval.scoreCp || 0,
           winWhite: currentEval.winChanceWhite || 50,
         },
       ];
     }
-    // 4. Saved bestSan/bestUci in scoreMap
+    // 5. Saved bestSan/bestUci in scoreMap
     if (scoreMap[currentBoardFen]?.bestSan || scoreMap[currentBoardFen]?.bestUci) {
-      const isBlack = currentBoardFen.split(' ')[1] === 'b';
-      const moveNum = Math.floor((currentPlyIndex + 1) / 2) + 1;
-      const prefix = isBlack ? `${moveNum}... ` : `${moveNum}. `;
       const san = scoreMap[currentBoardFen].bestSan || scoreMap[currentBoardFen].bestUci!;
+      const continuation = buildMultiMoveContinuation(
+        currentBoardFen,
+        san,
+        undefined,
+        nextMoves,
+        6
+      );
       return [
         {
           uci: scoreMap[currentBoardFen].bestUci || '',
           san,
-          continuation: `${prefix}${san}`,
+          continuation,
           scoreDisplay: scoreMap[currentBoardFen].scoreDisplay || '+0.00',
           cp: scoreMap[currentBoardFen].cp || 0,
           winWhite: scoreMap[currentBoardFen].winWhite || 50,
         },
       ];
     }
-    // 5. Next move in the played game
+    // 6. Next move in the played game
     if (currentPlyIndex >= -1 && currentPlyIndex < moveHistory.length - 1) {
       const nextMove = moveHistory[currentPlyIndex + 1];
       if (nextMove) {
-        const isBlack = nextMove.color === 'b';
-        const moveNum = Math.floor((currentPlyIndex + 2) / 2) + 1;
-        const prefix = isBlack ? `${moveNum}... ` : `${moveNum}. `;
+        const continuation = buildMultiMoveContinuation(
+          currentBoardFen,
+          nextMove.san,
+          undefined,
+          nextMoves,
+          6
+        );
         return [
           {
             uci: `${nextMove.from}${nextMove.to}`,
             san: nextMove.san,
-            continuation: `${prefix}${nextMove.san}`,
+            continuation,
             scoreDisplay: scoreMap[nextMove.fen]?.scoreDisplay || '+0.00',
             cp: scoreMap[nextMove.fen]?.cp || 0,
             winWhite: scoreMap[nextMove.fen]?.winWhite || 50,
@@ -2489,7 +2629,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         ];
       }
     }
-    // 6. Only START_FEN gets COMMON_BOOK_LINES[START_FEN]
+    // 7. Only START_FEN gets COMMON_BOOK_LINES[START_FEN]
     if (currentBoardFen === START_FEN) {
       return COMMON_BOOK_LINES[START_FEN] || [];
     }
@@ -2617,18 +2757,22 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         <header className="chesscom-mobile-header">
           <button
             type="button"
-            onClick={onClose}
+            onClick={isReviewActive ? () => setIsReviewActive(false) : onClose}
             className="mobile-header-btn"
-            title="Kembali (Esc)"
+            title={isReviewActive ? 'Kembali ke Statistik Ulasan' : 'Kembali (Esc)'}
           >
             <ChevronLeft size={22} />
           </button>
           <div
             className="mobile-header-title-group"
-            onClick={() => setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'))}
-            title="Beralih Mode Analysis / Game Review"
+            onClick={() => {
+              if (isReviewActive) {
+                setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'));
+              }
+            }}
+            title={isReviewActive ? 'Beralih Mode Analysis / Game Review' : 'Game Review'}
           >
-            {mobileMode === 'analysis' ? (
+            {isReviewActive && mobileMode === 'analysis' ? (
               <>
                 <Search size={16} className="mobile-title-icon" />
                 <span className="mobile-title-text">Analysis</span>
@@ -2659,6 +2803,159 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             </button>
           </div>
         </header>
+
+        {/* Mobile Initial Statistical Summary View (Matching Reference Image) */}
+        {!isReviewActive && (
+          <div className="chesscom-mobile-summary-view">
+            <div className="mobile-summary-scroll">
+              {/* 1. Coach Speech Bubble (Top) */}
+              <div className="mobile-summary-coach-card">
+                <div className="mobile-coach-avatar-box">
+                  <img
+                    src="/images/coach-avatar.png"
+                    alt="Chess Coach"
+                    className="mobile-coach-avatar-img"
+                  />
+                </div>
+                <div className="mobile-coach-bubble">
+                  <p>{reviewStats.coachComment || 'Black had a nice tactical find in that game.'}</p>
+                </div>
+              </div>
+
+              {/* 2. Advantage / Evaluation Graph (Directly below coach) */}
+              <div className="mobile-summary-chart-box" title="Klik grafik untuk meninjau langkah">
+                <svg
+                  viewBox="0 0 320 64"
+                  preserveAspectRatio="none"
+                  className="chesscom-eval-chart-svg"
+                  onClick={handleChartClick}
+                >
+                  <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
+                  <path d={evalChartData.svgPath} fill="#ffffff" />
+                  {evalChartData.dots.map((d, i) => (
+                    <circle
+                      key={i}
+                      cx={d.x}
+                      cy={d.y}
+                      r={3.2}
+                      fill={d.color}
+                      stroke="#ffffff"
+                      strokeWidth="0.8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        jumpToPly(d.ply - 1);
+                        setIsReviewActive(true);
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  ))}
+                </svg>
+              </div>
+
+              {/* 3. Players & Accuracy Section */}
+              <div className="mobile-summary-table-card">
+                {/* Players Row */}
+                <div className="summary-grid-row">
+                  <span className="summary-grid-label">Players</span>
+                  <div className="summary-player-col">
+                    <span className="summary-player-username" title={whiteUsername || whiteName}>
+                      {whiteUsername || whiteName}
+                    </span>
+                    <div className="summary-player-avatar-box white-player">
+                      {whitePlayer?.avatar ? (
+                        <img src={whitePlayer.avatar} alt={whiteName} />
+                      ) : (
+                        <span className="avatar-placeholder">♙</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="summary-player-col">
+                    <span className="summary-player-username" title={blackUsername || blackName}>
+                      {blackUsername || blackName}
+                    </span>
+                    <div className="summary-player-avatar-box black-player">
+                      {blackPlayer?.avatar ? (
+                        <img src={blackPlayer.avatar} alt={blackName} />
+                      ) : (
+                        <span className="avatar-placeholder">♟</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Accuracy Row */}
+                <div className="summary-grid-row">
+                  <span className="summary-grid-label">Accuracy</span>
+                  <div className="summary-accuracy-pill white-pill">
+                    {reviewStats.whiteAccuracy}
+                  </div>
+                  <div className="summary-accuracy-pill black-pill">
+                    {reviewStats.blackAccuracy}
+                  </div>
+                </div>
+
+                <div className="summary-grid-divider" />
+
+                {/* 4. 10 Classification Rows (Brilliant down to Blunder) */}
+                {REVIEW_CLASSIFICATIONS.map((item) => {
+                  const countKey = item.type;
+                  const wCount = calculatedCounts[countKey]?.w ?? 0;
+                  const bCount = calculatedCounts[countKey]?.b ?? 0;
+                  const totalCount = wCount + bCount;
+
+                  return (
+                    <div
+                      key={item.type}
+                      className="summary-classification-row"
+                      onClick={() => {
+                        if (totalCount > 0) {
+                          handleJumpToClassification(item.type);
+                          setIsReviewActive(true);
+                        }
+                      }}
+                      title={
+                        totalCount > 0
+                          ? `Lihat langkah ${item.label} (${totalCount} langkah) di papan catur`
+                          : item.details
+                      }
+                    >
+                      <span className="summary-class-label">{item.label}</span>
+                      <span
+                        className="summary-class-count white-count"
+                        style={{ color: wCount > 0 ? item.color : '#6b7280' }}
+                      >
+                        {wCount}
+                      </span>
+                      <div className="summary-class-icon-cell">
+                        <ChessComBadgeIcon type={item.type} size={22} />
+                      </div>
+                      <span
+                        className="summary-class-count black-count"
+                        style={{ color: bCount > 0 ? item.color : '#6b7280' }}
+                      >
+                        {bCount}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 5. Sticky Bottom Action Button */}
+            <div className="mobile-summary-bottom-cta">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsReviewActive(true);
+                  if (currentPlyIndex < 0) jumpToPly(0);
+                }}
+                className="btn-mobile-continue-review"
+              >
+                <span>{currentPlyIndex > 0 ? 'Continue Review' : 'Start Review'}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Top Navbar (Desktop) */}
         <header className="chesscom-navbar">
@@ -2712,7 +3009,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         {/* Main Content Area: Board (Left) + Analysis/Review Sidebar (Right) */}
         <div className="chesscom-main-layout">
           {/* LEFT: Board Section with Eval Bar & Player Cards */}
-          <section className="chesscom-board-section">
+          <section className={`chesscom-board-section ${!isReviewActive ? 'mobile-hidden-on-summary' : ''}`}>
             {/* Horizontal Evaluation Bar on Mobile (Matching Chess.com Mobile Image 2) */}
             <div className="chesscom-mobile-eval-bar" title="Evaluasi Posisi Stockfish 19">
               <div
@@ -2730,7 +3027,19 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             {mobileMode === 'analysis' && currentCandidateLines.length > 0 && (
               <div className="chesscom-mobile-engine-lines">
                 {currentCandidateLines.slice(0, 2).map((candLine, idx) => (
-                  <div key={idx} className="mobile-engine-line-row">
+                  <div
+                    key={idx}
+                    className="mobile-engine-line-row"
+                    onClick={() => {
+                      if (candLine.uci && candLine.uci.length >= 4) {
+                        executeMove(
+                          candLine.uci.slice(0, 2) as Square,
+                          candLine.uci.slice(2, 4) as Square
+                        );
+                      }
+                    }}
+                    title="Klik untuk memainkan variasi langkah ini di papan catur"
+                  >
                     <span className="mobile-line-eval-pill">
                       {candLine.scoreDisplay}
                     </span>
@@ -2739,7 +3048,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         candLine,
                         currentBoardFen,
                         currentPlyIndex,
-                        candLine.san
+                        candLine.san,
+                        moveHistory.slice(currentPlyIndex + 1)
                       )}
                     </span>
                   </div>
@@ -4003,7 +4313,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         </div>
 
         {/* Mobile Bottom Navigation Bar (Matching Chess.com Mobile App Image 2) */}
-        <nav className="chesscom-mobile-bottom-bar" aria-label="Kontrol Navigasi Mobile">
+        <nav
+          className={`chesscom-mobile-bottom-bar ${!isReviewActive ? 'mobile-hidden-on-summary' : ''}`}
+          aria-label="Kontrol Navigasi Mobile"
+        >
           <button
             type="button"
             onClick={() => setIsEngineModalOpen(true)}

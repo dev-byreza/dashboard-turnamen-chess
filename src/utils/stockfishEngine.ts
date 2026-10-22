@@ -14,6 +14,14 @@ export interface PositionEvaluation {
   bestMoveUci?: string; // e.g. "g1f3"
   bestMoveSan?: string; // e.g. "Nf3"
   pv?: string[]; // sequence of best moves
+  lines?: {
+    uci: string;
+    san: string;
+    continuation?: string;
+    cp: number;
+    winWhite: number;
+    scoreDisplay: string;
+  }[];
   isThinking: boolean;
 }
 
@@ -176,7 +184,7 @@ class StockfishEngineService {
 
     // 1. Try Next.js Backend Stockfish Route first (super fast, depth 40-62)
     try {
-      const res = await fetch(`/api/stockfish?fen=${encodeURIComponent(cleanFen)}&depth=${depth}`);
+      const res = await fetch(`/api/stockfish?fen=${encodeURIComponent(cleanFen)}&depth=${depth}&multipv=3`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.success) {
@@ -189,6 +197,16 @@ class StockfishEngineService {
             winChanceWhite: data.winChanceWhite ?? centipawnsToWinChance(data.scoreCp || 0, data.mateIn),
             bestMoveUci: data.bestMoveUci,
             bestMoveSan: data.bestMoveSan,
+            lines: Array.isArray(data.lines)
+              ? data.lines.map((l: any) => ({
+                  uci: l.uci,
+                  san: l.san,
+                  continuation: l.continuation,
+                  cp: l.scoreCp ?? l.cp ?? 0,
+                  winWhite: l.winChanceWhite ?? l.winWhite ?? 50,
+                  scoreDisplay: l.scoreDisplay ?? '0.0',
+                }))
+              : undefined,
             isThinking: false,
           };
           if (onProgress) onProgress(evalResult);
