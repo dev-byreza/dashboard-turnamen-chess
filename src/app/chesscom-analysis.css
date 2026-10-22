@@ -682,66 +682,52 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0.25rem 0.35rem;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
+}
+
+.classification-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.classification-row-brilliant:hover {
+  background: rgba(27, 172, 166, 0.1);
 }
 
 .classification-row .count {
-  font-size: 0.86rem;
+  font-size: 0.88rem;
   font-weight: 800;
-  width: 24px;
+  width: 26px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
 .classification-row .count.white {
   text-align: left;
-  color: #ffffff;
 }
 
 .classification-row .count.black {
   text-align: right;
-  color: #ffffff;
 }
 
-.badge-pill {
-  display: inline-flex;
+.badge-pill-chesscom {
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.74rem;
-  font-weight: 700;
-  padding: 0.2rem 0.65rem;
-  border-radius: 12px;
+  gap: 0.6rem;
+  flex: 1;
+  padding: 0 0.5rem;
 }
 
-.classification-row.brilliant-row {
-  background: rgba(6, 182, 212, 0.08);
-  border-radius: 6px;
-  padding: 0.15rem 0.2rem;
+.badge-pill-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e5e5e5;
+  letter-spacing: 0.01em;
 }
 
-.badge-pill.brilliant {
-  background: rgba(6, 182, 212, 0.25);
-  color: #22d3ee;
-  border: 1px solid rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.35);
-  font-weight: 800;
-}
-
-.icon-brilliant {
-  color: #22d3ee;
-  filter: drop-shadow(0 0 4px #22d3ee);
-}
-
-.badge-pill.great {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-}
-
-.badge-pill.best {
-  background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
-}
-
-.badge-pill.excellent {
-  background: rgba(132, 204, 22, 0.2);
-  color: #84cc16;
+.classification-icon-svg {
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
 }
 
 .badge-pill.mistake {

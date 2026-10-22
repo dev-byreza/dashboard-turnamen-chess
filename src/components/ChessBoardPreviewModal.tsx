@@ -46,6 +46,147 @@ export interface ChessBoardPreviewModalProps {
   onClose: () => void;
 }
 
+export type ChessComBadgeType =
+  | 'brilliant'
+  | 'best'
+  | 'excellent'
+  | 'good'
+  | 'book'
+  | 'inaccuracy'
+  | 'mistake'
+  | 'blunder'
+  | 'missed_win';
+
+export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: number }> = ({
+  type,
+  size = 22,
+}) => {
+  switch (type) {
+    case 'brilliant':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#1baca6" />
+          <text
+            x="12"
+            y="16.5"
+            fill="#ffffff"
+            fontSize="13"
+            fontWeight="900"
+            textAnchor="middle"
+            fontFamily="Arial, Helvetica, sans-serif"
+          >
+            !!
+          </text>
+        </svg>
+      );
+    case 'best':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#85a94e" />
+          <path
+            d="M12 4.5l2.2 4.7 5.2.8-3.7 3.6.9 5.2L12 16.3l-4.6 2.5.9-5.2-3.7-3.6 5.2-.8z"
+            fill="#ffffff"
+          />
+        </svg>
+      );
+    case 'excellent':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#5c8bb0" />
+          <path
+            d="M7 12.5l3.5 3.5 7-7"
+            stroke="#ffffff"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
+      );
+    case 'good':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#8c8882" />
+          <circle cx="12" cy="12" r="6" fill="none" stroke="#ffffff" strokeWidth="1.8" />
+          <circle cx="12" cy="12" r="2.2" fill="#ffffff" />
+        </svg>
+      );
+    case 'book':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#a88865" />
+          <path
+            d="M6.5 8c1.8-.8 3.5-.8 5.5.5V17c-2-1.2-3.7-1.2-5.5-.5V8zm11 0c-1.8-.8-3.5-.8-5.5.5V17c2-1.2 3.7-1.2 5.5-.5V8z"
+            fill="#ffffff"
+          />
+        </svg>
+      );
+    case 'inaccuracy':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#e69d24" />
+          <text
+            x="12"
+            y="16.5"
+            fill="#ffffff"
+            fontSize="13"
+            fontWeight="900"
+            textAnchor="middle"
+            fontFamily="Arial, Helvetica, sans-serif"
+          >
+            ?!
+          </text>
+        </svg>
+      );
+    case 'mistake':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#e67828" />
+          <text
+            x="12"
+            y="17"
+            fill="#ffffff"
+            fontSize="14"
+            fontWeight="900"
+            textAnchor="middle"
+            fontFamily="Arial, Helvetica, sans-serif"
+          >
+            ?
+          </text>
+        </svg>
+      );
+    case 'blunder':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#ca3431" />
+          <text
+            x="12"
+            y="16.5"
+            fill="#ffffff"
+            fontSize="13"
+            fontWeight="900"
+            textAnchor="middle"
+            fontFamily="Arial, Helvetica, sans-serif"
+          >
+            ??
+          </text>
+        </svg>
+      );
+    case 'missed_win':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#db4352" />
+          <path
+            d="M8 8l8 8M16 8l-8 8"
+            stroke="#ffffff"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+  }
+};
+
 interface MoveHistoryItem {
   ply: number;
   moveNumber: number;
@@ -392,13 +533,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         : 'Pertarungan sengit dan seimbang dari kedua pemain! Pertukaran perwira yang rapi berakhir dengan posisi imbang.',
       counts: {
         brilliant: { w: isWhiteWin ? 1 : 0, b: isBlackWin ? 1 : 0 },
-        great: { w: isWhiteWin ? 3 : 1, b: isBlackWin ? 3 : 1 },
-        best: { w: isWhiteWin ? 11 : 6, b: isBlackWin ? 10 : 7 },
-        excellent: { w: 5, b: 4 },
-        book: { w: 3, b: 3 },
-        mistake: { w: isWhiteWin ? 1 : 4, b: isBlackWin ? 1 : 5 },
-        miss: { w: isWhiteWin ? 0 : 2, b: isBlackWin ? 0 : 1 },
-        blunder: { w: isWhiteWin ? 0 : 2, b: isBlackWin ? 0 : 3 },
+        best: { w: isWhiteWin ? 10 : 5, b: isBlackWin ? 9 : 6 },
+        excellent: { w: 6, b: 5 },
+        good: { w: 5, b: 6 },
+        book: { w: 2, b: 2 },
+        inaccuracy: { w: isWhiteWin ? 1 : 3, b: isBlackWin ? 1 : 2 },
+        mistake: { w: isWhiteWin ? 1 : 4, b: isBlackWin ? 1 : 4 },
+        blunder: { w: isWhiteWin ? 0 : 2, b: isBlackWin ? 0 : 2 },
+        missed_win: { w: 0, b: isBlackWin ? 0 : 1 },
       },
     };
   }, [match?.result, whiteName, blackName]);
@@ -744,55 +886,47 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
                 {/* Move Classification Breakdown Table */}
                 <div className="move-classification-table">
-                  <div className="classification-row brilliant-row">
-                    <span className="count white">{reviewStats.counts.brilliant.w}</span>
-                    <span className="badge-pill brilliant">
-                      <Sparkles size={11} className="icon-brilliant" /> Brilliant
-                    </span>
-                    <span className="count black">{reviewStats.counts.brilliant.b}</span>
-                  </div>
-                  <div className="classification-row">
-                    <span className="count white">{reviewStats.counts.great.w}</span>
-                    <span className="badge-pill great">
-                      <Zap size={11} /> Great
-                    </span>
-                    <span className="count black">{reviewStats.counts.great.b}</span>
-                  </div>
-                  <div className="classification-row">
-                    <span className="count white">{reviewStats.counts.best.w}</span>
-                    <span className="badge-pill best">
-                      <Star size={11} /> Best
-                    </span>
-                    <span className="count black">{reviewStats.counts.best.b}</span>
-                  </div>
-                  <div className="classification-row">
-                    <span className="count white">{reviewStats.counts.excellent.w}</span>
-                    <span className="badge-pill excellent">
-                      <ThumbsUp size={11} /> Excellent
-                    </span>
-                    <span className="count black">{reviewStats.counts.excellent.b}</span>
-                  </div>
-                  <div className="classification-row">
-                    <span className="count white">{reviewStats.counts.mistake.w}</span>
-                    <span className="badge-pill mistake">
-                      <HelpCircle size={11} /> Mistake
-                    </span>
-                    <span className="count black">{reviewStats.counts.mistake.b}</span>
-                  </div>
-                  <div className="classification-row">
-                    <span className="count white">{reviewStats.counts.miss.w}</span>
-                    <span className="badge-pill miss">
-                      <AlertTriangle size={11} /> Miss
-                    </span>
-                    <span className="count black">{reviewStats.counts.miss.b}</span>
-                  </div>
-                  <div className="classification-row">
-                    <span className="count white">{reviewStats.counts.blunder.w}</span>
-                    <span className="badge-pill blunder">
-                      <AlertOctagon size={11} /> Blunder
-                    </span>
-                    <span className="count black">{reviewStats.counts.blunder.b}</span>
-                  </div>
+                  {[
+                    { type: 'brilliant', label: 'Brilliant', color: '#1baca6' },
+                    { type: 'best', label: 'Best Move', color: '#85a94e' },
+                    { type: 'excellent', label: 'Excellent', color: '#5c8bb0' },
+                    { type: 'good', label: 'Good', color: '#8c8882' },
+                    { type: 'book', label: 'Book Move', color: '#a88865' },
+                    { type: 'inaccuracy', label: 'Inaccuracy', color: '#e69d24' },
+                    { type: 'mistake', label: 'Mistake', color: '#e67828' },
+                    { type: 'blunder', label: 'Blunder', color: '#ca3431' },
+                    { type: 'missed_win', label: 'Missed Win', color: '#db4352' },
+                  ].map((item) => {
+                    const countKey = item.type as ChessComBadgeType;
+                    const wCount = reviewStats.counts[countKey]?.w ?? 0;
+                    const bCount = reviewStats.counts[countKey]?.b ?? 0;
+
+                    return (
+                      <div
+                        key={item.type}
+                        className={`classification-row classification-row-${item.type}`}
+                      >
+                        <span
+                          className="count white"
+                          style={{ color: wCount > 0 ? item.color : '#6b7280' }}
+                        >
+                          {wCount}
+                        </span>
+
+                        <div className="badge-pill-chesscom">
+                          <ChessComBadgeIcon type={item.type as ChessComBadgeType} size={22} />
+                          <span className="badge-pill-label">{item.label}</span>
+                        </div>
+
+                        <span
+                          className="count black"
+                          style={{ color: bCount > 0 ? item.color : '#6b7280' }}
+                        >
+                          {bCount}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Start Review CTA Button */}
