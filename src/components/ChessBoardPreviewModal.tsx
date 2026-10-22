@@ -150,6 +150,23 @@ export const REVIEW_CLASSIFICATIONS: {
   },
 ];
 
+export const CoachAvatarSvg: React.FC<{ size?: number; className?: string }> = ({
+  size = 48,
+  className = 'coach-svg',
+}) => (
+  <svg viewBox="0 0 60 60" width={size} height={size} className={className}>
+    <circle cx="30" cy="30" r="28" fill="#3b82f6" />
+    <circle cx="30" cy="26" r="14" fill="#fed7aa" />
+    <path d="M18 20c2-8 22-8 24 0 0 0-3-4-12-4s-12 4-12 4z" fill="#573418" />
+    <path d="M20 30c1 6 19 6 20 0 0 5-6 9-10 9s-10-4-10-9z" fill="#573418" />
+    <circle cx="25" cy="25" r="3.5" fill="none" stroke="#1e293b" strokeWidth="1.5" />
+    <circle cx="35" cy="25" r="3.5" fill="none" stroke="#1e293b" strokeWidth="1.5" />
+    <path d="M28.5 25h3" stroke="#1e293b" strokeWidth="1.5" />
+    <path d="M12 56c4-12 10-16 18-16s14 4 18 16z" fill="#1e3a8a" />
+    <path d="M30 40v14" stroke="#ffffff" strokeWidth="2" />
+  </svg>
+);
+
 export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: number }> = ({
   type,
   size = 22,
@@ -2807,153 +2824,179 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         {/* Mobile Initial Statistical Summary View (Matching Reference Image) */}
         {!isReviewActive && (
           <div className="chesscom-mobile-summary-view">
-            <div className="mobile-summary-scroll">
-              {/* 1. Coach Speech Bubble (Top) */}
-              <div className="mobile-summary-coach-card">
-                <div className="mobile-coach-avatar-box">
-                  <img
-                    src="/images/coach-avatar.png"
-                    alt="Chess Coach"
-                    className="mobile-coach-avatar-img"
+            {!isAnalysisComplete ? (
+              <div className="mobile-analysis-running-hero">
+                <div className="analysis-running-icon-glow">
+                  <Cpu size={36} className="analysis-cpu-pulse" />
+                </div>
+                <div className="mobile-analysis-running-pct">
+                  {Math.round((analysisProgress.done / Math.max(1, analysisProgress.total)) * 100)}%
+                </div>
+                <div className="mobile-analysis-running-label">
+                  Stockfish menganalisis langkah {analysisProgress.done} dari {analysisProgress.total}...
+                </div>
+                <div className="mobile-analysis-depth-badge">
+                  Stockfish 19 • Depth {reviewDepth} • MultiPV 3
+                </div>
+                <div className="analysis-running-track">
+                  <div
+                    className="analysis-running-fill"
+                    style={{
+                      width: `${(analysisProgress.done / Math.max(1, analysisProgress.total)) * 100}%`,
+                    }}
                   />
                 </div>
-                <div className="mobile-coach-bubble">
-                  <p>{reviewStats.coachComment || 'Black had a nice tactical find in that game.'}</p>
-                </div>
+                <p className="analysis-running-tip">
+                  Stockfish sedang mengkalkulasi seluruh evaluasi posisi, akurasi, dan taktik pertandingan secara real-time. Data statistik Game Review akan otomatis tampil setelah 100% selesai.
+                </p>
               </div>
-
-              {/* 2. Advantage / Evaluation Graph (Directly below coach) */}
-              <div className="mobile-summary-chart-box" title="Klik grafik untuk meninjau langkah">
-                <svg
-                  viewBox="0 0 320 64"
-                  preserveAspectRatio="none"
-                  className="chesscom-eval-chart-svg"
-                  onClick={handleChartClick}
-                >
-                  <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
-                  <path d={evalChartData.svgPath} fill="#ffffff" />
-                  {evalChartData.dots.map((d, i) => (
-                    <circle
-                      key={i}
-                      cx={d.x}
-                      cy={d.y}
-                      r={3.2}
-                      fill={d.color}
-                      stroke="#ffffff"
-                      strokeWidth="0.8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        jumpToPly(d.ply - 1);
-                        setIsReviewActive(true);
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    />
-                  ))}
-                </svg>
-              </div>
-
-              {/* 3. Players & Accuracy Section */}
-              <div className="mobile-summary-table-card">
-                {/* Players Row */}
-                <div className="summary-grid-row">
-                  <span className="summary-grid-label">Players</span>
-                  <div className="summary-player-col">
-                    <span className="summary-player-username" title={whiteUsername || whiteName}>
-                      {whiteUsername || whiteName}
-                    </span>
-                    <div className="summary-player-avatar-box white-player">
-                      {whitePlayer?.avatar ? (
-                        <img src={whitePlayer.avatar} alt={whiteName} />
-                      ) : (
-                        <span className="avatar-placeholder">♙</span>
-                      )}
+            ) : (
+              <>
+                <div className="mobile-summary-scroll">
+                  {/* 1. Coach Speech Bubble (Top) */}
+                  <div className="mobile-summary-coach-card">
+                    <div className="mobile-coach-avatar-box">
+                      <CoachAvatarSvg size={44} className="mobile-coach-avatar-img" />
+                    </div>
+                    <div className="mobile-coach-bubble">
+                      <p>{reviewStats.coachComment || 'Stockfish telah menganalisis seluruh jalannya pertandingan.'}</p>
                     </div>
                   </div>
-                  <div className="summary-player-col">
-                    <span className="summary-player-username" title={blackUsername || blackName}>
-                      {blackUsername || blackName}
-                    </span>
-                    <div className="summary-player-avatar-box black-player">
-                      {blackPlayer?.avatar ? (
-                        <img src={blackPlayer.avatar} alt={blackName} />
-                      ) : (
-                        <span className="avatar-placeholder">♟</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Accuracy Row */}
-                <div className="summary-grid-row">
-                  <span className="summary-grid-label">Accuracy</span>
-                  <div className="summary-accuracy-pill white-pill">
-                    {reviewStats.whiteAccuracy}
-                  </div>
-                  <div className="summary-accuracy-pill black-pill">
-                    {reviewStats.blackAccuracy}
-                  </div>
-                </div>
-
-                <div className="summary-grid-divider" />
-
-                {/* 4. 10 Classification Rows (Brilliant down to Blunder) */}
-                {REVIEW_CLASSIFICATIONS.map((item) => {
-                  const countKey = item.type;
-                  const wCount = calculatedCounts[countKey]?.w ?? 0;
-                  const bCount = calculatedCounts[countKey]?.b ?? 0;
-                  const totalCount = wCount + bCount;
-
-                  return (
-                    <div
-                      key={item.type}
-                      className="summary-classification-row"
-                      onClick={() => {
-                        if (totalCount > 0) {
-                          handleJumpToClassification(item.type);
-                          setIsReviewActive(true);
-                        }
-                      }}
-                      title={
-                        totalCount > 0
-                          ? `Lihat langkah ${item.label} (${totalCount} langkah) di papan catur`
-                          : item.details
-                      }
+                  {/* 2. Advantage / Evaluation Graph (Directly below coach) */}
+                  <div className="mobile-summary-chart-box" title="Klik grafik untuk meninjau langkah">
+                    <svg
+                      viewBox="0 0 320 64"
+                      preserveAspectRatio="none"
+                      className="chesscom-eval-chart-svg"
+                      onClick={handleChartClick}
                     >
-                      <span className="summary-class-label">{item.label}</span>
-                      <span
-                        className="summary-class-count white-count"
-                        style={{ color: wCount > 0 ? item.color : '#6b7280' }}
-                      >
-                        {wCount}
-                      </span>
-                      <div className="summary-class-icon-cell">
-                        <ChessComBadgeIcon type={item.type} size={22} />
-                      </div>
-                      <span
-                        className="summary-class-count black-count"
-                        style={{ color: bCount > 0 ? item.color : '#6b7280' }}
-                      >
-                        {bCount}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                      <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
+                      <path d={evalChartData.svgPath} fill="#ffffff" />
+                      {evalChartData.dots.map((d, i) => (
+                        <circle
+                          key={i}
+                          cx={d.x}
+                          cy={d.y}
+                          r={3.2}
+                          fill={d.color}
+                          stroke="#ffffff"
+                          strokeWidth="0.8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            jumpToPly(d.ply - 1);
+                            setIsReviewActive(true);
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      ))}
+                    </svg>
+                  </div>
 
-            {/* 5. Sticky Bottom Action Button */}
-            <div className="mobile-summary-bottom-cta">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsReviewActive(true);
-                  if (currentPlyIndex < 0) jumpToPly(0);
-                }}
-                className="btn-mobile-continue-review"
-              >
-                <span>{currentPlyIndex > 0 ? 'Continue Review' : 'Start Review'}</span>
-              </button>
-            </div>
+                  {/* 3. Players & Accuracy Section */}
+                  <div className="mobile-summary-table-card">
+                    {/* Players Row */}
+                    <div className="summary-grid-row">
+                      <span className="summary-grid-label">Players</span>
+                      <div className="summary-player-col">
+                        <span className="summary-player-username" title={whiteUsername || whiteName}>
+                          {whiteUsername || whiteName}
+                        </span>
+                        <div className="summary-player-avatar-box white-player">
+                          {whitePlayer?.avatar ? (
+                            <img src={whitePlayer.avatar} alt={whiteName} />
+                          ) : (
+                            <span className="avatar-placeholder">♙</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="summary-player-col">
+                        <span className="summary-player-username" title={blackUsername || blackName}>
+                          {blackUsername || blackName}
+                        </span>
+                        <div className="summary-player-avatar-box black-player">
+                          {blackPlayer?.avatar ? (
+                            <img src={blackPlayer.avatar} alt={blackName} />
+                          ) : (
+                            <span className="avatar-placeholder">♟</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Accuracy Row */}
+                    <div className="summary-grid-row">
+                      <span className="summary-grid-label">Accuracy</span>
+                      <div className="summary-accuracy-pill white-pill">
+                        {reviewStats.whiteAccuracy}
+                      </div>
+                      <div className="summary-accuracy-pill black-pill">
+                        {reviewStats.blackAccuracy}
+                      </div>
+                    </div>
+
+                    <div className="summary-grid-divider" />
+
+                    {/* 4. 10 Classification Rows (Brilliant down to Blunder) */}
+                    {REVIEW_CLASSIFICATIONS.map((item) => {
+                      const countKey = item.type;
+                      const wCount = calculatedCounts[countKey]?.w ?? 0;
+                      const bCount = calculatedCounts[countKey]?.b ?? 0;
+                      const totalCount = wCount + bCount;
+
+                      return (
+                        <div
+                          key={item.type}
+                          className="summary-classification-row"
+                          onClick={() => {
+                            if (totalCount > 0) {
+                              handleJumpToClassification(item.type);
+                              setIsReviewActive(true);
+                            }
+                          }}
+                          title={
+                            totalCount > 0
+                              ? `Lihat langkah ${item.label} (${totalCount} langkah) di papan catur`
+                              : item.details
+                          }
+                        >
+                          <span className="summary-class-label">{item.label}</span>
+                          <span
+                            className="summary-class-count white-count"
+                            style={{ color: wCount > 0 ? item.color : '#6b7280' }}
+                          >
+                            {wCount}
+                          </span>
+                          <div className="summary-class-icon-cell">
+                            <ChessComBadgeIcon type={item.type} size={22} />
+                          </div>
+                          <span
+                            className="summary-class-count black-count"
+                            style={{ color: bCount > 0 ? item.color : '#6b7280' }}
+                          >
+                            {bCount}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 5. Sticky Bottom Action Button */}
+                <div className="mobile-summary-bottom-cta">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsReviewActive(true);
+                      if (currentPlyIndex < 0) jumpToPly(0);
+                    }}
+                    className="btn-mobile-continue-review"
+                  >
+                    <span>{currentPlyIndex > 0 ? 'Continue Review' : 'Start Review'}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -3007,7 +3050,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         </header>
 
         {/* Main Content Area: Board (Left) + Analysis/Review Sidebar (Right) */}
-        <div className="chesscom-main-layout">
+        <div className={`chesscom-main-layout ${!isReviewActive ? 'mobile-hidden-on-summary' : ''}`}>
           {/* LEFT: Board Section with Eval Bar & Player Cards */}
           <section className={`chesscom-board-section ${!isReviewActive ? 'mobile-hidden-on-summary' : ''}`}>
             {/* Horizontal Evaluation Bar on Mobile (Matching Chess.com Mobile Image 2) */}
@@ -3416,11 +3459,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                 {/* Coach Speech Bubble on Mobile */}
                 <div className="review-coach-speech-bubble">
                   <div className="review-coach-avatar-wrapper">
-                    <img
-                      src="/images/coach-avatar.png"
-                      alt="Chess Coach"
-                      className="review-coach-avatar-img"
-                    />
+                    <CoachAvatarSvg size={44} className="review-coach-avatar-img" />
                   </div>
                   <div className="review-coach-card-body">
                     <div className="review-coach-top-row">
@@ -3553,40 +3592,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   {/* Coach Card with Speech Bubble */}
                   <div className="coach-comment-card">
                     <div className="coach-avatar">
-                      <svg viewBox="0 0 60 60" className="coach-svg">
-                        <circle cx="30" cy="30" r="28" fill="#3b82f6" />
-                        <circle cx="30" cy="26" r="14" fill="#fed7aa" />
-                        <path
-                          d="M18 20c2-8 22-8 24 0 0 0-3-4-12-4s-12 4-12 4z"
-                          fill="#573418"
-                        />
-                        <path
-                          d="M20 30c1 6 19 6 20 0 0 5-6 9-10 9s-10-4-10-9z"
-                          fill="#573418"
-                        />
-                        <circle
-                          cx="25"
-                          cy="25"
-                          r="3.5"
-                          fill="none"
-                          stroke="#1e293b"
-                          strokeWidth="1.5"
-                        />
-                        <circle
-                          cx="35"
-                          cy="25"
-                          r="3.5"
-                          fill="none"
-                          stroke="#1e293b"
-                          strokeWidth="1.5"
-                        />
-                        <path d="M28.5 25h3" stroke="#1e293b" strokeWidth="1.5" />
-                        <path
-                          d="M12 56c4-12 10-16 18-16s14 4 18 16z"
-                          fill="#1e3a8a"
-                        />
-                        <path d="M30 40v14" stroke="#ffffff" strokeWidth="2" />
-                      </svg>
+                      <CoachAvatarSvg size={48} />
                     </div>
                     <div className="coach-speech-bubble">
                       <p>{reviewStats.coachComment}</p>
