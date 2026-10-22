@@ -398,8 +398,31 @@
 
 /* Best Move Highlight & Arrow */
 .chesscom-square.is-best-move {
-  background-color: rgba(129, 182, 76, 0.4);
-  box-shadow: inset 0 0 0 2px #81b64c;
+  background-color: rgba(129, 182, 76, 0.48) !important;
+  box-shadow: inset 0 0 0 2.5px #81b64c !important;
+}
+
+.best-move-target-ring {
+  position: absolute;
+  inset: 4px;
+  border: 3.5px solid #81b64c;
+  border-radius: 8px;
+  pointer-events: none;
+  animation: best-target-pulse 1.6s infinite ease-in-out;
+  box-shadow: 0 0 14px rgba(129, 182, 76, 0.65), inset 0 0 10px rgba(129, 182, 76, 0.4);
+  z-index: 8;
+}
+
+@keyframes best-target-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+    box-shadow: 0 0 18px rgba(129, 182, 76, 0.85), inset 0 0 14px rgba(129, 182, 76, 0.55);
+  }
 }
 
 .chesscom-board-arrow-overlay {
@@ -410,6 +433,7 @@
   height: 100%;
   pointer-events: none;
   z-index: 10;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
 
 /* Highlights */
@@ -1953,3 +1977,88 @@
 .rv-san { font-weight: 800; flex: 1; }
 .rv-eval { background: #3c3934; padding: 0.05rem 0.4rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem; }
 .rv-tag { font-size: 0.65rem; color: #81b64c; font-weight: 700; }
+
+/* Analysis Running Hero (Waiting for 100% analysis) */
+.analysis-running-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.2rem 1.4rem;
+  background: #21201d;
+  border-radius: 12px;
+  border: 1px solid #363430;
+  margin: 0.5rem 0.9rem 1rem;
+  gap: 1rem;
+}
+
+.analysis-running-icon-glow {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1.5px solid rgba(59, 130, 246, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #60a5fa;
+  box-shadow: 0 0 24px rgba(59, 130, 246, 0.25);
+}
+
+.analysis-cpu-pulse {
+  animation: cpu-pulse-anim 1.8s infinite ease-in-out;
+}
+
+@keyframes cpu-pulse-anim {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+    color: #93c5fd;
+  }
+}
+
+.analysis-running-pct {
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.analysis-running-label {
+  font-size: 0.92rem;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.analysis-running-track {
+  width: 100%;
+  max-width: 280px;
+  height: 8px;
+  background: #2b2926;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #3d3b37;
+}
+
+.analysis-running-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, #81b64c 100%);
+  border-radius: 999px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.analysis-running-tip {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 300px;
+}
+

@@ -914,22 +914,36 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         scoreCacheRef.current.set(`${reviewDepth}|${f}`, bookScore);
       }
     });
-    setScoreMap(initial);
+    const isAllCached = Object.keys(initial).length === uniqueFens.length;
+    if (isAllCached) {
+      setScoreMap(initial);
+      setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+      return;
+    }
+
+    // Set initial progress but DO NOT set partial scoreMap to avoid data twitching every second
+    setScoreMap({});
     setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
 
     (async () => {
+      const accumulated: Record<string, PositionScore> = { ...initial };
       let done = Object.keys(initial).length;
       for (const f of uniqueFens) {
         if (cancelled) return;
-        if (initial[f]) continue;
+        if (accumulated[f]) continue;
         const s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
         if (cancelled) return;
         done++;
         if (s) {
           scoreCacheRef.current.set(`${reviewDepth}|${f}`, s);
-          setScoreMap((prev) => ({ ...prev, [f]: s }));
+          accumulated[f] = s;
         }
         setAnalysisProgress({ done, total: uniqueFens.length });
+      }
+
+      if (!cancelled) {
+        // Commit 100% finished analysis all at once!
+        setScoreMap(accumulated);
       }
     })();
 
@@ -941,6 +955,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   }, [isOpen, fenKey, reviewDepth]);
 
   const isAnalyzing = analysisProgress.total > 0 && analysisProgress.done < analysisProgress.total;
+  const isAnalysisComplete =
+    analysisProgress.total > 0 && analysisProgress.done >= analysisProgress.total;
 
   const moveHistory = useMemo<MoveHistoryItem[]>(() => {
     let prevLoss = 0;
@@ -1377,7 +1393,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const dist = Math.hypot(dx, dy);
     if (dist < 0.1) return null;
 
-    const shortenHead = 3.6;
+    const shortenHead = 5.6;
     const shortenTail = 2.4;
     return {
       x1: x1 + (dx / dist) * shortenTail,
@@ -1933,6 +1949,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Active Move Coach Feedback (Image 4 speech bubble comment: e.g. "d4 is the last book move")
   const currentMoveCoachComment = useMemo(() => {
+    if (!isAnalysisComplete) {
+      return {
+        title: 'Menganalisis...',
+        comment: `Stockfish sedang menganalisis langkah pertandingan (${analysisProgress.done}/${analysisProgress.total}). Data Game Review lengkap akan otomatis tampil begitu 100% selesai.`,
+        badge: null as ChessComBadgeType | null,
+      };
+    }
+
     if (currentPlyIndex === -1) {
       return {
         title: 'Posisi Awal',
@@ -2005,7 +2029,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       comment,
       badge: m.classification || null,
     };
-  }, [currentPlyIndex, moveHistory, rawMoveHistory]);
+  }, [currentPlyIndex, moveHistory, rawMoveHistory, isAnalysisComplete, analysisProgress.done, analysisProgress.total]);
 
   // Jump to move by classification with cycling support
   const handleJumpToClassification = (type: ChessComBadgeType, colorFilter?: 'w' | 'b') => {
@@ -2265,13 +2289,21 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                                 />
                               </div>
                             )}
+
+                            {/* Destination Target Ring for Best Move */}
+                            {isBestMoveTo && (
+                              <div
+                                className="best-move-target-ring"
+                                style={{ borderColor: bestMoveColor }}
+                              />
+                            )}
                           </div>
                         );
                       }
                     )
                 )}
 
-                {/* SVG Arrow Overlay for Best Move (Minimal & Category Colored) */}
+                {/* SVG Arrow Overlay for Best Move (High Visibility Chess.com Style) */}
                 {showBestMove && bestMoveArrowCoords && (
                   <svg
                     className="chesscom-board-arrow-overlay"
@@ -2279,31 +2311,61 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     preserveAspectRatio="none"
                   >
                     <defs>
+                      <filter
+                        id="chesscom-arrow-shadow"
+                        x="-30%"
+                        y="-30%"
+                        width="160%"
+                        height="160%"
+                      >
+                        <feDropShadow
+                          dx="0"
+                          dy="1"
+                          stdDeviation="1.2"
+                          floodColor="#000000"
+                          floodOpacity="0.85"
+                        />
+                      </filter>
                       <marker
                         id="arrowhead-best-move"
-                        markerWidth="4.2"
-                        markerHeight="3.6"
-                        refX="3.4"
-                        refY="1.8"
+                        markerWidth="8"
+                        markerHeight="8"
+                        refX="5.6"
+                        refY="4"
                         orient="auto"
                         markerUnits="userSpaceOnUse"
                       >
                         <path
-                          d="M 0 0.3 L 3.8 1.8 L 0 3.3 L 0.8 1.8 Z"
+                          d="M 0 0.8 L 7 4 L 0 7.2 L 1.6 4 Z"
                           fill={bestMoveColor}
+                          stroke="rgba(0, 0, 0, 0.55)"
+                          strokeWidth="0.5"
+                          strokeLinejoin="round"
                         />
                       </marker>
                     </defs>
+                    {/* Dark contrast underlay outline */}
+                    <line
+                      x1={bestMoveArrowCoords.x1}
+                      y1={bestMoveArrowCoords.y1}
+                      x2={bestMoveArrowCoords.x2}
+                      y2={bestMoveArrowCoords.y2}
+                      stroke="rgba(0, 0, 0, 0.55)"
+                      strokeWidth="5.2"
+                      strokeLinecap="round"
+                    />
+                    {/* Vibrant primary arrow shaft with drop shadow */}
                     <line
                       x1={bestMoveArrowCoords.x1}
                       y1={bestMoveArrowCoords.y1}
                       x2={bestMoveArrowCoords.x2}
                       y2={bestMoveArrowCoords.y2}
                       stroke={bestMoveColor}
-                      strokeWidth="1.6"
+                      strokeWidth="3.6"
                       strokeLinecap="round"
                       markerEnd="url(#arrowhead-best-move)"
-                      opacity="0.88"
+                      filter="url(#chesscom-arrow-shadow)"
+                      opacity="1"
                     />
                   </svg>
                 )}
@@ -2370,7 +2432,41 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
           {/* RIGHT: Game Review Sidebar Panel (Default & Exclusive Mode) */}
           <aside className="chesscom-sidebar-section">
-            {!isReviewActive ? (
+            {!isAnalysisComplete ? (
+              /* ANALYSIS RUNNING HERO: Waiting until analysis completes 100% for the first time */
+              <div className="review-panel-container">
+                <div className="review-header-title">
+                  <div className="title-left">
+                    <span className="review-star-badge">★</span>
+                    <h3>Game Review</h3>
+                  </div>
+                  <span className="engine-verified-pill">Stockfish 19 Depth {reviewDepth}</span>
+                </div>
+
+                <div className="analysis-running-hero">
+                  <div className="analysis-running-icon-glow">
+                    <Cpu size={32} className="analysis-cpu-pulse" />
+                  </div>
+                  <div className="analysis-running-pct">
+                    {Math.round((analysisProgress.done / Math.max(1, analysisProgress.total)) * 100)}%
+                  </div>
+                  <div className="analysis-running-label">
+                    Menganalisis langkah {analysisProgress.done} dari {analysisProgress.total}...
+                  </div>
+                  <div className="analysis-running-track">
+                    <div
+                      className="analysis-running-fill"
+                      style={{
+                        width: `${(analysisProgress.done / Math.max(1, analysisProgress.total)) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="analysis-running-tip">
+                    Stockfish sedang mengkalkulasi seluruh evaluasi, akurasi, dan taktik pertandingan secara step by step. Data Game Review akan tampil lengkap setelah 100%.
+                  </p>
+                </div>
+              </div>
+            ) : !isReviewActive ? (
               /* REVIEW SUMMARY VIEW (Matching Chess.com Image 1 & 3) */
               <div className="review-panel-container">
                   <div className="review-header-title">
