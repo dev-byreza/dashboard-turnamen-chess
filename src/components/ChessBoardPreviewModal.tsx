@@ -31,6 +31,8 @@ import {
   Compass,
   Volume2,
   VolumeX,
+  Cpu,
+  Sliders,
 } from 'lucide-react';
 import { Chess, Square } from 'chess.js';
 import { Player, SwissMatch } from '../types/chess';
@@ -42,7 +44,17 @@ import {
 } from '../utils/stockfishEngine';
 import { ChessComNeoPiece, PieceCode } from './ChessComNeoPiece';
 import { getChessAudioManager } from '../utils/chessAudio';
+import {
+  START_FEN,
+  PositionScore,
+  fetchPositionScore,
+  classifyByEngine,
+  describeReview,
+  LABEL_TITLE,
+} from '../utils/gameReview';
+import { detectOpeningFromFens } from '../utils/openingBook';
 import { ChessSoundSettingsModal } from './ChessSoundSettingsModal';
+import { ChessEngineSettingsModal } from './ChessEngineSettingsModal';
 
 
 export interface ChessBoardPreviewModalProps {
@@ -341,6 +353,10 @@ export const renderMoveFigurine = (
 };
 
 export function detectOpening(moves: MoveHistoryItem[], pgn?: string): string {
+  // 1) Lichess opening database (position-based, handles transpositions)
+  const fromDb = detectOpeningFromFens(moves.map((m) => m.fen));
+  if (fromDb) return `${fromDb.name} (${fromDb.eco})`;
+
   if (pgn) {
     const ecoUrlMatch = pgn.match(/\[ECOUrl\s+"https:\/\/www\.chess\.com\/openings\/([^"]+)"\]/i);
     if (ecoUrlMatch && ecoUrlMatch[1]) {
@@ -385,7 +401,7 @@ export function detectOpening(moves: MoveHistoryItem[], pgn?: string): string {
   if (keys.startsWith('e4')) return "King's Pawn Opening";
   if (keys.startsWith('d4')) return "Queen's Pawn Opening";
 
-  return 'Four Knights Game: Scotch Variation Accepted';
+  return 'Opening tidak terdaftar';
 }
 
 export function classifyGameMoves(
@@ -841,7 +857,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Board Navigation & Chess Game State
   const [chessInstance, setChessInstance] = useState<Chess>(() => new Chess());
-  const [moveHistory, setMoveHistory] = useState<MoveHistoryItem[]>([]);
+  const [rawMoveHistory, setMoveHistory] = useState<MoveHistoryItem[]>([]);
   const [originalGameHistory, setOriginalGameHistory] = useState<MoveHistoryItem[]>([]);
   const [currentPlyIndex, setCurrentPlyIndex] = useState<number>(-1); // -1 = start pos
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
@@ -851,6 +867,111 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [showExplanation, setShowExplanation] = useState<boolean>(false);
   const [showBestMove, setShowBestMove] = useState<boolean>(false);
   const [isSoundModalOpen, setIsSoundModalOpen] = useState<boolean>(false);
+  const [isEngineModalOpen, setIsEngineModalOpen] = useState<boolean>(false);
+  const [stockfishDepth, setStockfishDepth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('stockfish_depth');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 8 && parsed <= 24) return parsed;
+      }
+    }
+    return 14;
+  });
+
+  // ── Engine-based review: every position is scored by the same Stockfish as the eval bar ──
+  const reviewDepth = Math.min(stockfishDepth, 16);
+  const [scoreMap, setScoreMap] = useState<Record<string, PositionScore>>({});
+  const [analysisProgress, setAnalysisProgress] = useState({ done: 0, total: 0 });
+  const scoreCacheRef = useRef<Map<string, PositionScore>>(new Map());
+  const fenKey = useMemo(() => rawMoveHistory.map((m) => m.fen).join('|'), [rawMoveHistory]);
+
+  useEffect(() => {
+    if (!isOpen || rawMoveHistory.length === 0) {
+      setAnalysisProgress({ done: 0, total: 0 });
+      return;
+    }
+    const fens = [START_FEN, ...rawMoveHistory.map((m) => m.fen)];
+    const uniqueFens = Array.from(new Set(fens));
+    const ctrl = new AbortController();
+    let cancelled = false;
+
+    const initial: Record<string, PositionScore> = {};
+    uniqueFens.forEach((f) => {
+      const hit = scoreCacheRef.current.get(`${reviewDepth}|${f}`);
+      if (hit) initial[f] = hit;
+    });
+    setScoreMap(initial);
+    setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
+
+    (async () => {
+      let done = Object.keys(initial).length;
+      for (const f of uniqueFens) {
+        if (cancelled) return;
+        if (initial[f]) continue;
+        const s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
+        if (cancelled) return;
+        done++;
+        if (s) {
+          scoreCacheRef.current.set(`${reviewDepth}|${f}`, s);
+          setScoreMap((prev) => ({ ...prev, [f]: s }));
+        }
+        setAnalysisProgress({ done, total: uniqueFens.length });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, fenKey, reviewDepth]);
+
+  const isAnalyzing = analysisProgress.total > 0 && analysisProgress.done < analysisProgress.total;
+
+  const moveHistory = useMemo<MoveHistoryItem[]>(() => {
+    let prevLoss = 0;
+    return rawMoveHistory.map((m, i) => {
+      const before = scoreMap[i === 0 ? START_FEN : rawMoveHistory[i - 1].fen];
+      const after = scoreMap[m.fen];
+      if (!before || !after) {
+        prevLoss = 0;
+        return {
+          ...m,
+          classification: undefined,
+          feedbackTitle: 'Menganalisis...',
+          feedbackDescription: 'Stockfish sedang menganalisis posisi ini.',
+          bestAlternative: undefined,
+          bestAlternativeMove: undefined,
+        };
+      }
+      const r = classifyByEngine(
+        m,
+        before,
+        after,
+        prevLoss,
+        i > 0 ? rawMoveHistory[i - 1] : undefined
+      );
+      prevLoss = r.loss;
+      const playedUci = `${m.from}${m.to}${m.promotion || ''}`;
+      const hasAlt = !!r.bestUci && r.bestUci !== playedUci;
+      return {
+        ...m,
+        classification: r.label,
+        feedbackTitle: LABEL_TITLE[r.label],
+        feedbackDescription: describeReview(m.san, r),
+        bestAlternative: hasAlt ? r.bestSan : undefined,
+        bestAlternativeMove: r.bestUci
+          ? {
+              from: r.bestUci.slice(0, 2),
+              to: r.bestUci.slice(2, 4),
+              san: r.bestSan || r.bestUci,
+              uci: r.bestUci,
+            }
+          : undefined,
+      };
+    });
+  }, [rawMoveHistory, scoreMap]);
 
   // Preload sound effects on modal open
   useEffect(() => {
@@ -1012,7 +1133,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     evalDebounceRef.current = setTimeout(() => {
       const engine = getStockfishEngine();
       engine
-        .evaluatePosition(currentBoardFen, 14, (progress) => {
+        .evaluatePosition(currentBoardFen, stockfishDepth, (progress) => {
           setCurrentEval(progress);
         })
         .then((finalEval) => {
@@ -1026,7 +1147,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return () => {
       if (evalDebounceRef.current) clearTimeout(evalDebounceRef.current);
     };
-  }, [isOpen, isEngineActive, currentBoardFen]);
+  }, [isOpen, isEngineActive, currentBoardFen, stockfishDepth]);
 
   // Jump to specific ply in move history with sound effects
   const jumpToPly = (plyIndex: number, playAudio = true) => {
@@ -1652,75 +1773,18 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       };
     }
 
-    const isWhiteWin = match?.result === '1-0';
-    const isBlackWin = match?.result === '0-1';
     const total = moveHistory.length;
-
-    // Realistic chess advantage progression based on move classifications
-    let runningEval = 0.2; // Centipawns / pawns equivalent (+ = White, - = Black)
     const pts: { x: number; y: number; type?: ChessComBadgeType; ply: number }[] = [];
 
+    // y: 32 = equal (50%), y=6 = White winning (100%), y=58 = Black winning (0%)
+    const winToY = (win: number) => Math.max(6, Math.min(58, 32 - ((win - 50) / 50) * 26));
+    let lastWin = scoreMap[START_FEN]?.winWhite ?? 50;
+
     moveHistory.forEach((m, idx) => {
-      const isWhite = m.color === 'w';
-      const dir = isWhite ? 1 : -1;
-
-      // Evaluation delta based on move classification
-      let delta = 0;
-      switch (m.classification) {
-        case 'brilliant':
-          delta = dir * 2.2;
-          break;
-        case 'great':
-          delta = dir * 1.5;
-          break;
-        case 'best':
-          delta = dir * 0.2;
-          break;
-        case 'excellent':
-          delta = dir * 0.05;
-          break;
-        case 'good':
-          delta = -dir * 0.15;
-          break;
-        case 'book':
-          delta = Math.sin(idx * 0.8) * 0.1;
-          break;
-        case 'inaccuracy':
-          delta = -dir * 0.9;
-          break;
-        case 'mistake':
-          delta = -dir * 1.8;
-          break;
-        case 'miss':
-        case 'missed_win':
-          delta = -dir * 2.5;
-          break;
-        case 'blunder':
-          delta = -dir * 3.8;
-          break;
-        default:
-          delta = 0;
-      }
-
-      runningEval += delta;
-
-      // Endgame gravity towards match result
-      if (idx > total * 0.65) {
-        const endProgress = (idx - total * 0.65) / (total * 0.35);
-        if (isWhiteWin) {
-          runningEval = Math.max(runningEval, 1.8 + endProgress * 4.2);
-        } else if (isBlackWin) {
-          runningEval = Math.min(runningEval, -1.8 - endProgress * 4.2);
-        }
-      }
-
-      // Clamp running eval to [-6, +6]
-      const clampedEval = Math.max(-6, Math.min(6, runningEval));
+      const s = scoreMap[m.fen];
+      if (s) lastWin = s.winWhite;
       const x = (idx / Math.max(1, total - 1)) * 320;
-      // y: 32 is baseline (0.00), y=6 is +6 pawns (White top peak), y=58 is -6 pawns (Black valley)
-      const y = Math.max(6, Math.min(58, 32 - (clampedEval / 6) * 26));
-
-      pts.push({ x, y, type: m.classification, ply: m.ply });
+      pts.push({ x, y: winToY(lastWin), type: m.classification, ply: m.ply });
     });
 
     // Build SVG path
@@ -1771,7 +1835,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     });
 
     return { svgPath: pathD, dots: filteredDots, points: pts };
-  }, [moveHistory, match?.result]);
+  }, [moveHistory, scoreMap]);
 
   // Click handler for evaluation chart (Image 3)
   const handleChartClick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -1806,7 +1870,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Active Move Evaluation Display (Image 4 speech bubble pill: e.g. "+0.10")
   const currentMoveEvalDisplay = useMemo(() => {
-    if (currentPlyIndex === -1) return '0.00';
+    if (currentPlyIndex === -1) return scoreMap[START_FEN]?.scoreDisplay ?? '0.00';
+    if (scoreMap[currentBoardFen]) return scoreMap[currentBoardFen].scoreDisplay;
     if (currentEval?.scoreDisplay) return currentEval.scoreDisplay;
     if (evalChartData.points && evalChartData.points[currentPlyIndex]) {
       const pt = evalChartData.points[currentPlyIndex];
@@ -1815,7 +1880,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       return scoreVal > 0.05 ? `+${formatted}` : formatted;
     }
     return '+0.10';
-  }, [currentPlyIndex, currentEval?.scoreDisplay, evalChartData.points]);
+  }, [currentPlyIndex, currentBoardFen, scoreMap, currentEval?.scoreDisplay, evalChartData.points]);
 
   // Active Move Coach Feedback (Image 4 speech bubble comment: e.g. "d4 is the last book move")
   const currentMoveCoachComment = useMemo(() => {
@@ -1940,6 +2005,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           <div className="chesscom-nav-right">
             <button
               type="button"
+              onClick={() => setIsEngineModalOpen(true)}
+              className="chesscom-btn-icon"
+              title={`Pengaturan Kedalaman Stockfish (Depth ${stockfishDepth})`}
+            >
+              <Cpu size={16} />
+            </button>
+            <button
+              type="button"
               onClick={() => setIsSoundModalOpen(true)}
               className="chesscom-btn-icon"
               title="Pengaturan Efek Suara & Tema Audio Catur"
@@ -2007,6 +2080,26 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               </div>
             </div>
 
+            {isAnalyzing && (
+              <div className="chesscom-analysis-progress" role="status" aria-live="polite">
+                <div className="chesscom-analysis-progress-text">
+                  <Cpu size={13} />
+                  <span>
+                    Stockfish menganalisis posisi {analysisProgress.done}/{analysisProgress.total}
+                    {' '}(depth {reviewDepth})
+                  </span>
+                </div>
+                <div className="chesscom-analysis-progress-track">
+                  <div
+                    className="chesscom-analysis-progress-fill"
+                    style={{
+                      width: `${(analysisProgress.done / Math.max(1, analysisProgress.total)) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Board Container with Vertical Evaluation Bar */}
             <div className="chesscom-board-wrapper">
               {/* Vertical Evaluation Bar */}
@@ -2014,11 +2107,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                 <div
                   className="chesscom-eval-bar-white"
                   style={{
-                    height: `${currentEval.winChanceWhite}%`,
+                    height: `${scoreMap[currentBoardFen]?.winWhite ?? currentEval.winChanceWhite}%`,
                   }}
                 />
                 <div className="chesscom-eval-score-label">
-                  {currentEval.scoreDisplay}
+                  {scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
                 </div>
               </div>
 
@@ -2464,16 +2557,35 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     <div className="review-active-title">
                       <span className="review-title-star">★</span>
                       <span>Game Review</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEngineModalOpen(true)}
+                        className="depth-pill-badge"
+                        title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth}`}
+                      >
+                        <Cpu size={12} />
+                        <span>Depth {stockfishDepth}</span>
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsSoundModalOpen(true)}
-                      className="review-header-icon-btn"
-                      title="Pengaturan Suara & Tema Catur"
-                    >
-                      <Settings size={16} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsEngineModalOpen(true)}
+                        className="review-header-icon-btn"
+                        title="Pengaturan Engine Stockfish (Kedalaman & Evaluasi)"
+                      >
+                        <Sliders size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsSoundModalOpen(true)}
+                        className="review-header-icon-btn"
+                        title="Pengaturan Suara & Tema Catur"
+                      >
+                        <Settings size={16} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Coach Speech Bubble Banner */}
@@ -2581,6 +2693,50 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <ChevronRight size={17} />
                     </button>
                   </div>
+
+                  {/* Opening (lichess-org/chess-openings) + Engine candidate lines (MultiPV) */}
+                  {(() => {
+                    const prevFen =
+                      currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
+                    const cand = currentPlyIndex >= 0 ? scoreMap[prevFen]?.lines : undefined;
+                    const played = currentPlyIndex >= 0 ? moveHistory[currentPlyIndex] : null;
+                    const opening = detectOpeningFromFens(
+                      rawMoveHistory.slice(0, Math.max(0, currentPlyIndex + 1)).map((m) => m.fen)
+                    );
+                    if (!cand?.length && !opening) return null;
+                    return (
+                      <div className="review-variations-card">
+                        {opening && (
+                          <div className="review-opening-row">
+                            <span className="review-opening-eco">{opening.eco}</span>
+                            <span className="review-opening-name">{opening.name}</span>
+                          </div>
+                        )}
+                        {cand && cand.length > 0 && (
+                          <>
+                            <div className="review-variations-title">
+                              Alternatif engine (posisi sebelum {played?.san})
+                            </div>
+                            {cand.map((l, i) => {
+                              const isPlayed =
+                                !!played && l.uci === `${played.from}${played.to}${played.promotion || ''}`;
+                              return (
+                                <div
+                                  key={l.uci}
+                                  className={`review-variation-line ${isPlayed ? 'played' : ''}`}
+                                >
+                                  <span className="rv-rank">{i + 1}</span>
+                                  <span className="rv-san">{l.san}</span>
+                                  <span className="rv-eval">{l.scoreDisplay}</span>
+                                  {isPlayed && <span className="rv-tag">dimainkan</span>}
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Explain Panel Dropdown */}
                   {showExplanation && (
@@ -2923,6 +3079,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         <ChessSoundSettingsModal
           isOpen={isSoundModalOpen}
           onClose={() => setIsSoundModalOpen(false)}
+        />
+
+        {/* Stockfish 19 Depth & Engine Settings Modal */}
+        <ChessEngineSettingsModal
+          isOpen={isEngineModalOpen}
+          onClose={() => setIsEngineModalOpen(false)}
+          currentDepth={stockfishDepth}
+          onDepthChange={(newDepth) => setStockfishDepth(newDepth)}
+          isEngineActive={isEngineActive}
+          onToggleEngineActive={(active) => setIsEngineActive(active)}
         />
       </div>
     </div>

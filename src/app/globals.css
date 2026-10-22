@@ -6726,6 +6726,361 @@ button, input, select, textarea {
   background: #73a642;
 }
 
+/* ==========================================================================
+   STOCKFISH 19 DEPTH & ENGINE SETTINGS MODAL
+   ========================================================================== */
+.chess-depth-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.chess-depth-modal-window {
+  background: #262421;
+  border: 1px solid #3d3b36;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: depthModalPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes depthModalPop {
+  0% { transform: scale(0.95); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.chess-depth-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1px solid #363430;
+  background: #211f1c;
+}
+
+.chess-depth-modal-title-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.chess-depth-modal-icon-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(129, 182, 76, 0.16);
+  color: #81b64c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chess-depth-modal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.chess-depth-modal-subtitle {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.78rem;
+  color: #989795;
+}
+
+.chess-depth-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #989795;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chess-depth-modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.chess-depth-modal-body {
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+.engine-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1e1d1a;
+  border: 1px solid #363430;
+  border-radius: 9px;
+  padding: 0.85rem 1rem;
+}
+
+.engine-toggle-info {
+  flex: 1;
+  padding-right: 1rem;
+}
+
+.engine-toggle-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.engine-toggle-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.engine-toggle-desc {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.74rem;
+  color: #989795;
+}
+
+.depth-slider-card {
+  background: #1e1d1a;
+  border: 1px solid #363430;
+  border-radius: 9px;
+  padding: 0.95rem 1rem;
+}
+
+.depth-slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.depth-slider-label-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.depth-badge-live {
+  background: #2a2925;
+  border: 1px solid #81b64c;
+  color: #81b64c;
+  font-size: 0.82rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.depth-badge-live strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.depth-slider-track-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.chess-depth-range-input {
+  width: 100%;
+  accent-color: #81b64c;
+  cursor: pointer;
+  height: 6px;
+}
+
+.depth-slider-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #7d7b78;
+}
+
+.tick-recommended {
+  color: #81b64c;
+  font-weight: 700;
+}
+
+.depth-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+
+.depth-preset-card {
+  background: #1e1d1a;
+  border: 1px solid #363430;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.depth-preset-card:hover {
+  background: #23221e;
+  border-color: #4a4843;
+}
+
+.depth-preset-card.is-selected {
+  background: rgba(129, 182, 76, 0.08);
+  border-width: 1.5px;
+}
+
+.depth-preset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.depth-preset-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.depth-preset-time {
+  font-size: 0.68rem;
+  color: #8b8987;
+  background: #2b2925;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.depth-preset-desc {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #8b8987;
+  line-height: 1.35;
+}
+
+.depth-info-alert {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.74rem;
+  color: #93c5fd;
+  line-height: 1.4;
+}
+
+.depth-alert-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.chess-depth-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.4rem;
+  background: #211f1c;
+  border-top: 1px solid #363430;
+}
+
+.btn-clear-cache {
+  background: transparent;
+  border: 1px solid #3d3b36;
+  color: #989795;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-cache:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.chess-depth-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.btn-cancel-depth {
+  background: transparent;
+  border: 1px solid #3d3b36;
+  color: #c5c4c2;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-save-depth {
+  background: #81b64c;
+  color: #ffffff;
+  border: none;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0.48rem 1.15rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background-color 0.15s ease;
+}
+
+.btn-save-depth:hover {
+  background: #73a642;
+}
+
+.depth-pill-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #81b64c;
+  background: rgba(129, 182, 76, 0.14);
+  border: 1px solid rgba(129, 182, 76, 0.35);
+  padding: 0.2rem 0.55rem;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.depth-pill-badge:hover {
+  background: rgba(129, 182, 76, 0.25);
+  border-color: #81b64c;
+  color: #ffffff;
+}
+
 
 
 

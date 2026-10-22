@@ -203,6 +203,21 @@ class StockfishEngineService {
     await this.init();
 
     this.stopEvaluation();
+    // Flush: wait until the engine acknowledged the stop (any stale `bestmove` is emitted before `readyok`)
+    await new Promise<void>((res) => {
+      const h = (l: string) => {
+        if (l.includes('readyok')) {
+          this.removeMessageListener(h);
+          res();
+        }
+      };
+      this.addMessageListener(h);
+      this.sendCommand('isready');
+      setTimeout(() => {
+        this.removeMessageListener(h);
+        res();
+      }, 1500);
+    });
 
     return new Promise<PositionEvaluation>((resolve, reject) => {
       this.currentEvalReject = reject;
