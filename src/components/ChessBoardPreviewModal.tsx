@@ -2007,6 +2007,63 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return counts;
   }, [moveHistory]);
 
+  // Opening recap details for Game Review summary
+  const openingRecap = useMemo(() => {
+    const pgnData = recentGame?.pgn || match?.chessComPgn || '';
+    const fromDb = detectOpeningFromFens(rawMoveHistory.map((m) => m.fen));
+    let name = fromDb?.name || '';
+    let eco = fromDb?.eco || '';
+
+    if (!name && pgnData) {
+      const ecoUrlMatch = pgnData.match(/\[ECOUrl\s+"https:\/\/www\.chess\.com\/openings\/([^"]+)"\]/i);
+      if (ecoUrlMatch && ecoUrlMatch[1]) {
+        name = decodeURIComponent(ecoUrlMatch[1])
+          .replace(/-/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+      const ecoMatch = pgnData.match(/\[ECO\s+"([^"]+)"\]/i);
+      if (ecoMatch && ecoMatch[1]) eco = ecoMatch[1];
+      const opMatch = pgnData.match(/\[Opening\s+"([^"]+)"\]/i);
+      if (!name && opMatch && opMatch[1]) name = opMatch[1];
+    }
+
+    if (!name) {
+      name = openingName || 'Standard Opening';
+    }
+    if (!eco) {
+      eco = 'A00';
+    }
+
+    const bookMoves = moveHistory.filter((m) => m.classification === 'book');
+    const maxBookPly = bookMoves.length > 0 ? Math.max(...bookMoves.map((m) => m.ply)) : 0;
+    const theoryLimit = Math.max(maxBookPly, fromDb?.plies ?? 0, 1);
+    const seqMoves = moveHistory.slice(0, Math.min(theoryLimit, moveHistory.length));
+
+    const seqStr = seqMoves
+      .reduce((acc, m, idx) => {
+        if (idx % 2 === 0) {
+          acc.push(`${Math.floor(idx / 2) + 1}. ${m.san}`);
+        } else {
+          acc[acc.length - 1] += ` ${m.san}`;
+        }
+        return acc;
+      }, [] as string[])
+      .join(' ');
+
+    const bookCountW = calculatedCounts.book?.w ?? 0;
+    const bookCountB = calculatedCounts.book?.b ?? 0;
+    const totalBook = bookCountW + bookCountB;
+
+    return {
+      name,
+      eco,
+      seqStr: seqStr || (rawMoveHistory[0] ? `1. ${rawMoveHistory[0].san}` : ''),
+      bookCountW,
+      bookCountB,
+      totalBook,
+    };
+  }, [rawMoveHistory, moveHistory, recentGame?.pgn, match?.chessComPgn, openingName, calculatedCounts]);
+
   // Dynamic Review Statistics & Accuracy
   const reviewStats = useMemo(() => {
     const matchResult =
@@ -2464,12 +2521,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             <span className="chesscom-match-badge">
               {match ? `Babak ${match.round} • Papan ${match.boardNumber}` : 'Analisis Bebas'}
             </span>
-          </div>
-
-          <div className="chesscom-nav-center">
-            <div className="chesscom-nav-tab active" style={{ cursor: 'default' }}>
-              <span>Game Review</span>
-            </div>
           </div>
 
           <div className="chesscom-nav-right">
@@ -3155,23 +3206,38 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
                     <div className="review-grid-divider" />
 
-                    {/* Skills Row */}
-                    <div className="review-grid-row">
-                      <span className="review-grid-label">Skills</span>
-                      <div className="review-skills-val">
-                        +{calculatedCounts.brilliant.w * 3 + calculatedCounts.great.w * 2 + calculatedCounts.best.w}
+                    {/* Rekap Opening Card (Menggantikan Skills) */}
+                    <div
+                      className="review-opening-recap-box"
+                      onClick={() => jumpToPly(0)}
+                      title="Klik untuk melihat langkah pembukaan di papan catur"
+                    >
+                      <div className="review-recap-header">
+                        <div className="recap-title-left">
+                          <span className="recap-eco-pill">{openingRecap.eco}</span>
+                          <span className="recap-opening-name" title={openingRecap.name}>
+                            {openingRecap.name}
+                          </span>
+                        </div>
+                        <span className="recap-book-badge">
+                          📖 {openingRecap.totalBook} Buku
+                        </span>
                       </div>
-                      <div className="review-skills-center-badge">
-                        <svg viewBox="0 0 24 24" width="22" height="22">
-                          <circle cx="12" cy="12" r="11" fill="#3b82f6" />
-                          <path
-                            d="M12 4.8l2.2 4.6 5.1.7-3.7 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.7-3.5 5.1-.7z"
-                            fill="#ffffff"
-                          />
-                        </svg>
-                      </div>
-                      <div className="review-skills-val" style={{ color: '#9ca3af' }}>
-                        +{calculatedCounts.brilliant.b * 3 + calculatedCounts.great.b * 2 + calculatedCounts.best.b}
+
+                      {openingRecap.seqStr && (
+                        <div className="recap-moves-row">
+                          <span className="recap-moves-label">Teori:</span>
+                          <span className="recap-moves-text">{openingRecap.seqStr}</span>
+                        </div>
+                      )}
+
+                      <div className="recap-stats-bar">
+                        <span className="recap-stat-pill white">
+                          Putih: {openingRecap.bookCountW} book
+                        </span>
+                        <span className="recap-stat-pill black">
+                          Hitam: {openingRecap.bookCountB} book
+                        </span>
                       </div>
                     </div>
 
@@ -3709,11 +3775,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   <div className="review-footer-bar">
                     <button
                       type="button"
-                      onClick={() => setIsReviewActive(false)}
+                      onClick={() => jumpToPly(0)}
                       className="review-footer-btn"
+                      title="Kembali ke awal langkah pembukaan"
                     >
-                      <span>★</span>
-                      <span>Skills</span>
+                      <Bookmark size={14} />
+                      <span>Opening</span>
                     </button>
                     <button
                       type="button"
