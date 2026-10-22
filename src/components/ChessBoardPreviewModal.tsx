@@ -386,14 +386,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       whiteAccuracy: wAcc,
       blackAccuracy: bAcc,
       coachComment: isWhiteWin
-        ? `Langkah taktis yang sangat tajam oleh ${whiteName}! Tekanan konsisten di sayap raja berhasil membuahkan kemenangan meyakinkan.`
+        ? `Langkah brilian (Brilliant Move) dan taktik tajam oleh ${whiteName}! Tekanan konsisten berhasil mengunci kemenangan meyakinkan.`
         : isBlackWin
-        ? `Pertahanan solid dan serangan balik mematikan oleh ${blackName}! Mengonversi kesalahan lawan menjadi poin kemenangan.`
+        ? `Langkah brilian dan serangan balik mematikan oleh ${blackName}! Mengonversi keunggulan taktis menjadi poin kemenangan.`
         : 'Pertarungan sengit dan seimbang dari kedua pemain! Pertukaran perwira yang rapi berakhir dengan posisi imbang.',
       counts: {
+        brilliant: { w: isWhiteWin ? 1 : 0, b: isBlackWin ? 1 : 0 },
         great: { w: isWhiteWin ? 3 : 1, b: isBlackWin ? 3 : 1 },
         best: { w: isWhiteWin ? 11 : 6, b: isBlackWin ? 10 : 7 },
         excellent: { w: 5, b: 4 },
+        book: { w: 3, b: 3 },
         mistake: { w: isWhiteWin ? 1 : 4, b: isBlackWin ? 1 : 5 },
         miss: { w: isWhiteWin ? 0 : 2, b: isBlackWin ? 0 : 1 },
         blunder: { w: isWhiteWin ? 0 : 2, b: isBlackWin ? 0 : 3 },
@@ -742,6 +744,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
                 {/* Move Classification Breakdown Table */}
                 <div className="move-classification-table">
+                  <div className="classification-row brilliant-row">
+                    <span className="count white">{reviewStats.counts.brilliant.w}</span>
+                    <span className="badge-pill brilliant">
+                      <Sparkles size={11} className="icon-brilliant" /> Brilliant
+                    </span>
+                    <span className="count black">{reviewStats.counts.brilliant.b}</span>
+                  </div>
                   <div className="classification-row">
                     <span className="count white">{reviewStats.counts.great.w}</span>
                     <span className="badge-pill great">

@@ -710,6 +710,25 @@
   border-radius: 12px;
 }
 
+.classification-row.brilliant-row {
+  background: rgba(6, 182, 212, 0.08);
+  border-radius: 6px;
+  padding: 0.15rem 0.2rem;
+}
+
+.badge-pill.brilliant {
+  background: rgba(6, 182, 212, 0.25);
+  color: #22d3ee;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.35);
+  font-weight: 800;
+}
+
+.icon-brilliant {
+  color: #22d3ee;
+  filter: drop-shadow(0 0 4px #22d3ee);
+}
+
 .badge-pill.great {
   background: rgba(56, 189, 248, 0.2);
   color: #38bdf8;
