@@ -156,7 +156,7 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
   const [profileModalUsername, setProfileModalUsername] = useState<string | null>(null);
   const [profileModalName, setProfileModalName] = useState<string | undefined>(undefined);
   const [boardPreviewData, setBoardPreviewData] = useState<{
-    match: SwissMatch;
+    match?: SwissMatch | null;
     recentGame?: ChessComRecentGame | null;
     whitePlayer?: Player | null;
     blackPlayer?: Player | null;
@@ -1016,30 +1016,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
                                 <span>🔍 Analisis & Review</span>
                               </button>
                             )}
-
-                            {match.chessComUrl ? (
-                              <a
-                                href={match.chessComUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn-watch-chesscom active"
-                                title="Buka pertandingan ini langsung di Chess.com"
-                              >
-                                <span>🎮 Chess.com</span>
-                                <ExternalLink size={12} />
-                              </a>
-                            ) : whiteP?.chessComUsername || blackP?.chessComUsername ? (
-                              <a
-                                href={`https://www.chess.com/member/${whiteP?.chessComUsername || blackP?.chessComUsername}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn-watch-chesscom"
-                                title="Buka profil catur di Chess.com"
-                              >
-                                <span>Profil Chess.com</span>
-                                <ExternalLink size={11} />
-                              </a>
-                            ) : null}
                           </div>
                         </div>
                       )
@@ -1353,6 +1329,18 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         }}
         localPlayerName={profileModalName}
         onAvatarSync={handleAvatarSync}
+        tournamentMatches={matches}
+        tournamentPlayers={players}
+        onAnalyzeMatch={(data) => {
+          setProfileModalUsername(null);
+          setProfileModalName(undefined);
+          setBoardPreviewData({
+            match: data.match || null,
+            recentGame: data.recentGame || null,
+            whitePlayer: data.whitePlayer || null,
+            blackPlayer: data.blackPlayer || null,
+          });
+        }}
       />
 
       {/* Chess.com Final Board Preview Modal */}

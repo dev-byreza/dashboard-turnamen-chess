@@ -1256,8 +1256,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       return;
     }
 
-    // Set progress awal namun kosongkan scoreMap agar data tidak berubah-ubah tiap detik
-    setScoreMap({});
+    // Inisialisasi scoreMap langsung dengan posisi awal & book moves agar eval bar tidak nol
+    setScoreMap(initial);
     setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
 
     (async () => {
@@ -1272,6 +1272,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         if (s) {
           scoreCacheRef.current.set(`${reviewDepth}|${f}`, s);
           accumulated[f] = s;
+          setScoreMap((prev) => ({ ...prev, [f]: s }));
         }
         setAnalysisProgress({ done, total: uniqueFens.length });
       }
@@ -1349,6 +1350,31 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       getChessAudioManager().preloadTheme();
     }
   }, [isOpen]);
+
+  // Handle mobile device & browser back button (popstate) to return to tournament page rather than exiting website
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+
+    let isPushed = false;
+    if (window.history.state?.modal !== 'chess-analysis') {
+      window.history.pushState({ modal: 'chess-analysis' }, '');
+      isPushed = true;
+    }
+
+    const handlePopState = () => {
+      // Hardware / browser back button or swipe-back was triggered
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (isPushed && window.history.state?.modal === 'chess-analysis') {
+        window.history.back();
+      }
+    };
+  }, [isOpen, onClose]);
 
   const replayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const moveHistoryRef = useRef<MoveHistoryItem[]>([]);
@@ -2695,6 +2721,73 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return [];
   }, [currentBoardFen, scoreMap, currentEval, currentPlyIndex, moveHistory]);
 
+  // Unified Evaluation Bar Data (Win Percentage & Score Display for both Mobile and Desktop)
+  const currentEvalBarData = useMemo(() => {
+    // 1. Direct hit from scoreMap
+    const directScore = scoreMap[currentBoardFen];
+    if (directScore) {
+      return {
+        winWhite: directScore.winWhite,
+        scoreDisplay: directScore.scoreDisplay,
+      };
+    }
+
+    // 2. Direct hit from candidate lines (MultiPV)
+    if (currentCandidateLines.length > 0) {
+      const topCand = currentCandidateLines[0];
+      const win = topCand.winWhite ?? (topCand as any).winChanceWhite;
+      if (typeof win === 'number' && !isNaN(win)) {
+        return {
+          winWhite: Math.max(2, Math.min(98, win)),
+          scoreDisplay: topCand.scoreDisplay || '0.0',
+        };
+      }
+    }
+
+    // 3. Current live Stockfish evaluation for this specific FEN
+    if (currentEval && currentEval.fen === currentBoardFen && currentEval.scoreDisplay) {
+      return {
+        winWhite: Math.max(2, Math.min(98, currentEval.winChanceWhite)),
+        scoreDisplay: currentEval.scoreDisplay,
+      };
+    }
+
+    // 4. Fallback to pre-calculated trajectory point in evalChartData for this ply
+    if (currentPlyIndex >= 0 && evalChartData.points && evalChartData.points[currentPlyIndex]) {
+      const pt = evalChartData.points[currentPlyIndex];
+      // pt.y: 32 = 50%, y=6 = 100%, y=58 = 0%
+      const winWhite = Math.max(5, Math.min(95, 50 + ((32 - pt.y) / 26) * 50));
+      const scoreVal = (32 - pt.y) / 6;
+      const formatted = Math.abs(scoreVal) < 0.05 ? '0.0' : scoreVal.toFixed(1);
+      const scoreDisplay = scoreVal > 0.05 ? `+${formatted}` : formatted;
+      return {
+        winWhite,
+        scoreDisplay,
+      };
+    }
+
+    // 5. Start or Book Position
+    if (currentBoardFen === START_FEN || isBookPosition(currentBoardFen)) {
+      return {
+        winWhite: 50.5,
+        scoreDisplay: '+0.1',
+      };
+    }
+
+    // 6. Retain last live evaluation if valid instead of resetting to 0.0 / 50%
+    if (currentEval && typeof currentEval.winChanceWhite === 'number' && currentEval.scoreDisplay !== '0.0') {
+      return {
+        winWhite: Math.max(2, Math.min(98, currentEval.winChanceWhite)),
+        scoreDisplay: currentEval.scoreDisplay,
+      };
+    }
+
+    return {
+      winWhite: 50,
+      scoreDisplay: '0.0',
+    };
+  }, [currentBoardFen, scoreMap, currentCandidateLines, currentEval, currentPlyIndex, evalChartData.points]);
+
   // Active Move Coach Feedback (Image 4 speech bubble comment: e.g. "d4 is the last book move")
   const currentMoveCoachComment = useMemo(() => {
     if (!isAnalysisComplete) {
@@ -2732,44 +2825,40 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     let comment = '';
     switch (m.classification) {
       case 'brilliant':
-        comment = `${m.san} adalah langkah brilian (Brilliant)!! Pengorbanan perwira berani yang membuka inisiatif serangan mematikan. ${action}`;
+        comment = `${m.san} adalah langkah brilian!! Pengorbanan akurat.`;
         break;
       case 'great':
-        comment = `${m.san} adalah langkah hebat (Great Move)! Langkah krusial dan satu-satunya respon terbaik untuk mempertahankan posisi. ${action}`;
+        comment = `${m.san} adalah langkah hebat! Mempertahankan posisi.`;
         break;
       case 'book':
         comment = isLastBook
-          ? `${m.san} adalah langkah teori pembukaan terakhir${opening ? ` (${opening.name})` : ''}. ${action} Memasuki fase tengah permainan.`
-          : `${m.san} adalah langkah pembukaan standar${opening ? ` (${opening.name})` : ''}. ${action} Mengikuti teori master.`;
+          ? `${m.san} adalah langkah teori pembukaan terakhir.`
+          : `${m.san} adalah langkah pembukaan teori master.`;
         break;
       case 'best':
-        comment = `${m.san} adalah langkah terbaik (Best Move) ★ Pilihan nomor 1 dari kalkulasi Stockfish. ${action}`;
+        comment = `${m.san} adalah langkah terbaik pilihan Stockfish.`;
         break;
       case 'excellent':
-        comment = `${m.san} adalah langkah sangat bagus (Excellent). ${action} Evaluasi sangat dekat dengan pilihan utama komputer.`;
+        comment = `${m.san} adalah langkah sangat bagus.`;
         break;
       case 'good':
-        comment = `${m.san} adalah langkah bagus (Good). ${action} Pilihan aman dan mempertahankan stabilitas posisi.`;
+        comment = `${m.san} adalah langkah bagus dan aman.`;
         break;
       case 'inaccuracy':
-        comment = `${m.san} adalah ketidakakuratan (Inaccuracy) ?! ${action} Kehilangan sedikit inisiatif.${m.bestAlternative ? ` Rekomendasi: ${m.bestAlternative}.` : ''}`;
+        comment = `${m.san} adalah ketidakakuratan. Sedikit kehilangan inisiatif.`;
         break;
       case 'mistake':
-        comment = `${m.san} adalah kesalahan (Mistake) ? ${action} Merusak struktur pertahanan.${m.bestAlternative ? ` Pilihan lebih baik: ${m.bestAlternative}.` : ''}`;
+        comment = `${m.san} adalah kesalahan. Merusak struktur posisi.`;
         break;
       case 'miss':
       case 'missed_win':
-        comment = `${m.san} adalah Miss ✖ Melewatkan peluang taktis untuk menekan kelemahan lawan.${m.bestAlternative ? ` Kesempatan emas: ${m.bestAlternative}.` : ''}`;
+        comment = `${m.san} adalah Miss. Melewatkan peluang taktis.`;
         break;
       case 'blunder':
-        comment = `${m.san} adalah Blunder fatal ?? ${action} Mengubah jalannya permainan secara drastis.${m.bestAlternative ? ` Pilihan penyelamat: ${m.bestAlternative}.` : ''}`;
+        comment = `${m.san} adalah Blunder fatal. Mengubah alur permainan.`;
         break;
       default:
-        comment =
-          m.feedbackDescription &&
-          !m.feedbackDescription.toLowerCase().includes('menganalisis')
-            ? m.feedbackDescription
-            : `${m.san} dimainkan. ${action}`;
+        comment = `${m.san} dimainkan.`;
     }
 
     return {
@@ -3025,6 +3114,31 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             >
               <Settings size={18} />
             </button>
+            {(match?.chessComUrl || recentGame?.url) && (
+              <a
+                href={match?.chessComUrl || recentGame?.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mobile-header-chesscom-pill"
+                title="Buka pertandingan ini langsung di Chess.com"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  padding: '3px 8px',
+                  background: 'rgba(129, 182, 76, 0.15)',
+                  border: '1px solid rgba(129, 182, 76, 0.35)',
+                  borderRadius: '999px',
+                  color: '#81b64c',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                }}
+              >
+                <span>🎮</span>
+                <ExternalLink size={10} />
+              </a>
+            )}
           </div>
         </header>
 
@@ -3265,11 +3379,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               <div
                 className="mobile-eval-bar-white"
                 style={{
-                  width: `${currentCandidateLines[0]?.winWhite ?? scoreMap[currentBoardFen]?.winWhite ?? currentEval.winChanceWhite}%`,
+                  width: `${currentEvalBarData.winWhite}%`,
                 }}
               />
               <div className="mobile-eval-bar-score-badge">
-                {currentCandidateLines[0]?.scoreDisplay ?? scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
+                {currentEvalBarData.scoreDisplay}
               </div>
             </div>
 
@@ -3386,11 +3500,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                 <div
                   className="chesscom-eval-bar-white"
                   style={{
-                    height: `${scoreMap[currentBoardFen]?.winWhite ?? currentEval.winChanceWhite}%`,
+                    height: `${currentEvalBarData.winWhite}%`,
                   }}
                 />
                 <div className="chesscom-eval-score-label">
-                  {scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay}
+                  {currentEvalBarData.scoreDisplay}
                 </div>
               </div>
 
@@ -3711,7 +3825,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <span className="review-coach-eval-pill">
                         {(!showExplanation && isSuboptimalMove) || showBestMove
                           ? 'Best'
-                          : (scoreMap[currentBoardFen]?.scoreDisplay ?? currentEval.scoreDisplay)}
+                          : currentEvalBarData.scoreDisplay}
                       </span>
                     </div>
                     <p className="review-coach-explanation-text">
@@ -4129,7 +4243,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           >
                             {(!showExplanation && isSuboptimalMove) || showBestMove
                               ? 'Best'
-                              : currentMoveEvalDisplay}
+                              : currentEvalBarData.scoreDisplay}
                           </span>
                         </div>
                       </div>
@@ -4517,16 +4631,27 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <Volume2 size={13} />
                       <span>Suara</span>
                     </button>
-                    {match?.chessComUrl && (
+                    {(match?.chessComUrl || recentGame?.url) && (
                       <a
-                        href={match.chessComUrl}
+                        href={match?.chessComUrl || recentGame?.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="review-footer-btn"
-                        title="Buka langsung di Chess.com"
+                        className="review-footer-btn review-footer-chesscom-pill"
+                        title="Buka pertandingan ini langsung di Chess.com"
+                        style={{
+                          color: '#81b64c',
+                          background: 'rgba(129, 182, 76, 0.15)',
+                          border: '1px solid rgba(129, 182, 76, 0.35)',
+                          borderRadius: '6px',
+                          padding: '0.2rem 0.55rem',
+                          fontWeight: 800,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
                       >
-                        <ExternalLink size={13} />
-                        <span>Chess.com</span>
+                        <span>🎮 Chess.com</span>
+                        <ExternalLink size={12} />
                       </a>
                     )}
                   </div>

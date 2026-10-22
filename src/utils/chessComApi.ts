@@ -268,6 +268,73 @@ async function fetchUserMonthlyGames(username: string, year: number, month: numb
 }
 
 /**
+ * Fetch a player's recent games directly from Chess.com for Match Analysis
+ */
+export async function fetchPlayerRecentGames(
+  username: string,
+  limit = 6
+): Promise<ChessComRecentGame[]> {
+  const cleanUser = sanitizeChessComUsername(username);
+  if (!cleanUser) return [];
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
+  // 1. Fetch current month games
+  let games = await fetchUserMonthlyGames(cleanUser, currentYear, currentMonth);
+
+  // 2. Fallback to previous month if not enough games
+  if (games.length < limit) {
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    const prevGames = await fetchUserMonthlyGames(cleanUser, prevYear, prevMonth);
+    games = [...games, ...prevGames];
+  }
+
+  if (games.length === 0) return [];
+
+  // Sort by end_time DESC (latest finished game first)
+  games.sort((a, b) => (b.end_time || 0) - (a.end_time || 0));
+
+  const parsedGames: ChessComRecentGame[] = [];
+  for (const g of games.slice(0, limit)) {
+    const actualWhiteUser = sanitizeChessComUsername(g.white?.username || '');
+    const actualBlackUser = sanitizeChessComUsername(g.black?.username || '');
+    const whiteResult = g.white?.result || '';
+    const blackResult = g.black?.result || '';
+    const tournamentScore = determineScore(whiteResult, blackResult);
+    const termination = formatChessTermination(whiteResult, blackResult);
+    const fen = g.fen || g.pgn?.match(/\[(?:CurrentPosition|FEN)\s+"([^"]+)"\]/i)?.[1] || '';
+
+    parsedGames.push({
+      url: g.url || '',
+      pgn: g.pgn || '',
+      fen,
+      termination,
+      timeClass: g.time_class || 'rapid',
+      timeControl: g.time_control || '600',
+      endTime: g.end_time || Math.floor(Date.now() / 1000),
+      white: {
+        username: actualWhiteUser,
+        rating: g.white?.rating || 0,
+        result: whiteResult,
+      },
+      black: {
+        username: actualBlackUser,
+        rating: g.black?.rating || 0,
+        result: blackResult,
+      },
+      tournamentScore,
+      matchedWhiteUser: actualWhiteUser,
+      matchedBlackUser: actualBlackUser,
+    });
+  }
+
+  return parsedGames;
+}
+
+/**
  * Search recent games between two Chess.com users to automatically populate match score and URL.
  * Checks current month, and optionally previous month if no game is found yet.
  *
