@@ -1297,9 +1297,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
       // 2. Cek Sumber Resmi 2: Central API /api/analysis (PostgreSQL chess_analysis_cache & server memory)
       const centralKey = match?.id ? `match_${match.id}_analysis` : storageKey;
-      if (!fresh && centralKey) {
+      const gameUrl = recentGame?.url || match?.chessComUrl || '';
+      if (!fresh && (centralKey || gameUrl)) {
         try {
-          const res = await fetch(`/api/analysis?key=${encodeURIComponent(centralKey)}`, { signal: ctrl.signal });
+          const queryParams = new URLSearchParams();
+          if (centralKey) queryParams.set('key', centralKey);
+          if (gameUrl) queryParams.set('url', gameUrl);
+          const res = await fetch(`/api/analysis?${queryParams.toString()}`, { signal: ctrl.signal });
           if (res.ok) {
             const json = await res.json();
             if (json?.success && json?.data && isQualityAnalysis(json.data, uniqueFens.length)) {
@@ -1401,12 +1405,21 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         // Reset SEBELUM publish: onSaveAnalysis mengubah match.chessComAnalysis dan memicu efek ini lagi
         forceFreshRef.current = false;
         const centralKey = match?.id ? `match_${match.id}_analysis` : storageKey;
+        const extraKeys: string[] = [];
+        if (storageKey && storageKey !== centralKey) extraKeys.push(storageKey);
+        if (match?.id) extraKeys.push(`match_${match.id}_analysis`);
+        const gameUrl = recentGame?.url || match?.chessComUrl;
+        if (gameUrl) {
+          extraKeys.push(`chesscom_review_game_${gameUrl.replace(/[^a-zA-Z0-9]/g, '_')}_d${reviewDepth}`);
+          const gid = gameUrl.match(/(\d{9,15})/)?.[1];
+          if (gid) extraKeys.push(`game_${gid}`);
+        }
         if (centralKey) {
           // Simpan ke 1 sumber resmi (central PostgreSQL database via /api/analysis) lengkap dengan kandidat MultiPV
           fetch('/api/analysis', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: centralKey, data: accumulated }),
+            body: JSON.stringify({ key: centralKey, data: accumulated, extraKeys }),
           }).catch(() => {});
         }
         if (match?.id) {
@@ -1708,7 +1721,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Evaluate current position with Stockfish
   useEffect(() => {
-    if (!isOpen || !isEngineActive || !currentBoardFen) return;
+    if (!isOpen || !isEngineActive || !currentBoardFen || isAnalyzing) return;
 
     if (evalDebounceRef.current) clearTimeout(evalDebounceRef.current);
 
@@ -1763,7 +1776,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return () => {
       if (evalDebounceRef.current) clearTimeout(evalDebounceRef.current);
     };
-  }, [isOpen, isEngineActive, currentBoardFen, stockfishDepth, scoreMap]);
+  }, [isOpen, isEngineActive, currentBoardFen, stockfishDepth, scoreMap, isAnalyzing]);
 
   // Helper to calculate vector slide deltas for piece animations
   const calculateSlideMoves = (m: MoveHistoryItem, isForward: boolean) => {
@@ -2987,7 +3000,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     moveHistory.forEach((m, idx) => {
       const s = scoreMap[m.fen];
       if (s) {
-        lastWin = s.winWhite;
+        lastWin = typeof s.winWhite === 'number' && !isNaN(s.winWhite)
+          ? Math.max(0, Math.min(100, s.winWhite))
+          : 50;
       } else {
         const isWhite = m.color === 'w';
         const dir = isWhite ? 1 : -1;

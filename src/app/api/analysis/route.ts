@@ -42,35 +42,38 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const key = searchParams.get('key');
+    const url = searchParams.get('url');
 
-    if (!key) {
-      return NextResponse.json({ success: false, error: 'Parameter key diperlukan' }, { status: 400 });
+    if (!key && !url) {
+      return NextResponse.json({ success: false, error: 'Parameter key atau url diperlukan' }, { status: 400 });
     }
 
+    const effectiveKey = key || (url ? `game_${url.replace(/[^a-zA-Z0-9]/g, '_')}` : '');
+
     // 1. Hot in-memory cache check
-    if (memoryCache.has(key)) {
-      const memData = memoryCache.get(key);
+    if (effectiveKey && memoryCache.has(effectiveKey)) {
+      const memData = memoryCache.get(effectiveKey);
       if (isAnalysisDataValid(memData)) {
         return NextResponse.json({
           success: true,
           source: 'memory',
-          key,
+          key: effectiveKey,
           data: memData,
         });
       } else {
-        memoryCache.delete(key);
+        memoryCache.delete(effectiveKey);
       }
     }
 
-    // 2. Persistent PostgreSQL cache check
-    const dbCached = await getCachedAnalysisFromDb(key);
+    // 2. Persistent PostgreSQL cache check (with url fallback)
+    const dbCached = await getCachedAnalysisFromDb(effectiveKey, url);
     if (dbCached) {
       if (isAnalysisDataValid(dbCached)) {
-        memoryCache.set(key, dbCached);
+        if (effectiveKey) memoryCache.set(effectiveKey, dbCached);
         return NextResponse.json({
           success: true,
           source: 'postgres',
-          key,
+          key: effectiveKey,
           data: dbCached,
         });
       }
@@ -85,7 +88,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { key, data } = body;
+    const { key, data, extraKeys } = body;
 
     if (!key) {
       return NextResponse.json({ success: false, error: 'Parameter key diperlukan' }, { status: 400 });
@@ -97,7 +100,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Data analisis mengandung langkah tidak sah' }, { status: 400 });
       }
       memoryCache.set(key, data);
-      await saveCachedAnalysisToDb(key, data);
+      const keysList: string[] = Array.isArray(extraKeys) ? extraKeys : [];
+      for (const k of keysList) {
+        if (k) memoryCache.set(k, data);
+      }
+      await saveCachedAnalysisToDb(key, data, keysList);
       return NextResponse.json({ success: true, key, saved: true });
     }
 

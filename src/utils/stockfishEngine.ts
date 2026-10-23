@@ -92,6 +92,14 @@ class StockfishEngineService {
   private currentEvalReject: ((reason?: unknown) => void) | null = null;
   private messageListeners: ((line: string) => void)[] = [];
 
+  private evalQueue: Promise<unknown> = Promise.resolve();
+
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const p = this.evalQueue.then(fn, fn);
+    this.evalQueue = p.catch(() => undefined);
+    return p;
+  }
+
   constructor() {
     // Lazy worker initialization in browser
   }
@@ -217,110 +225,111 @@ class StockfishEngineService {
       // Backend unavailable or offline, continue to local Web Worker
     }
 
-    // 2. Local Web Worker fallback
-    await this.init();
+    // 2. Local Web Worker fallback (serialized via queue to prevent engine races)
+    return this.enqueue(async () => {
+      await this.init();
 
-    this.stopEvaluation();
-    // Flush: wait until the engine acknowledged the stop (any stale `bestmove` is emitted before `readyok`)
-    await new Promise<void>((res) => {
-      const h = (l: string) => {
-        if (l.includes('readyok')) {
+      this.stopEvaluation();
+      // Flush: wait until the engine acknowledged the stop (any stale `bestmove` is emitted before `readyok`)
+      await new Promise<void>((res) => {
+        const h = (l: string) => {
+          if (l.includes('readyok')) {
+            this.removeMessageListener(h);
+            res();
+          }
+        };
+        this.addMessageListener(h);
+        this.sendCommand('isready');
+        setTimeout(() => {
           this.removeMessageListener(h);
           res();
-        }
-      };
-      this.addMessageListener(h);
-      this.sendCommand('isready');
-      setTimeout(() => {
-        this.removeMessageListener(h);
-        res();
-      }, 1500);
-    });
+        }, 1500);
+      });
 
-    return new Promise<PositionEvaluation>((resolve, reject) => {
-      this.currentEvalReject = reject;
+      return new Promise<PositionEvaluation>((resolve, reject) => {
+        this.currentEvalReject = reject;
 
-      let latestEval: PositionEvaluation = {
-        fen: cleanFen,
-        depth: 0,
-        scoreCp: 0,
-        scoreDisplay: '0.0',
-        winChanceWhite: 50,
-        isThinking: true,
-      };
+        let latestEval: PositionEvaluation = {
+          fen: cleanFen,
+          depth: 0,
+          scoreCp: 0,
+          scoreDisplay: '0.0',
+          winChanceWhite: 50,
+          isThinking: true,
+        };
 
-      const isBlackToMove = cleanFen.split(' ')[1] === 'b';
+        const isBlackToMove = cleanFen.split(' ')[1] === 'b';
 
-      const lineHandler = (line: string) => {
-        // e.g.: info depth 14 seldepth 18 score cp 85 nodes 45000 nps 1200000 pv e2e4 e7e5
-        if (line.startsWith('info') && line.includes('score')) {
-          const depthMatch = line.match(/depth\s+(\d+)/);
-          const cpMatch = line.match(/score\s+cp\s+(-?\d+)/);
-          const mateMatch = line.match(/score\s+mate\s+(-?\d+)/);
-          const pvMatch = line.match(/pv\s+([a-h1-8qrbn\s]+)/);
+        const lineHandler = (line: string) => {
+          // e.g.: info depth 14 seldepth 18 score cp 85 nodes 45000 nps 1200000 pv e2e4 e7e5
+          if (line.startsWith('info') && line.includes('score')) {
+            const depthMatch = line.match(/depth\s+(\d+)/);
+            const cpMatch = line.match(/score\s+cp\s+(-?\d+)/);
+            const mateMatch = line.match(/score\s+mate\s+(-?\d+)/);
+            const pvMatch = line.match(/pv\s+([a-h1-8qrbn\s]+)/);
 
-          const currentDepth = depthMatch ? parseInt(depthMatch[1], 10) : latestEval.depth;
+            const currentDepth = depthMatch ? parseInt(depthMatch[1], 10) : latestEval.depth;
 
-          let cp = 0;
-          let mate: number | undefined;
-          let scoreText = '0.0';
+            let cp = 0;
+            let mate: number | undefined;
+            let scoreText = '0.0';
 
-          if (mateMatch) {
-            mate = parseInt(mateMatch[1], 10);
-            // Invert if Black to move so score is from White's perspective
-            const realMate = isBlackToMove ? -mate : mate;
-            mate = realMate;
-            scoreText = realMate > 0 ? `M${realMate}` : `-M${Math.abs(realMate)}`;
-            cp = realMate > 0 ? 10000 : -10000;
-          } else if (cpMatch) {
-            let rawCp = parseInt(cpMatch[1], 10);
-            if (isBlackToMove) rawCp = -rawCp;
-            cp = rawCp;
-            const pawnVal = (cp / 100).toFixed(1);
-            scoreText = cp > 0 ? `+${pawnVal}` : pawnVal === '-0.0' ? '0.0' : `${pawnVal}`;
+            if (mateMatch) {
+              mate = parseInt(mateMatch[1], 10);
+              // Invert if Black to move so score is from White's perspective
+              const realMate = isBlackToMove ? -mate : mate;
+              mate = realMate;
+              scoreText = realMate > 0 ? `M${realMate}` : `-M${Math.abs(realMate)}`;
+              cp = realMate > 0 ? 10000 : -10000;
+            } else if (cpMatch) {
+              let rawCp = parseInt(cpMatch[1], 10);
+              if (isBlackToMove) rawCp = -rawCp;
+              cp = rawCp;
+              const pawnVal = (cp / 100).toFixed(1);
+              scoreText = cp > 0 ? `+${pawnVal}` : pawnVal === '-0.0' ? '0.0' : `${pawnVal}`;
+            }
+
+            const pvMoves = pvMatch ? pvMatch[1].trim().split(/\s+/) : latestEval.pv;
+            const bestUci = pvMoves && pvMoves.length > 0 ? pvMoves[0] : latestEval.bestMoveUci;
+
+            latestEval = {
+              fen: cleanFen,
+              depth: currentDepth,
+              scoreCp: cp,
+              scoreDisplay: scoreText,
+              mateIn: mate,
+              winChanceWhite: centipawnsToWinChance(cp, mate),
+              bestMoveUci: bestUci,
+              pv: pvMoves,
+              isThinking: true,
+            };
+
+            if (onProgress) {
+              onProgress(latestEval);
+            }
           }
 
-          const pvMoves = pvMatch ? pvMatch[1].trim().split(/\s+/) : latestEval.pv;
-          const bestUci = pvMoves && pvMoves.length > 0 ? pvMoves[0] : latestEval.bestMoveUci;
+          if (line.startsWith('bestmove')) {
+            const parts = line.split(/\s+/);
+            const bestMove = parts[1] && parts[1] !== '(none)' ? parts[1] : latestEval.bestMoveUci;
 
-          latestEval = {
-            fen: cleanFen,
-            depth: currentDepth,
-            scoreCp: cp,
-            scoreDisplay: scoreText,
-            mateIn: mate,
-            winChanceWhite: centipawnsToWinChance(cp, mate),
-            bestMoveUci: bestUci,
-            pv: pvMoves,
-            isThinking: true,
-          };
+            latestEval = {
+              ...latestEval,
+              bestMoveUci: bestMove,
+              isThinking: false,
+            };
 
-          if (onProgress) {
-            onProgress(latestEval);
+            this.removeMessageListener(lineHandler);
+            this.currentEvalReject = null;
+            resolve(latestEval);
           }
-        }
+        };
 
-        if (line.startsWith('bestmove')) {
-          const parts = line.split(/\s+/);
-          const bestMove = parts[1] && parts[1] !== '(none)' ? parts[1] : latestEval.bestMoveUci;
+        this.addMessageListener(lineHandler);
 
-          latestEval = {
-            ...latestEval,
-            bestMoveUci: bestMove,
-            isThinking: false,
-          };
-
-          this.removeMessageListener(lineHandler);
-          this.currentEvalReject = null;
-          resolve(latestEval);
-        }
-      };
-
-      this.addMessageListener(lineHandler);
-
-      this.sendCommand('ucinewgame');
-      this.sendCommand(`position fen ${cleanFen}`);
-      this.sendCommand(`go depth ${depth}`);
+        this.sendCommand(`position fen ${cleanFen}`);
+        this.sendCommand(`go depth ${depth}`);
+      });
     });
   }
 

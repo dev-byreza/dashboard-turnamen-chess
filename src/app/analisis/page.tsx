@@ -26,7 +26,7 @@ import {
   fetchPlayerRecentGames,
 } from '@/utils/chessComApi';
 import { getCachedTournamentStore } from '@/utils/tournamentStoreCache';
-import { Player } from '@/types/chess';
+import { Player, TournamentStore, SwissMatch } from '@/types/chess';
 
 export default function StandaloneAnalysisPage() {
   const [usernameInput, setUsernameInput] = useState<string>('');
@@ -46,7 +46,8 @@ export default function StandaloneAnalysisPage() {
   // Recent searches saved in localStorage
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
-  // Tournament roster players for quick suggestions
+  // Tournament store and roster players for quick suggestions
+  const [tournamentStore, setTournamentStore] = useState<TournamentStore | null>(() => getCachedTournamentStore());
   const [rosterPlayers, setRosterPlayers] = useState<Player[]>([]);
 
   // Load cached tournament roster & saved usernames on mount
@@ -62,20 +63,26 @@ export default function StandaloneAnalysisPage() {
     } catch {}
 
     const cachedStore = getCachedTournamentStore();
-    if (cachedStore && cachedStore.roster) {
-      setRosterPlayers(cachedStore.roster.filter((p) => Boolean(p.chessComUsername)));
-    } else {
-      fetch('/api/tournament')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.success && data?.store?.roster) {
+    if (cachedStore) {
+      setTournamentStore(cachedStore);
+      if (cachedStore.roster) {
+        setRosterPlayers(cachedStore.roster.filter((p) => Boolean(p.chessComUsername)));
+      }
+    }
+
+    fetch('/api/tournament')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && data?.store) {
+          setTournamentStore(data.store);
+          if (data.store.roster) {
             setRosterPlayers(
               data.store.roster.filter((p: Player) => Boolean(p.chessComUsername))
             );
           }
-        })
-        .catch(() => {});
-    }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Save recent search
@@ -744,31 +751,58 @@ export default function StandaloneAnalysisPage() {
       )}
 
       {/* Main Analysis Modal: Opens full interactive Chess.com board when game is selected */}
-      {selectedGame && (
-        <ChessBoardPreviewModal
-          isOpen={Boolean(selectedGame)}
-          match={null}
-          recentGame={selectedGame}
-          whitePlayer={{
-            id: `cc_${selectedGame.white.username}`,
-            name: selectedGame.white.username,
-            rating: selectedGame.white.rating,
-            seed: 0,
-            chessComUsername: selectedGame.white.username,
-          }}
-          blackPlayer={{
-            id: `cc_${selectedGame.black.username}`,
-            name: selectedGame.black.username,
-            rating: selectedGame.black.rating,
-            seed: 0,
-            chessComUsername: selectedGame.black.username,
-          }}
-          onClose={() => {
-            // When user closes board modal, return to the picker window so they can pick another game!
-            setIsPickerModalOpen(true);
-          }}
-        />
-      )}
+      {selectedGame && (() => {
+        // Match with tournament match if exists in database
+        let matchedMatch: SwissMatch | null = null;
+        const store = tournamentStore || getCachedTournamentStore();
+        if (store?.tournaments) {
+          const gUrl = selectedGame.url ? selectedGame.url.trim().toLowerCase() : '';
+          const gId = gUrl.match(/(\d{9,15})/)?.[1];
+
+          for (const t of store.tournaments) {
+            for (const m of t.matches || []) {
+              if (m.chessComUrl) {
+                const mUrl = m.chessComUrl.trim().toLowerCase();
+                if (gUrl && (mUrl === gUrl || mUrl.includes(gUrl) || gUrl.includes(mUrl))) {
+                  matchedMatch = m;
+                  break;
+                }
+                if (gId && mUrl.includes(gId)) {
+                  matchedMatch = m;
+                  break;
+                }
+              }
+            }
+            if (matchedMatch) break;
+          }
+        }
+
+        return (
+          <ChessBoardPreviewModal
+            isOpen={Boolean(selectedGame)}
+            match={matchedMatch}
+            recentGame={selectedGame}
+            whitePlayer={{
+              id: `cc_${selectedGame.white.username}`,
+              name: selectedGame.white.username,
+              rating: selectedGame.white.rating,
+              seed: 0,
+              chessComUsername: selectedGame.white.username,
+            }}
+            blackPlayer={{
+              id: `cc_${selectedGame.black.username}`,
+              name: selectedGame.black.username,
+              rating: selectedGame.black.rating,
+              seed: 0,
+              chessComUsername: selectedGame.black.username,
+            }}
+            onClose={() => {
+              // When user closes board modal, return to the picker window so they can pick another game!
+              setIsPickerModalOpen(true);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

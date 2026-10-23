@@ -123,20 +123,72 @@ export async function ensureTables(sql: any) {
 
 /**
  * Fetch cached match analysis from PostgreSQL.
+ * Supports fallback lookup by game URL, game ID, or matching tournament matches.
  */
-export async function getCachedAnalysisFromDb(key: string): Promise<any | null> {
+export async function getCachedAnalysisFromDb(
+  key: string,
+  gameUrl?: string | null
+): Promise<any | null> {
   const sql = getDb();
   if (!sql) return null;
   try {
     await ensureTables(sql);
+
+    // 1. Direct key match in chess_analysis_cache
     const rows = (await sql`
       SELECT data FROM chess_analysis_cache
       WHERE key = ${key}
       LIMIT 1;
     `) as Array<{ data: any }>;
-    if (rows && rows.length > 0) {
+    if (rows && rows.length > 0 && rows[0].data) {
       return rows[0].data;
     }
+
+    // 2. Extract game ID from URL or key if present (e.g. 185792388348)
+    const urlToTest = gameUrl || key;
+    const gameIdMatch = urlToTest.match(/(\d{9,15})/);
+    const gameId = gameIdMatch ? gameIdMatch[1] : null;
+
+    if (gameId) {
+      // 2a. Search cache by game ID pattern
+      const pattern = `%${gameId}%`;
+      const patternRows = (await sql`
+        SELECT data FROM chess_analysis_cache
+        WHERE key LIKE ${pattern}
+        ORDER BY updated_at DESC
+        LIMIT 1;
+      `) as Array<{ data: any }>;
+      if (patternRows && patternRows.length > 0 && patternRows[0].data) {
+        return patternRows[0].data;
+      }
+
+      // 2b. Search chess_tournaments matches for this game
+      const tourneyRows = (await sql`
+        SELECT matches FROM chess_tournaments
+        WHERE matches::text LIKE ${pattern}
+        LIMIT 3;
+      `) as Array<{ matches: any }>;
+
+      for (const t of tourneyRows) {
+        const matches = typeof t.matches === 'string' ? JSON.parse(t.matches) : t.matches;
+        if (Array.isArray(matches)) {
+          for (const m of matches) {
+            if (
+              (m.chessComUrl && m.chessComUrl.includes(gameId)) ||
+              (m.id && m.id.includes(gameId))
+            ) {
+              if (m.chessComAnalysis && typeof m.chessComAnalysis === 'object') {
+                const keysCount = Object.keys(m.chessComAnalysis).length;
+                if (keysCount > 5) {
+                  return m.chessComAnalysis;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     return null;
   } catch (err) {
     console.error(`Failed to get analysis cache for ${key}:`, err);
@@ -146,20 +198,29 @@ export async function getCachedAnalysisFromDb(key: string): Promise<any | null> 
 
 /**
  * Save cached match analysis to PostgreSQL for shared instant loading.
+ * Optionally saves under extra key aliases (e.g. gameUrl or gameId).
  */
-export async function saveCachedAnalysisToDb(key: string, data: any): Promise<boolean> {
+export async function saveCachedAnalysisToDb(
+  key: string,
+  data: any,
+  extraKeys: string[] = []
+): Promise<boolean> {
   const sql = getDb();
   if (!sql) return false;
   try {
     await ensureTables(sql);
     const dataJson = JSON.stringify(data);
-    await sql`
-      INSERT INTO chess_analysis_cache (key, data, updated_at)
-      VALUES (${key}, ${dataJson}::jsonb, CURRENT_TIMESTAMP)
-      ON CONFLICT (key) DO UPDATE SET
-        data = EXCLUDED.data,
-        updated_at = CURRENT_TIMESTAMP;
-    `;
+
+    const allKeys = Array.from(new Set([key, ...extraKeys].filter(Boolean)));
+    for (const k of allKeys) {
+      await sql`
+        INSERT INTO chess_analysis_cache (key, data, updated_at)
+        VALUES (${k}, ${dataJson}::jsonb, CURRENT_TIMESTAMP)
+        ON CONFLICT (key) DO UPDATE SET
+          data = EXCLUDED.data,
+          updated_at = CURRENT_TIMESTAMP;
+      `;
+    }
     return true;
   } catch (err) {
     console.error(`Failed to save analysis cache for ${key}:`, err);
