@@ -1412,14 +1412,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       const after = scoreMap[m.fen];
       if (!before || !after) {
         prevLoss = 0;
-        const desc =
-          m.feedbackDescription &&
-          !m.feedbackDescription.toLowerCase().includes('menganalisis')
-            ? m.feedbackDescription
-            : `${m.san} - ${describeMoveTactics(m)}`;
+        // Tidak ada data Stockfish untuk langkah ini: JANGAN tampilkan label heuristik sementara.
+        // Kategori hanya boleh berasal dari engine agar tidak berubah-ubah (mis. Great -> Blunder).
         return {
           ...m,
-          feedbackDescription: desc,
+          classification: undefined,
+          feedbackTitle: undefined,
+          feedbackDescription: `${m.san} - ${describeMoveTactics(m)}`,
+          bestAlternative: undefined,
+          bestAlternativeMove: undefined,
         };
       }
       const r = classifyByEngine(
