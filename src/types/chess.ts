@@ -86,6 +86,7 @@ export interface SwissMatch {
   chessComFen?: string;
   chessComPgn?: string;
   chessComTermination?: string;
+  chessComAnalysis?: Record<string, any>;
 }
 
 export interface SwissPairingOverride {

@@ -353,6 +353,44 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
       );
       onUpdateMatches(updated);
 
+      // Otomatis simpan analisis match ke server database agar user lain langsung dapat hasil instan
+      if (recentGame.pgn) {
+        const storageKey = `chesscom_review_match_${match.id}_d14`;
+        fetch('/api/analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: storageKey,
+            pgn: recentGame.pgn,
+            depth: 14,
+          }),
+        })
+          .then((res) => res.json())
+          .then((jsonRes) => {
+            if (jsonRes?.success && jsonRes?.data) {
+              const withAnalysis: SwissMatch = {
+                ...updatedMatchData,
+                chessComAnalysis: jsonRes.data,
+              };
+              onUpdateMatches(matches.map((m) => (m.id === match.id ? withAnalysis : m)));
+            }
+          })
+          .catch(() => {});
+
+        if (recentGame.url) {
+          const gameKey = `chesscom_review_game_${recentGame.url.replace(/[^a-zA-Z0-9]/g, '_')}_d14`;
+          fetch('/api/analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: gameKey,
+              pgn: recentGame.pgn,
+              depth: 14,
+            }),
+          }).catch(() => {});
+        }
+      }
+
       setMatchSyncMessage({
         matchId: match.id,
         type: 'success',

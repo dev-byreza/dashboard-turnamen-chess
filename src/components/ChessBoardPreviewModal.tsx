@@ -1202,7 +1202,26 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const uniqueFens = Array.from(new Set(fens));
     const storageKey = getGameStorageKey(match, recentGame, fenKey, reviewDepth);
 
-    // 1. Cek penyimpanan persisten (localStorage) agar tidak dianalisis ulang berkali-kali
+    // 1. Cek langsung dari data match yang sudah tersimpan di database turnamen
+    if (match?.chessComAnalysis && typeof match.chessComAnalysis === 'object') {
+      const matchStored = match.chessComAnalysis as Record<string, PositionScore>;
+      const hasMost = Object.keys(matchStored).length > 0;
+      if (hasMost) {
+        uniqueFens.forEach((f) => {
+          if (matchStored[f]) scoreCacheRef.current.set(`${reviewDepth}|${f}`, matchStored[f]);
+        });
+        setScoreMap(matchStored);
+        setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(matchStored));
+          } catch {}
+        }
+        return;
+      }
+    }
+
+    // 2. Cek penyimpanan lokal browser (localStorage)
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem(storageKey);
@@ -1219,14 +1238,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           }
         }
       } catch {
-        // Abaikan parse error, lanjut ke analisis engine
+        // Abaikan parse error, lanjut ke pengecekan server
       }
     }
 
     const ctrl = new AbortController();
     let cancelled = false;
 
-    // 2. Cek in-memory cache dan posisi pembukaan (Book Move)
+    // 3. Cek in-memory cache dan posisi pembukaan (Book Move)
     const initial: Record<string, PositionScore> = {};
     uniqueFens.forEach((f) => {
       const hit = scoreCacheRef.current.get(`${reviewDepth}|${f}`);
@@ -1261,6 +1280,37 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
 
     (async () => {
+      // 4. Coba ambil dari Shared Analysis Database (/api/analysis) agar user lain langsung dapat hasil instant
+      try {
+        const serverRes = await fetch(`/api/analysis?key=${encodeURIComponent(storageKey)}`, {
+          signal: ctrl.signal,
+        });
+        if (serverRes.ok) {
+          const json = await serverRes.json();
+          if (json?.success && json?.data && typeof json.data === 'object') {
+            const serverScores = json.data as Record<string, PositionScore>;
+            const hasServerData = uniqueFens.every((f) => !!serverScores[f]) || Object.keys(serverScores).length >= uniqueFens.length - 2;
+            if (hasServerData) {
+              uniqueFens.forEach((f) => {
+                if (serverScores[f]) {
+                  scoreCacheRef.current.set(`${reviewDepth}|${f}`, serverScores[f]);
+                }
+              });
+              setScoreMap(serverScores);
+              setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem(storageKey, JSON.stringify(serverScores));
+                } catch {}
+              }
+              return; // Analisis server ditemukan, selesai tanpa engine re-run!
+            }
+          }
+        }
+      } catch {
+        // Lanjut ke kalkulasi engine jika server cache belum ada
+      }
+
       const accumulated: Record<string, PositionScore> = { ...initial };
       let done = Object.keys(initial).length;
       for (const f of uniqueFens) {
@@ -1285,6 +1335,17 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             localStorage.setItem(storageKey, JSON.stringify(accumulated));
           } catch {}
         }
+        // Simpan juga ke Shared Server Database PostgreSQL (/api/analysis) agar user lain tidak perlu analisis ulang!
+        try {
+          fetch('/api/analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: storageKey,
+              data: accumulated,
+            }),
+          }).catch(() => {});
+        } catch {}
       }
     })();
 

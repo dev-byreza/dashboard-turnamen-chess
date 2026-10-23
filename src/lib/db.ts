@@ -111,6 +111,60 @@ export async function ensureTables(sql: any) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS chess_analysis_cache (
+      key VARCHAR(255) PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+}
+
+/**
+ * Fetch cached match analysis from PostgreSQL.
+ */
+export async function getCachedAnalysisFromDb(key: string): Promise<any | null> {
+  const sql = getDb();
+  if (!sql) return null;
+  try {
+    await ensureTables(sql);
+    const rows = (await sql`
+      SELECT data FROM chess_analysis_cache
+      WHERE key = ${key}
+      LIMIT 1;
+    `) as Array<{ data: any }>;
+    if (rows && rows.length > 0) {
+      return rows[0].data;
+    }
+    return null;
+  } catch (err) {
+    console.error(`Failed to get analysis cache for ${key}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Save cached match analysis to PostgreSQL for shared instant loading.
+ */
+export async function saveCachedAnalysisToDb(key: string, data: any): Promise<boolean> {
+  const sql = getDb();
+  if (!sql) return false;
+  try {
+    await ensureTables(sql);
+    const dataJson = JSON.stringify(data);
+    await sql`
+      INSERT INTO chess_analysis_cache (key, data, updated_at)
+      VALUES (${key}, ${dataJson}::jsonb, CURRENT_TIMESTAMP)
+      ON CONFLICT (key) DO UPDATE SET
+        data = EXCLUDED.data,
+        updated_at = CURRENT_TIMESTAMP;
+    `;
+    return true;
+  } catch (err) {
+    console.error(`Failed to save analysis cache for ${key}:`, err);
+    return false;
+  }
 }
 
 /**
