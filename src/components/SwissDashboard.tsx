@@ -1366,6 +1366,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         whitePlayer={boardPreviewData?.whitePlayer || null}
         blackPlayer={boardPreviewData?.blackPlayer || null}
         onClose={handleCloseBoardPreview}
+        onSaveAnalysis={handleSaveAnalysis}
+        isAdmin={isAdmin}
       />
 
       {/* Tournament Rules Modal (Fallback jika onOpenRules tidak disediakan dari luar) */}

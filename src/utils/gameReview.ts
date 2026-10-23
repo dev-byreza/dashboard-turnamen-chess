@@ -119,24 +119,10 @@ export async function fetchPositionScore(
   depth: number,
   signal?: AbortSignal
 ): Promise<PositionScore | null> {
-  // 1. Fast book check with full theoretical candidate lines
-  if (COMMON_BOOK_LINES[fen]) {
-    const bookLines = COMMON_BOOK_LINES[fen];
-    return {
-      fen,
-      cp: bookLines[0].cp,
-      winWhite: bookLines[0].winWhite,
-      scoreDisplay: bookLines[0].scoreDisplay,
-      bestUci: bookLines[0].uci,
-      bestSan: bookLines[0].san,
-      lines: bookLines,
-    };
-  }
-
-  // 2. Try Next.js API route first with timeout
+  // Pure Stockfish 19 Lite engine evaluation via API route
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(
       `/api/stockfish?fen=${encodeURIComponent(fen)}&depth=${depth}&multipv=3`,
       { signal: signal || controller.signal }

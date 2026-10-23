@@ -75,6 +75,7 @@ export interface ChessBoardPreviewModalProps {
   blackPlayer?: Player | null;
   onClose: () => void;
   onSaveAnalysis?: (matchId: string, analysis: Record<string, PositionScore>) => void;
+  isAdmin?: boolean;
 }
 
 export type ChessComBadgeType =
@@ -1142,7 +1143,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   blackPlayer,
   onClose,
   onSaveAnalysis,
+  isAdmin = false,
 }) => {
+  const [isAnalysisPendingAdmin, setIsAnalysisPendingAdmin] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copiedFen, setCopiedFen] = useState(false);
@@ -1206,6 +1209,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
     setScoreMap({});
     setAnalysisProgress({ done: 0, total: 0 });
+    setIsAnalysisPendingAdmin(false);
     setAnalysisNonce((prev) => prev + 1);
   }, [match, recentGame, fenKey, reviewDepth]);
 
@@ -1255,64 +1259,99 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       return true;
     };
 
-    // 1. Cek penyimpanan lokal browser (localStorage) murni per-user pada depth yang dipilih
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) {
-          const parsed = JSON.parse(stored) as Record<string, PositionScore>;
-          if (isQualityAnalysis(parsed, uniqueFens.length)) {
-            uniqueFens.forEach((f) => {
-              scoreCacheRef.current.set(`${reviewDepth}|${f}`, parsed[f]);
-            });
-            setScoreMap(parsed);
-            setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
-            return;
-          } else {
-            localStorage.removeItem(storageKey);
-          }
-        }
-      } catch {}
-    }
-
     const ctrl = new AbortController();
     let cancelled = false;
 
-    // 2. Inisialisasi in-memory cache untuk depth ini dan book moves
-    const initial: Record<string, PositionScore> = {};
-    uniqueFens.forEach((f) => {
-      const hit = scoreCacheRef.current.get(`${reviewDepth}|${f}`);
-      if (hit) {
-        initial[f] = hit;
-      } else if (f === START_FEN || isBookPosition(f)) {
-        const bookScore: PositionScore = {
-          fen: f,
-          cp: 15,
-          winWhite: 50.5,
-          scoreDisplay: '+0.1',
-        };
-        initial[f] = bookScore;
-        scoreCacheRef.current.set(`${reviewDepth}|${f}`, bookScore);
+    // Single source of truth workflow
+    (async () => {
+      // 1. Cek Sumber Resmi 1: match.chessComAnalysis yang tersimpan di record turnamen (PostgreSQL)
+      if (match?.chessComAnalysis && isQualityAnalysis(match.chessComAnalysis, uniqueFens.length)) {
+        const parsed = match.chessComAnalysis as Record<string, PositionScore>;
+        uniqueFens.forEach((f) => {
+          scoreCacheRef.current.set(`${reviewDepth}|${f}`, parsed[f]);
+        });
+        setScoreMap(parsed);
+        setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+        setIsAnalysisPendingAdmin(false);
+        return;
       }
-    });
 
-    const isAllCached = Object.keys(initial).length === uniqueFens.length;
-    if (isAllCached) {
-      setScoreMap(initial);
-      setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
-      if (typeof window !== 'undefined') {
+      // 2. Cek Sumber Resmi 2: Central API /api/analysis (PostgreSQL chess_analysis_cache & server memory)
+      if (match?.id) {
         try {
-          localStorage.setItem(storageKey, JSON.stringify(initial));
+          const res = await fetch(`/api/analysis?key=match_${match.id}_analysis`, { signal: ctrl.signal });
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.success && json?.data && isQualityAnalysis(json.data, uniqueFens.length)) {
+              if (cancelled) return;
+              uniqueFens.forEach((f) => {
+                scoreCacheRef.current.set(`${reviewDepth}|${f}`, json.data[f]);
+              });
+              setScoreMap(json.data);
+              setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+              setIsAnalysisPendingAdmin(false);
+              onSaveAnalysis?.(match.id, json.data);
+              return;
+            }
+          }
         } catch {}
       }
-      return;
-    }
 
-    setScoreMap(initial);
-    setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
+      // 3. Cek localStorage backup cache
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem(storageKey);
+          if (stored) {
+            const parsed = JSON.parse(stored) as Record<string, PositionScore>;
+            if (isQualityAnalysis(parsed, uniqueFens.length)) {
+              uniqueFens.forEach((f) => {
+                scoreCacheRef.current.set(`${reviewDepth}|${f}`, parsed[f]);
+              });
+              setScoreMap(parsed);
+              setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+              setIsAnalysisPendingAdmin(false);
+              return;
+            } else {
+              localStorage.removeItem(storageKey);
+            }
+          }
+        } catch {}
+      }
 
-    // 3. Analisis mandiri 100% lokal di browser user pada kedalaman (depth) yang dipilih
-    (async () => {
+      // 4. Jika belum ada analisis resmi dari admin:
+      // Regular user / pengunjung tidak menjalankan analisis client liar agar hasil 100% dari 1 sumber resmi admin
+      if (match && !isAdmin) {
+        setIsAnalysisPendingAdmin(true);
+        setAnalysisProgress({ done: 0, total: uniqueFens.length });
+        return;
+      }
+
+      setIsAnalysisPendingAdmin(false);
+
+      // 5. Eksekusi analisis murni Engine Stockfish 19 (Admin atau standalone review)
+      const initial: Record<string, PositionScore> = {};
+      uniqueFens.forEach((f) => {
+        const hit = scoreCacheRef.current.get(`${reviewDepth}|${f}`);
+        if (hit && (hit.bestSan || hit.bestUci || (hit.lines && hit.lines.length > 0))) {
+          initial[f] = hit;
+        }
+      });
+
+      const isAllCached = Object.keys(initial).length === uniqueFens.length;
+      if (isAllCached) {
+        setScoreMap(initial);
+        setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(initial));
+          } catch {}
+        }
+        return;
+      }
+
+      setScoreMap(initial);
+      setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
+
       const accumulated: Record<string, PositionScore> = { ...initial };
       let done = Object.keys(initial).length;
       for (const f of uniqueFens) {
@@ -1336,8 +1375,18 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       if (!cancelled) {
-        // Simpan hanya ke localStorage lokal browser user (tidak dikirim ke database bersama)
         setScoreMap(accumulated);
+        if (match?.id) {
+          // Simpan ke 1 sumber resmi (central PostgreSQL database via /api/analysis)
+          fetch('/api/analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: `match_${match.id}_analysis`, data: accumulated }),
+          }).catch(() => {});
+
+          // Simpan ke database turnamen matches (match.chessComAnalysis)
+          onSaveAnalysis?.(match.id, accumulated);
+        }
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem(storageKey, JSON.stringify(accumulated));
@@ -1350,8 +1399,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       cancelled = true;
       ctrl.abort();
     };
-    // Re-run otomatis jika depth, fenKey, analysisNonce, atau game berubah!
-  }, [isOpen, fenKey, reviewDepth, analysisNonce, match?.id, recentGame?.url]);
+  }, [isOpen, fenKey, reviewDepth, analysisNonce, match?.id, match?.chessComAnalysis, recentGame?.url, isAdmin]);
 
   const isAnalyzing = analysisProgress.total > 0 && analysisProgress.done < analysisProgress.total;
   const isAnalysisComplete =
@@ -2998,6 +3046,17 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Active Move Coach Feedback with rich tactical explanations
   const currentMoveCoachComment = useMemo(() => {
+    if (isAnalysisPendingAdmin) {
+      return {
+        title: 'Menunggu Analisis Admin',
+        summary: 'Analisis resmi Stockfish belum dipublikasikan oleh admin.',
+        comment: 'Analisis resmi Stockfish untuk pertandingan ini belum dipublikasikan oleh admin turnamen. Papan catur dan langkah pertandingan tetap dapat Anda tinjau di bawah.',
+        detailedExplanation: 'Admin turnamen belum menjalankan analisis resmi untuk pertandingan ini. Begitu admin selesai menganalisis, seluruh data Game Review resmi akan otomatis tampil dari satu sumber.',
+        tacticalAdvice: isAdmin ? 'Klik tombol "Jalankan Analisis Resmi" di atas untuk mempublikasikan hasil analisis ke seluruh pemain.' : undefined,
+        badge: null as ChessComBadgeType | null,
+      };
+    }
+
     if (!isAnalysisComplete) {
       return {
         title: 'Menganalisis...',
@@ -3137,7 +3196,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       tacticalAdvice,
       badge: m.classification || null,
     };
-  }, [currentPlyIndex, moveHistory, rawMoveHistory, scoreMap, isAnalysisComplete, analysisProgress.done, analysisProgress.total, bestMoveInfo, bestMoveSanDisplay]);
+  }, [currentPlyIndex, moveHistory, rawMoveHistory, scoreMap, isAnalysisComplete, isAnalysisPendingAdmin, isAdmin, analysisProgress.done, analysisProgress.total, bestMoveInfo, bestMoveSanDisplay]);
 
   // Jump to move by classification with cycling support
   const handleJumpToClassification = (type: ChessComBadgeType, colorFilter?: 'w' | 'b') => {
@@ -3445,6 +3504,44 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             ) : (
               <>
                 <div className="mobile-summary-scroll">
+                  {isAnalysisPendingAdmin && (
+                    <div
+                      style={{
+                        margin: '0.5rem 0.75rem',
+                        padding: '0.75rem 0.85rem',
+                        background: 'rgba(234, 179, 8, 0.12)',
+                        border: '1px solid rgba(234, 179, 8, 0.35)',
+                        borderRadius: '8px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: '#facc15' }}>
+                        ⏳ Menunggu Analisis Resmi dari Admin
+                      </p>
+                      <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.75rem', color: '#cbd5e1' }}>
+                        Hasil evaluasi Stockfish resmi akan otomatis tampil dari satu sumber setelah dianalisis admin.
+                      </p>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={handleClearCache}
+                          style={{
+                            marginTop: '0.5rem',
+                            padding: '0.4rem 0.9rem',
+                            background: '#81b64c',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ⚡ Jalankan Analisis Resmi (Admin)
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {/* 1. Coach Speech Bubble (Top) */}
                   <div className="mobile-summary-coach-card">
                     <div className="mobile-coach-avatar-box">
@@ -4254,6 +4351,44 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     </svg>
                   </div>
 
+                  {isAnalysisPendingAdmin && (
+                    <div
+                      style={{
+                        margin: '0.65rem 0.85rem',
+                        padding: '0.85rem 1rem',
+                        background: 'rgba(234, 179, 8, 0.12)',
+                        border: '1px solid rgba(234, 179, 8, 0.35)',
+                        borderRadius: '8px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: '0.84rem', fontWeight: 700, color: '#facc15' }}>
+                        ⏳ Menunggu Analisis Resmi dari Admin
+                      </p>
+                      <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                        Hasil evaluasi resmi Stockfish akan otomatis tampil dari satu sumber setelah dianalisis oleh admin turnamen.
+                      </p>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={handleClearCache}
+                          style={{
+                            marginTop: '0.6rem',
+                            padding: '0.45rem 1.1rem',
+                            background: '#81b64c',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ⚡ Jalankan Analisis Resmi Sekarang (Admin)
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {/* Unified Review Card (Matching Chess.com Image 1) */}
                   <div className="chesscom-review-table-card">
                     {/* Players Row */}
@@ -4439,23 +4574,40 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <span>Game Review</span>
                       <button
                         type="button"
-                        onClick={() => setIsEngineModalOpen(true)}
+                        onClick={() => (isAdmin || !match) && setIsEngineModalOpen(true)}
                         className="depth-pill-badge"
-                        title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth} (Klik untuk ubah)`}
+                        title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth}${isAdmin ? ' (Klik untuk ubah)' : ''}`}
+                        style={{ cursor: (isAdmin || !match) ? 'pointer' : 'default' }}
                       >
                         <Cpu size={12} />
                         <span>Depth {stockfishDepth}</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleClearCache}
-                        className="depth-pill-badge"
-                        title="Analisis ulang game ini pada kedalaman saat ini"
-                        style={{ cursor: 'pointer', opacity: 0.85 }}
-                      >
-                        <RotateCcw size={11} />
-                        <span>Re-analyze</span>
-                      </button>
+                      {(isAdmin || !match) && (
+                        <button
+                          type="button"
+                          onClick={handleClearCache}
+                          className="depth-pill-badge"
+                          title="Analisis ulang game ini pada kedalaman saat ini dan perbarui ke database publik"
+                          style={{ cursor: 'pointer', opacity: 0.85 }}
+                        >
+                          <RotateCcw size={11} />
+                          <span>Re-analyze</span>
+                        </button>
+                      )}
+                      {match?.id && !isAnalysisPendingAdmin && isAnalysisComplete && (
+                        <span
+                          className="depth-pill-badge"
+                          style={{
+                            background: 'rgba(34, 197, 94, 0.15)',
+                            borderColor: 'rgba(34, 197, 94, 0.4)',
+                            color: '#4ade80',
+                            fontWeight: 700,
+                          }}
+                          title="Analisis resmi terverifikasi dari 1 sumber database admin turnamen"
+                        >
+                          ✓ Sumber Resmi
+                        </span>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
