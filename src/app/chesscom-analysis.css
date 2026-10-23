@@ -38,7 +38,7 @@
   max-width: 1440px;
   height: 100%;
   max-height: 96vh;
-  background: #161512;
+  background: #272522;
   border: 1px solid #3c3934;
   border-radius: 12px;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -184,7 +184,7 @@
   min-width: 0;
   overflow: hidden;
   height: calc(100% - 50px);
-  background: #161512;
+  background: #302e2b;
 }
 
 .chesscom-analysis-backdrop.is-fullscreen .chesscom-main-layout {
@@ -198,7 +198,7 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  background: #161512;
+  background: #302e2b;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -301,7 +301,7 @@
 .player-rating-badge {
   font-size: 0.76rem;
   font-weight: 600;
-  color: #989795;
+  color: #b5b3af;
 }
 
 .player-flag {
@@ -310,7 +310,7 @@
 
 .player-sub-username {
   font-size: 0.72rem;
-  color: #787672;
+  color: #9c9a95;
 }
 
 .player-profile-stats-row {
@@ -360,12 +360,12 @@
   align-items: center;
   gap: 0.35rem;
   background: #262421;
-  border: 1px solid #383531;
+  border: 1px solid #4a4742;
   border-radius: 6px;
   padding: 0.3rem 0.65rem;
   font-size: 0.92rem;
   font-weight: 700;
-  color: #e2e4e8;
+  color: #f3f4f6;
   font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -389,12 +389,12 @@
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1.5px;
+  gap: 2px;
 }
 
 .captured-piece-mini {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -402,16 +402,16 @@
 }
 
 .captured-piece-mini .chess-piece-vector {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
   display: block;
-  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.45)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  filter: drop-shadow(0 0 1px #ffffff) drop-shadow(0 0 2px rgba(255, 255, 255, 0.7)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
 }
 
 .captured-advantage-score {
   font-size: 0.74rem;
   font-weight: 800;
-  color: #9ca3af;
+  color: #e5e7eb;
   margin-left: 0.2rem;
   line-height: 1;
 }
@@ -431,7 +431,7 @@
 /* Vertical Evaluation Bar */
 .chesscom-eval-bar-track {
   width: 28px;
-  background: #383531;
+  background: #524f4a;
   border-radius: 5px;
   position: relative;
   overflow: hidden;
@@ -440,7 +440,7 @@
   flex-direction: column;
   justify-content: flex-end;
   flex-shrink: 0;
-  border: 1px solid #4a4742;
+  border: 1px solid #6b6660;
 }
 
 .chesscom-eval-bar-white {
@@ -2535,7 +2535,8 @@
     display: block !important;
     width: 100% !important;
     height: 20px !important;
-    background: #383531 !important;
+    background: #524f4a !important;
+    border: 1px solid #6b6660 !important;
     position: relative !important;
     overflow: hidden !important;
     flex-shrink: 0 !important;
