@@ -14,6 +14,7 @@
  */
 
 import { Chess, Move, PieceSymbol, Square, Color } from 'chess.js';
+import { isTacticalPinExploit } from './gameReview';
 
 // ============================================================================
 // 1. DATA CONTRACTS & INTERFACES
@@ -361,14 +362,10 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     }
 
     // Syarat Great Move (!):
-    // - Langkah harus #1 pilihan engine
-    // - Selisih WinProb antara kandidat #1 (evalBefore) dan kandidat #2 (evalSecondBest) >= 15%
-    // - Posisi setelah melangkah kompetitif/unggul (0.25 <= winProbAfter <= 0.92)
-    if (evalSecondBest && isEngineTopMove) {
-      const winProbSecondBest = getWinProbability(evalSecondBest.cp, evalSecondBest.mate);
-      const uniquenessGap = winProbBefore - winProbSecondBest;
-
-      if (uniquenessGap >= 0.15 && winProbAfter >= 0.25 && winProbBefore <= 0.92) {
+    // A. Eksploitasi Pin Taktis / Pseudo-Sacrifice (contoh: Qh3 di mana pion g2 ter-pin ke Raja g1)
+    if (isEngineTopMove || winProbLost <= 0.015) {
+      const isPinExploit = isTacticalPinExploit(fenBefore, playedUci);
+      if (isPinExploit && winProbAfter >= 0.40) {
         return {
           classification: 'Great',
           isSacrifice,
@@ -377,6 +374,39 @@ export function classifyChessMove(params: ClassifyMoveParams): {
           winProbLost,
           accuracy: 100,
         };
+      }
+
+      // B. Menemukan skakmat paksa dari posisi non-mate
+      const foundForcedMate =
+        (evalBefore.mate === null || evalBefore.mate <= 0) &&
+        evalAfter.mate !== null &&
+        evalAfter.mate > 0;
+      if (foundForcedMate) {
+        return {
+          classification: 'Great',
+          isSacrifice,
+          winProbBefore,
+          winProbAfter,
+          winProbLost,
+          accuracy: 100,
+        };
+      }
+
+      // C. Selisih WinProb antara kandidat #1 dan kandidat #2 >= 15%
+      if (evalSecondBest) {
+        const winProbSecondBest = getWinProbability(evalSecondBest.cp, evalSecondBest.mate);
+        const uniquenessGap = winProbBefore - winProbSecondBest;
+
+        if (uniquenessGap >= 0.15 && winProbAfter >= 0.25 && winProbBefore <= 0.95) {
+          return {
+            classification: 'Great',
+            isSacrifice,
+            winProbBefore,
+            winProbAfter,
+            winProbLost,
+            accuracy: 100,
+          };
+        }
       }
     }
 

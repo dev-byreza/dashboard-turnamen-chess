@@ -410,6 +410,83 @@ function legalMoveCount(fen: string): number {
   }
 }
 
+/**
+ * Mendeteksi apakah perwira melangkah ke petak yang tampaknya dijaga/diserang lawan secara geometris,
+ * namun perwira penjaga lawan tersebut terkena PIN mutlak (absolute pin) ke Raja lawan
+ * sehingga tidak dapat memukul secara sah (contoh: Qd7-h3 di mana pion g2 terkena pin mutlak ke Kg1 oleh Rg8).
+ */
+export function isTacticalPinExploit(fenBefore: string, playedMoveUci: string): boolean {
+  if (!fenBefore || !playedMoveUci || playedMoveUci.length < 4) return false;
+  try {
+    const board = new Chess(fenBefore);
+    const from = playedMoveUci.slice(0, 2) as Square;
+    const to = playedMoveUci.slice(2, 4) as Square;
+    const movingPiece = board.get(from);
+    if (!movingPiece || movingPiece.type === 'p' || movingPiece.type === 'k') return false;
+
+    const moverColor = board.turn();
+    const enemyColor: Color = moverColor === 'w' ? 'b' : 'w';
+
+    // Eksekusi langkah untuk melihat status setelah melangkah
+    const moveRes = board.move({ from, to, promotion: (playedMoveUci[4] as any) || 'q' });
+    if (!moveRes) return false;
+
+    const fileToIdx = to.charCodeAt(0) - 97;
+    const rankToIdx = parseInt(to[1], 10);
+
+    const b = board.board();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = b[r][c];
+        if (piece && piece.color === enemyColor && piece.type !== 'k') {
+          const sq = (String.fromCharCode(97 + c) + (8 - r)) as Square;
+
+          let attacksGeometrically = false;
+          if (piece.type === 'p') {
+            const pawnDir = enemyColor === 'w' ? 1 : -1;
+            const enemyRank = 8 - r;
+            if (enemyRank + pawnDir === rankToIdx && Math.abs(c - fileToIdx) === 1) {
+              attacksGeometrically = true;
+            }
+          } else if (piece.type === 'n') {
+            const df = Math.abs(c - fileToIdx);
+            const dr = Math.abs(8 - r - rankToIdx);
+            if ((df === 1 && dr === 2) || (df === 2 && dr === 1)) {
+              attacksGeometrically = true;
+            }
+          } else if (piece.type === 'b' || piece.type === 'r' || piece.type === 'q') {
+            const df = Math.abs(c - fileToIdx);
+            const dr = Math.abs(8 - r - rankToIdx);
+            const isDiag = df === dr && df > 0;
+            const isStraight = (df === 0 && dr > 0) || (dr === 0 && df > 0);
+            if (
+              (piece.type === 'b' && isDiag) ||
+              (piece.type === 'r' && isStraight) ||
+              (piece.type === 'q' && (isDiag || isStraight))
+            ) {
+              attacksGeometrically = true;
+            }
+          }
+
+          if (attacksGeometrically) {
+            // Cek apakah lawan BISA memakan petak `to` secara sah
+            const legalMoves = board.moves({ square: sq, verbose: true });
+            const canCapture = legalMoves.some((m) => m.to === to);
+            if (!canCapture) {
+              // Bidak lawan mengancam petak `to` secara geometris,
+              // namun TIDAK BISA memakannya secara legal karena terkena PIN mutlak ke Raja!
+              return true;
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export interface GreatMoveContext {
   playedMoveUci: string;
   legalMovesCount: number;
@@ -575,19 +652,35 @@ function classifyCore(
   }
 
   // 4. GREAT MOVE (!)
-  // Sesuai Section 4 Chess Analysis Architecture:
-  // - Langkah adalah #1 bestMove
-  // - Selisih WinProb antara kandidat #1 dan kandidat #2 >= 15% (Uniqueness Gap)
-  // - Posisi bukan di tempat yang sudah menang telak (0.25 <= winProbAfter dan winProbBefore <= 0.92)
-  const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
-  if (secondLine && isEngineTopMove) {
-    const secondCp = moverCp({ cp: secondLine.cp } as any);
-    const secondMate = moverMate({ mate: secondLine.mate } as any);
-    const winProbSecondBest = getWinProbability(secondCp, secondMate);
-    const uniquenessGap = winProbBefore - winProbSecondBest;
-
-    if (uniquenessGap >= 0.15 && winProbAfter >= 0.25 && winProbBefore <= 0.92) {
+  // Diberikan jika langkah adalah #1 bestMove (atau evaluasinya nyaris sempurna winProbLost <= 0.015):
+  if (isEngineTopMove || winProbLost <= 0.015) {
+    // Skenario A: Eksploitasi Pin Taktis / Pseudo-Sacrifice (contoh: Qh3 yang mengeksploitasi pin pion g2 ke Raja g1)
+    const isPinExploit = isTacticalPinExploit(before.fen, playedUci);
+    if (isPinExploit && winProbAfter >= 0.40) {
       return { ...base, accuracy: 100, label: 'great' };
+    }
+
+    // Skenario B: Menemukan Skakmat Paksa (Mate in 2+) dari posisi yang sebelumnya belum ada mate
+    const foundNewForcedMate =
+      (mateBefore === null || mateBefore === undefined || mateBefore <= 0) &&
+      mateAfter !== null &&
+      mateAfter !== undefined &&
+      mateAfter > 0;
+    if (foundNewForcedMate) {
+      return { ...base, accuracy: 100, label: 'great' };
+    }
+
+    // Skenario C: MultiPV Uniqueness Gap (Langkah #1 unggul >= 15% peluang menang dibanding pilihan #2)
+    const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
+    if (secondLine) {
+      const secondCp = moverCp({ cp: secondLine.cp } as any);
+      const secondMate = moverMate({ mate: secondLine.mate } as any);
+      const winProbSecondBest = getWinProbability(secondCp, secondMate);
+      const uniquenessGap = winProbBefore - winProbSecondBest;
+
+      if (uniquenessGap >= 0.15 && winProbAfter >= 0.25 && winProbBefore <= 0.95) {
+        return { ...base, accuracy: 100, label: 'great' };
+      }
     }
   }
 
