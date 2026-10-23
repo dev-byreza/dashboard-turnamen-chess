@@ -4580,42 +4580,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     <div className="review-active-title">
                       <span className="review-title-star">★</span>
                       <span>Game Review</span>
-                      <button
-                        type="button"
-                        onClick={() => (isAdmin || !match) && setIsEngineModalOpen(true)}
-                        className="depth-pill-badge"
-                        title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth}${isAdmin ? ' (Klik untuk ubah)' : ''}`}
-                        style={{ cursor: (isAdmin || !match) ? 'pointer' : 'default' }}
-                      >
-                        <Cpu size={12} />
-                        <span>Depth {stockfishDepth}</span>
-                      </button>
-                      {(isAdmin || !match) && (
-                        <button
-                          type="button"
-                          onClick={handleClearCache}
-                          className="depth-pill-badge"
-                          title="Analisis ulang game ini pada kedalaman saat ini dan perbarui ke database publik"
-                          style={{ cursor: 'pointer', opacity: 0.85 }}
-                        >
-                          <RotateCcw size={11} />
-                          <span>Re-analyze</span>
-                        </button>
-                      )}
-                      {match?.id && !isAnalysisPendingAdmin && isAnalysisComplete && (
-                        <span
-                          className="depth-pill-badge"
-                          style={{
-                            background: 'rgba(34, 197, 94, 0.15)',
-                            borderColor: 'rgba(34, 197, 94, 0.4)',
-                            color: '#4ade80',
-                            fontWeight: 700,
-                          }}
-                          title="Analisis resmi terverifikasi dari 1 sumber database admin turnamen"
-                        >
-                          ✓ Sumber Resmi
-                        </span>
-                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -4645,6 +4609,39 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         <Settings size={16} />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Engine meta row: Depth / Re-analyze / Sumber Resmi (baris sendiri agar header tidak sesak) */}
+                  <div className="review-meta-row">
+                    <button
+                      type="button"
+                      onClick={() => (isAdmin || !match) && setIsEngineModalOpen(true)}
+                      className="review-meta-pill"
+                      title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth}${isAdmin ? ' (Klik untuk ubah)' : ''}`}
+                      style={{ cursor: (isAdmin || !match) ? 'pointer' : 'default' }}
+                    >
+                      <Cpu size={12} />
+                      <span>Depth {stockfishDepth}</span>
+                    </button>
+                    {(isAdmin || !match) && (
+                      <button
+                        type="button"
+                        onClick={handleClearCache}
+                        className="review-meta-pill"
+                        title="Analisis ulang game ini pada kedalaman saat ini dan perbarui ke database publik"
+                      >
+                        <RotateCcw size={11} />
+                        <span>Re-analyze</span>
+                      </button>
+                    )}
+                    {match?.id && !isAnalysisPendingAdmin && isAnalysisComplete && (
+                      <span
+                        className="review-meta-pill official"
+                        title="Analisis resmi terverifikasi dari 1 sumber database admin turnamen"
+                      >
+                        ✓ Sumber Resmi
+                      </span>
+                    )}
                   </div>
 
                   {showExplorer ? (
