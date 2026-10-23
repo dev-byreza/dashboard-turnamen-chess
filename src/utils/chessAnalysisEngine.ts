@@ -393,20 +393,65 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     }
   }
 
-  // 4. MATE BLUNDER CHECKS (Kasus khusus skakmat)
-  const missedForcedMate =
-    evalBefore.mate !== null &&
-    evalBefore.mate > 0 &&
-    (evalAfter.mate === null || evalAfter.mate < 0) &&
-    winProbAfter < 0.75;
+  // 4. MATE BLUNDER & MISSED MATE CHECKS
+  const hadForcedMate = evalBefore.mate !== null && evalBefore.mate !== undefined && evalBefore.mate > 0;
+  const hasForcedMateAfter = evalAfter.mate !== null && evalAfter.mate !== undefined && evalAfter.mate > 0;
+
+  if (hadForcedMate && !isEngineTopMove) {
+    // Skenario 1: Memiliki Mate in 1, tapi memainkan langkah lain yang bukan mate in 1
+    if (evalBefore.mate === 1 && (!evalAfter.mate || evalAfter.mate > 1)) {
+      if (winProbAfter >= 0.50) {
+        return {
+          classification: 'Miss',
+          isSacrifice,
+          winProbBefore,
+          winProbAfter,
+          winProbLost: Math.max(winProbLost, 0.20),
+          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.20)),
+        };
+      } else {
+        return {
+          classification: 'Blunder',
+          isSacrifice,
+          winProbBefore,
+          winProbAfter,
+          winProbLost: Math.max(winProbLost, 0.35),
+          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.35)),
+        };
+      }
+    }
+
+    // Skenario 2: Memiliki forced mate (Mate in N), namun membuang forced mate tersebut
+    if (!hasForcedMateAfter) {
+      if (winProbAfter >= 0.50) {
+        return {
+          classification: 'Miss',
+          isSacrifice,
+          winProbBefore,
+          winProbAfter,
+          winProbLost: Math.max(winProbLost, 0.20),
+          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.20)),
+        };
+      } else {
+        return {
+          classification: 'Blunder',
+          isSacrifice,
+          winProbBefore,
+          winProbAfter,
+          winProbLost: Math.max(winProbLost, 0.35),
+          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.35)),
+        };
+      }
+    }
+  }
 
   const steppedIntoForcedMate =
-    (evalBefore.mate === null || evalBefore.mate > 0) &&
+    !hadForcedMate &&
     evalAfter.mate !== null &&
     evalAfter.mate < 0 &&
     winProbBefore >= 0.20;
 
-  if (missedForcedMate || steppedIntoForcedMate) {
+  if (steppedIntoForcedMate) {
     return {
       classification: 'Blunder',
       isSacrifice,

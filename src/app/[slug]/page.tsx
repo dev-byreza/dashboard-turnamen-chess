@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Trophy } from 'lucide-react';
 import { SwissDashboard } from '../../components/SwissDashboard';
 import type { TournamentStore } from '../../types/chess';
@@ -23,7 +23,14 @@ type TournamentPageState =
 
 export default function TournamentSlugPage() {
   const params = useParams<{ slug: string }>();
+  const router = useRouter();
   const slug = (params.slug || '').trim().toLowerCase();
+
+  useEffect(() => {
+    if (slug === 'analisis') {
+      router.replace('/analisis');
+    }
+  }, [slug, router]);
 
   const cached = getCachedTournamentStore();
   const cachedTournament = cached?.tournaments.find(

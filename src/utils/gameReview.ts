@@ -598,23 +598,39 @@ function classifyCore(
     return { ...base, label: 'best' };
   }
 
-  // 6. BLUNDER (MATE) (??)
-  // Membuang forced mate atau melangkah masuk ke forced mate lawan
-  const missedForcedMate =
-    mateBefore !== null &&
-    mateBefore !== undefined &&
-    mateBefore > 0 &&
-    (mateAfter === null || mateAfter === undefined || mateAfter < 0) &&
-    winProbAfter < 0.75;
+  // 6. BLUNDER (MATE) & MISSED MATE (?? / ❌)
+  // Memeriksa kasus khusus skakmat paksa (Missed Forced Mate)
+  const hadForcedMate = mateBefore !== null && mateBefore !== undefined && mateBefore > 0;
+  const hasForcedMateAfter = mateAfter !== null && mateAfter !== undefined && mateAfter > 0;
+
+  if (hadForcedMate && !isEngineTopMove) {
+    // Skenario 1: Memiliki Mate in 1, namun memainkan langkah lain yang melewatkan mate in 1
+    if (mateBefore === 1 && (!mateAfter || mateAfter > 1)) {
+      if (winProbAfter >= 0.50) {
+        return { ...base, loss: Math.max(loss, 20), label: 'miss' };
+      } else {
+        return { ...base, loss: Math.max(loss, 35), label: 'blunder' };
+      }
+    }
+
+    // Skenario 2: Memiliki forced mate (Mate in N), namun langkah ini membuang forced mate
+    if (!hasForcedMateAfter) {
+      if (winProbAfter >= 0.50) {
+        return { ...base, loss: Math.max(loss, 20), label: 'miss' };
+      } else {
+        return { ...base, loss: Math.max(loss, 35), label: 'blunder' };
+      }
+    }
+  }
 
   const steppedIntoForcedMate =
-    (mateBefore === null || mateBefore === undefined || mateBefore > 0) &&
+    !hadForcedMate &&
     mateAfter !== null &&
     mateAfter !== undefined &&
     mateAfter < 0 &&
     winProbBefore >= 0.20;
 
-  if (missedForcedMate || steppedIntoForcedMate) {
+  if (steppedIntoForcedMate) {
     return { ...base, loss: Math.max(loss, 25), label: 'blunder' };
   }
 

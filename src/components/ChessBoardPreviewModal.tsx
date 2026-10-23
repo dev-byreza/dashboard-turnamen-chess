@@ -1177,6 +1177,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [originalGameHistory, setOriginalGameHistory] = useState<MoveHistoryItem[]>([]);
   const branchPlyIndexRef = useRef<number>(-1);
   const [currentPlyIndex, setCurrentPlyIndex] = useState<number>(-1); // -1 = start pos
+  const [animatingMove, setAnimatingMove] = useState<{
+    moves: { square: Square; dx: number; dy: number }[];
+    animKey: string;
+  } | null>(null);
+  const animTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<string[]>([]);
   const [isPlayingReplay, setIsPlayingReplay] = useState(false);
@@ -1708,6 +1713,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (evalDebounceRef.current) clearTimeout(evalDebounceRef.current);
 
     evalDebounceRef.current = setTimeout(() => {
+      // If position already has full analysis in scoreMap, skip heavy evaluation
+      if (scoreMap[currentBoardFen]?.lines?.length && scoreMap[currentBoardFen]?.scoreDisplay) {
+        return;
+      }
+
       const engine = getStockfishEngine();
       engine
         .evaluatePosition(currentBoardFen, stockfishDepth, (progress) => {
@@ -1748,16 +1758,106 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           })
           .catch(() => {});
       }
-    }, 150);
+    }, 300);
 
     return () => {
       if (evalDebounceRef.current) clearTimeout(evalDebounceRef.current);
     };
-  }, [isOpen, isEngineActive, currentBoardFen, stockfishDepth]);
+  }, [isOpen, isEngineActive, currentBoardFen, stockfishDepth, scoreMap]);
 
-  // Jump to specific ply in move history with sound effects
+  // Helper to calculate vector slide deltas for piece animations
+  const calculateSlideMoves = (m: MoveHistoryItem, isForward: boolean) => {
+    const calcDeltas = (fromSq: string, toSq: string) => {
+      const fromC = fromSq.charCodeAt(0) - 97;
+      const fromR = 8 - parseInt(fromSq[1], 10);
+      const toC = toSq.charCodeAt(0) - 97;
+      const toR = 8 - parseInt(toSq[1], 10);
+
+      const fromVisCol = isFlipped ? 7 - fromC : fromC;
+      const fromVisRow = isFlipped ? 7 - fromR : fromR;
+      const toVisCol = isFlipped ? 7 - toC : toC;
+      const toVisRow = isFlipped ? 7 - toR : toR;
+
+      return {
+        dx: (fromVisCol - toVisCol) * 100,
+        dy: (fromVisRow - toVisRow) * 100,
+      };
+    };
+
+    const movesToAnimate: { square: Square; dx: number; dy: number }[] = [];
+
+    if (isForward) {
+      const d = calcDeltas(m.from, m.to);
+      movesToAnimate.push({ square: m.to as Square, dx: d.dx, dy: d.dy });
+
+      // Castling secondary piece (Rook)
+      const isKingMove = m.piece?.toLowerCase() === 'k';
+      if (isKingMove) {
+        if (m.from === 'e1' && m.to === 'g1') {
+          const rd = calcDeltas('h1', 'f1');
+          movesToAnimate.push({ square: 'f1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e1' && m.to === 'c1') {
+          const rd = calcDeltas('a1', 'd1');
+          movesToAnimate.push({ square: 'd1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'g8') {
+          const rd = calcDeltas('h8', 'f8');
+          movesToAnimate.push({ square: 'f8', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'c8') {
+          const rd = calcDeltas('a8', 'd8');
+          movesToAnimate.push({ square: 'd8', dx: rd.dx, dy: rd.dy });
+        }
+      }
+    } else {
+      // Backward: piece returned to m.from
+      const d = calcDeltas(m.to, m.from);
+      movesToAnimate.push({ square: m.from as Square, dx: d.dx, dy: d.dy });
+
+      // Castling undo (Rook returns to corner)
+      const isKingMove = m.piece?.toLowerCase() === 'k';
+      if (isKingMove) {
+        if (m.from === 'e1' && m.to === 'g1') {
+          const rd = calcDeltas('f1', 'h1');
+          movesToAnimate.push({ square: 'h1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e1' && m.to === 'c1') {
+          const rd = calcDeltas('d1', 'a1');
+          movesToAnimate.push({ square: 'a1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'g8') {
+          const rd = calcDeltas('f8', 'h8');
+          movesToAnimate.push({ square: 'h8', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'c8') {
+          const rd = calcDeltas('d8', 'a8');
+          movesToAnimate.push({ square: 'a8', dx: rd.dx, dy: rd.dy });
+        }
+      }
+    }
+
+    return movesToAnimate;
+  };
+
+  // Jump to specific ply in move history with instant hardware-accelerated slide animation
   const jumpToPly = (plyIndex: number, playAudio = true) => {
     setIsPlayingReplay(false);
+
+    // Compute slide deltas synchronously in the same render batch
+    const diff = plyIndex - currentPlyIndex;
+    if (Math.abs(diff) === 1 && Date.now() - lastDragDropTimeRef.current >= 400) {
+      const isForward = diff === 1;
+      const moveIndex = isForward ? plyIndex : currentPlyIndex;
+      const m = moveHistory[moveIndex];
+      if (m && m.from && m.to) {
+        const moves = calculateSlideMoves(m, isForward);
+        setAnimatingMove({ moves, animKey: `${plyIndex}-${Date.now()}` });
+        if (animTimerRef.current) clearTimeout(animTimerRef.current);
+        animTimerRef.current = setTimeout(() => {
+          setAnimatingMove(null);
+        }, 170);
+      } else {
+        setAnimatingMove(null);
+      }
+    } else {
+      setAnimatingMove(null);
+    }
+
     setCurrentPlyIndex(plyIndex);
     setSelectedSquare(null);
     setLegalMoves([]);
@@ -1820,6 +1920,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           const nextIndex = prev + 1;
           const m = history[nextIndex];
           if (m) {
+            if (m.from && m.to) {
+              const moves = calculateSlideMoves(m, true);
+              setAnimatingMove({ moves, animKey: `${nextIndex}-${Date.now()}` });
+              if (animTimerRef.current) clearTimeout(animTimerRef.current);
+              animTimerRef.current = setTimeout(() => {
+                setAnimatingMove(null);
+              }, 170);
+            }
             getChessAudioManager().playMoveSound({
               san: m.san,
               isCapture: !!m.captured,
@@ -1857,49 +1965,44 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
     if (!prevFen) return;
 
+    // Fast-path: If scoreMap already evaluated prevFen, use it immediately with ZERO latency!
+    if (scoreMap[prevFen]?.bestUci || scoreMap[prevFen]?.lines?.length) {
+      const sm = scoreMap[prevFen];
+      setDecisionEval({
+        fen: prevFen,
+        depth: 14,
+        scoreCp: sm.cp ?? 0,
+        scoreDisplay: sm.scoreDisplay || '+0.00',
+        mateIn: sm.mate,
+        winChanceWhite: sm.winWhite ?? 50,
+        bestMoveUci: sm.bestUci || sm.lines?.[0]?.uci || '',
+        bestMoveSan: sm.bestSan || sm.lines?.[0]?.san,
+        lines: sm.lines || [],
+        isThinking: false,
+      });
+      return;
+    }
+
     if (decisionEvalCacheRef.current.has(prevFen)) {
       const cached = decisionEvalCacheRef.current.get(prevFen)!;
       setDecisionEval(cached);
       return;
     }
 
-    const engine = getStockfishEngine();
-    engine
-      .evaluatePosition(prevFen, 12)
-      .then((evalRes) => {
-        decisionEvalCacheRef.current.set(prevFen, evalRes);
-        setDecisionEval(evalRes);
+    // Debounce live engine evaluation by 300ms so rapid stepping never blocks CPU or workers
+    const timer = setTimeout(() => {
+      const engine = getStockfishEngine();
+      engine
+        .evaluatePosition(prevFen, 12)
+        .then((evalRes) => {
+          decisionEvalCacheRef.current.set(prevFen, evalRes);
+          setDecisionEval(evalRes);
+        })
+        .catch(() => {});
+    }, 300);
 
-        const currentMove = moveHistory[currentPlyIndex];
-        if (currentMove && evalRes.bestMoveUci) {
-          const sfFrom = evalRes.bestMoveUci.slice(0, 2);
-          const sfTo = evalRes.bestMoveUci.slice(2, 4);
-          const isEngineMatch =
-            (currentMove.from === sfFrom && currentMove.to === sfTo) ||
-            currentMove.san === evalRes.bestMoveSan;
-
-          if (
-            isEngineMatch &&
-            currentMove.classification !== 'best' &&
-            currentMove.classification !== 'brilliant'
-          ) {
-            setMoveHistory((prev) => {
-              const updated = [...prev];
-              if (updated[currentPlyIndex]) {
-                updated[currentPlyIndex] = {
-                  ...updated[currentPlyIndex],
-                  classification: 'best',
-                  feedbackTitle: 'Best Move ★',
-                  feedbackDescription: `${currentMove.san} - The chess engine's top choice!`,
-                };
-              }
-              return updated;
-            });
-          }
-        }
-      })
-      .catch(() => {});
-  }, [isOpen, currentPlyIndex, moveHistory]);
+    return () => clearTimeout(timer);
+  }, [isOpen, currentPlyIndex, scoreMap]);
 
   // Best Move info computation powered by Stockfish 19 Lite with strict move legality verification
   const bestMoveInfo = useMemo(() => {
@@ -2450,113 +2553,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     return matrix;
   }, [effectiveBoardFen]);
 
-  // Smooth Piece Slide Animation (Chess.com standard 200ms cubic-bezier transition)
-  const prevPlyRef = useRef<number>(currentPlyIndex);
-  const [animatingMove, setAnimatingMove] = useState<{
-    moves: { square: Square; dx: number; dy: number }[];
-    animKey: string;
-  } | null>(null);
-
+  // Clear slide animation timer on unmount
   useEffect(() => {
-    const prevPly = prevPlyRef.current;
-    prevPlyRef.current = currentPlyIndex;
-
-    // Only animate on a single ply step forward or backward
-    const diff = currentPlyIndex - prevPly;
-    if (Math.abs(diff) !== 1) {
-      setAnimatingMove(null);
-      return;
-    }
-
-    // Skip slide if piece was physically moved by drag-and-drop
-    if (Date.now() - lastDragDropTimeRef.current < 400 && diff === 1) {
-      setAnimatingMove(null);
-      return;
-    }
-
-    const isForward = diff === 1;
-    const moveIndex = isForward ? currentPlyIndex : prevPly;
-    const m = moveHistory[moveIndex];
-    if (!m || !m.from || !m.to) {
-      setAnimatingMove(null);
-      return;
-    }
-
-    const calcDeltas = (fromSq: string, toSq: string) => {
-      const fromC = fromSq.charCodeAt(0) - 97;
-      const fromR = 8 - parseInt(fromSq[1], 10);
-      const toC = toSq.charCodeAt(0) - 97;
-      const toR = 8 - parseInt(toSq[1], 10);
-
-      const fromVisCol = isFlipped ? 7 - fromC : fromC;
-      const fromVisRow = isFlipped ? 7 - fromR : fromR;
-      const toVisCol = isFlipped ? 7 - toC : toC;
-      const toVisRow = isFlipped ? 7 - toR : toR;
-
-      return {
-        dx: (fromVisCol - toVisCol) * 100,
-        dy: (fromVisRow - toVisRow) * 100,
-      };
+    return () => {
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
     };
-
-    const movesToAnimate: { square: Square; dx: number; dy: number }[] = [];
-
-    if (isForward) {
-      const d = calcDeltas(m.from, m.to);
-      movesToAnimate.push({ square: m.to as Square, dx: d.dx, dy: d.dy });
-
-      // Castling secondary piece (Rook)
-      const isKingMove = m.piece?.toLowerCase() === 'k';
-      if (isKingMove) {
-        if (m.from === 'e1' && m.to === 'g1') {
-          const rd = calcDeltas('h1', 'f1');
-          movesToAnimate.push({ square: 'f1', dx: rd.dx, dy: rd.dy });
-        } else if (m.from === 'e1' && m.to === 'c1') {
-          const rd = calcDeltas('a1', 'd1');
-          movesToAnimate.push({ square: 'd1', dx: rd.dx, dy: rd.dy });
-        } else if (m.from === 'e8' && m.to === 'g8') {
-          const rd = calcDeltas('h8', 'f8');
-          movesToAnimate.push({ square: 'f8', dx: rd.dx, dy: rd.dy });
-        } else if (m.from === 'e8' && m.to === 'c8') {
-          const rd = calcDeltas('a8', 'd8');
-          movesToAnimate.push({ square: 'd8', dx: rd.dx, dy: rd.dy });
-        }
-      }
-    } else {
-      // Backward: piece returned to m.from
-      const d = calcDeltas(m.to, m.from);
-      movesToAnimate.push({ square: m.from as Square, dx: d.dx, dy: d.dy });
-
-      // Castling undo (Rook returns to corner)
-      const isKingMove = m.piece?.toLowerCase() === 'k';
-      if (isKingMove) {
-        if (m.from === 'e1' && m.to === 'g1') {
-          const rd = calcDeltas('f1', 'h1');
-          movesToAnimate.push({ square: 'h1', dx: rd.dx, dy: rd.dy });
-        } else if (m.from === 'e1' && m.to === 'c1') {
-          const rd = calcDeltas('d1', 'a1');
-          movesToAnimate.push({ square: 'a1', dx: rd.dx, dy: rd.dy });
-        } else if (m.from === 'e8' && m.to === 'g8') {
-          const rd = calcDeltas('f8', 'h8');
-          movesToAnimate.push({ square: 'h8', dx: rd.dx, dy: rd.dy });
-        } else if (m.from === 'e8' && m.to === 'c8') {
-          const rd = calcDeltas('d8', 'a8');
-          movesToAnimate.push({ square: 'a8', dx: rd.dx, dy: rd.dy });
-        }
-      }
-    }
-
-    setAnimatingMove({
-      moves: movesToAnimate,
-      animKey: `${currentPlyIndex}-${Date.now()}`,
-    });
-
-    const timer = setTimeout(() => {
-      setAnimatingMove(null);
-    }, 220);
-
-    return () => clearTimeout(timer);
-  }, [currentPlyIndex, moveHistory, isFlipped]);
+  }, []);
 
   // Captured pieces and material advantage (Chess.com style)
   const capturedPieces = useMemo(() => {
@@ -3074,7 +3076,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (movesScrollRef.current && currentPlyIndex >= 0) {
       const activeBtn = movesScrollRef.current.querySelector('.move-btn.active');
       if (activeBtn) {
-        activeBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        activeBtn.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     }
   }, [currentPlyIndex]);
@@ -3084,7 +3086,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (reviewMovesScrollRef.current && currentPlyIndex >= 0) {
       const activeBtn = reviewMovesScrollRef.current.querySelector('.review-move-pill.active');
       if (activeBtn) {
-        activeBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        activeBtn.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     }
   }, [currentPlyIndex, isReviewActive]);
@@ -4198,7 +4200,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                               const anim = animatingMove?.moves.find((am) => am.square === squareName);
                               return (
                                 <div
-                                  key={anim ? `slide-${squareName}-${animatingMove?.animKey}` : `static-${squareName}-${piece}`}
                                   className={`piece-container ${anim ? 'piece-sliding' : ''}`}
                                   style={
                                     anim

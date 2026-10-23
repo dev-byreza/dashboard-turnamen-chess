@@ -173,16 +173,17 @@ class ChessAudioManager {
         this.audioCache.set(url, audio);
       }
 
-      // Clone audio instance to support rapid and uninterrupted autoplay
-      const clone = audio.cloneNode(true) as HTMLAudioElement;
-      clone.volume = 0.9;
-      const playPromise = clone.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          // Fallback to original audio element
+      if (audio.paused) {
+        audio.currentTime = 0;
+        audio.volume = 0.9;
+        audio.play().catch(() => {});
+      } else {
+        audio.currentTime = 0;
+        audio.play().catch(() => {
           try {
-            audio.currentTime = 0;
-            audio.play().catch(() => {});
+            const clone = audio.cloneNode(true) as HTMLAudioElement;
+            clone.volume = 0.9;
+            clone.play().catch(() => {});
           } catch {
             // Audio playback failed
           }

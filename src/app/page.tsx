@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { Player, SwissMatch, TournamentFormData, TournamentStore } from '../types/chess';
 import {
   createEmptyStore,
@@ -596,15 +597,14 @@ export default function SwissTournamentPage() {
                   <span>Mekanisme</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsAnalysisModalOpen(true)}
+                <Link
+                  href="/analisis"
                   className="btn-glass-secondary"
-                  title="Buka papan analisis catur & Stockfish 19 Lite"
+                  title="Buka papan analisis catur & Stockfish 19"
                 >
                   <Sparkles size={15} style={{ color: '#81b64c' }} />
                   <span>Analisis</span>
-                </button>
+                </Link>
 
                 <button
                   onClick={() => setIsTimerOpen(true)}
@@ -647,15 +647,14 @@ export default function SwissTournamentPage() {
                   <span>Mekanisme</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsAnalysisModalOpen(true)}
+                <Link
+                  href="/analisis"
                   className="btn-glass-secondary"
-                  title="Buka papan analisis catur & Stockfish 19 Lite"
+                  title="Buka papan analisis catur & Stockfish 19"
                 >
                   <Sparkles size={15} style={{ color: '#81b64c' }} />
                   <span>Analisis</span>
-                </button>
+                </Link>
 
                 <button
                   onClick={() => setIsTimerOpen(true)}
