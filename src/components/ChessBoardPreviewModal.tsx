@@ -3800,6 +3800,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         const showBadgeOnSquare =
                           isLastMoveTo && currentMoveItem?.classification;
 
+                        const isVisualRightEdge = isFlipped ? c === 0 : c === 7;
+                        const isVisualTopEdge = isFlipped ? r === 7 : r === 0;
+                        const badgeEdgeClass = `${isVisualRightEdge ? 'edge-right' : ''} ${isVisualTopEdge ? 'edge-top' : ''}`.trim();
+
                         const isBestMoveFrom = showBestMove && bestMoveInfo?.from === squareName;
                         const isBestMoveTo = shouldShowBestArrow && bestMoveInfo?.to === squareName;
                         const isBestMoveSq = isBestMoveFrom || isBestMoveTo;
@@ -3862,7 +3866,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                             {/* Floating Classification Badge on Moved Piece Square */}
                             {showBadgeOnSquare && currentMoveItem.classification && (
                               <div
-                                className="board-classification-badge-overlay"
+                                className={`board-classification-badge-overlay ${badgeEdgeClass}`.trim()}
                                 title={`${currentMoveItem.feedbackTitle}: ${currentMoveItem.san}`}
                               >
                                 <ChessComBadgeIcon
