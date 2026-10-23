@@ -29,8 +29,7 @@ export type MoveClassification =
   | 'Inaccuracy'
   | 'Mistake'
   | 'Miss'
-  | 'Blunder'
-  | 'Forced';
+  | 'Blunder';
 
 export interface EngineLine {
   multipv: number;
@@ -317,10 +316,10 @@ export function classifyChessMove(params: ClassifyMoveParams): {
 
   const isSacrifice = detectPieceSacrifice(fenBefore, playedUci);
 
-  // 1. FORCED MOVE (Hanya ada 1 langkah legal)
+  // 1. FORCED MOVE (Hanya ada 1 langkah legal -> Best Move)
   if (legalMovesCount === 1) {
     return {
-      classification: 'Forced',
+      classification: 'Best',
       isSacrifice: false,
       winProbBefore,
       winProbAfter,

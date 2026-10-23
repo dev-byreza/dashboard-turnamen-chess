@@ -93,7 +93,6 @@ export type ChessComBadgeType =
   | 'mistake'
   | 'miss'
   | 'blunder'
-  | 'forced'
   | 'missed_win';
 
 export const REVIEW_CLASSIFICATIONS: {
@@ -161,12 +160,6 @@ export const REVIEW_CLASSIFICATIONS: {
     label: 'Blunder',
     color: '#ca3431',
     details: 'Kesalahan fatal yang mengubah jalannya permainan secara drastis (membuang evaluasi di atas 2-3 pion / drop ≥30%).',
-  },
-  {
-    type: 'forced',
-    label: 'Forced',
-    color: '#888888',
-    details: 'Satu-satunya langkah legal yang dapat dimainkan pada posisi ini (misalnya keluar dari skak).',
   },
 ];
 
@@ -332,13 +325,6 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
           >
             ??
           </text>
-        </svg>
-      );
-    case 'forced':
-      return (
-        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
-          <circle cx="12" cy="12" r="11" fill="#78716c" />
-          <circle cx="12" cy="12" r="4" fill="#ffffff" />
         </svg>
       );
   }
@@ -2586,7 +2572,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       mistake: { w: 0, b: 0 },
       miss: { w: 0, b: 0 },
       blunder: { w: 0, b: 0 },
-      forced: { w: 0, b: 0 },
       missed_win: { w: 0, b: 0 },
     };
 
@@ -2678,7 +2663,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       mistake: 25,
       miss: 15,
       blunder: 5,
-      forced: 100,
       missed_win: 15,
     };
 
@@ -2706,7 +2690,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         const winProbBefore = getWinProbability(moverCp, moverMate ?? null);
         const winProbAfter = getWinProbability(moverCpAfter, moverMateAfter ?? null);
         const winProbLost = Math.max(0, winProbBefore - winProbAfter);
-        const accuracy = calculateMoveAccuracy(winProbLost, m.classification === 'book' || m.classification === 'forced');
+        const accuracy = calculateMoveAccuracy(winProbLost, m.classification === 'book');
         return { winProbBefore, accuracy, classification: m.classification || 'Good' };
       });
 
@@ -2723,7 +2707,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         const winProbBefore = getWinProbability(moverCp, moverMate ?? null);
         const winProbAfter = getWinProbability(moverCpAfter, moverMateAfter ?? null);
         const winProbLost = Math.max(0, winProbBefore - winProbAfter);
-        const accuracy = calculateMoveAccuracy(winProbLost, m.classification === 'book' || m.classification === 'forced');
+        const accuracy = calculateMoveAccuracy(winProbLost, m.classification === 'book');
         return { winProbBefore, accuracy, classification: m.classification || 'Good' };
       });
 

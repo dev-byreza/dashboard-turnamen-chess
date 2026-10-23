@@ -54,8 +54,7 @@ export type ReviewLabel =
   | 'inaccuracy'
   | 'mistake'
   | 'miss'
-  | 'blunder'
-  | 'forced';
+  | 'blunder';
 
 export interface ReviewedMove {
   label: ReviewLabel;
@@ -539,10 +538,12 @@ function classifyCore(
 
   const legalMoves = legalMoveCount(before.fen);
 
-  // 1. FORCED MOVE (⚪)
-  // Hanya ada 1 langkah legal pada posisi before
+  if (m.san.includes('#')) return { ...base, label: 'best' };
+
+  // 1. FORCED MOVE
+  // Hanya ada 1 langkah legal pada posisi before -> diklasifikasikan sebagai Best Move (★)
   if (legalMoves <= 1) {
-    return { ...base, loss: 0, accuracy: 100, label: 'forced' };
+    return { ...base, loss: 0, accuracy: 100, label: 'best' };
   }
 
   // 2. BOOK MOVE (📖)
@@ -678,7 +679,6 @@ export const LABEL_TITLE: Record<ReviewLabel, string> = {
   mistake: 'Mistake ? (Kesalahan)',
   miss: 'Miss ✖ (Melewatkan Peluang)',
   blunder: 'Blunder ?? (Kesalahan Fatal)',
-  forced: 'Forced Move ⚪ (Langkah Tunggal Paksaan)',
 };
 
 export function describeMoveTactics(m: string | {
@@ -759,7 +759,5 @@ export function describeReview(
       return `${san} - Melewatkan Peluang ✖ Melewatkan kesempatan taktis untuk menghukum lawan (-${drop}%). ${ev}${best}`;
     case 'blunder':
       return `${san} - Blunder Fatal ?? Mengubah jalannya permainan secara drastis (-${drop}%). ${ev}${best}`;
-    case 'forced':
-      return `${san} - Langkah Paksaan ⚪ Satu-satunya langkah legal yang dapat dimainkan pada posisi ini. ${tactics} ${ev}`;
   }
 }
