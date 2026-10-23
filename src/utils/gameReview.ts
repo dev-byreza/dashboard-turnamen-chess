@@ -117,14 +117,15 @@ import { getStockfishEngine } from './stockfishEngine';
 export async function fetchPositionScore(
   fen: string,
   depth: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  fresh = false
 ): Promise<PositionScore | null> {
   // Pure Stockfish 19 Lite engine evaluation via API route
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(
-      `/api/stockfish?fen=${encodeURIComponent(fen)}&depth=${depth}&multipv=3`,
+      `/api/stockfish?fen=${encodeURIComponent(fen)}&depth=${depth}&multipv=3${fresh ? '&fresh=1' : ''}`,
       { signal: signal || controller.signal }
     );
     clearTimeout(timeout);

@@ -1146,6 +1146,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   isAdmin = false,
 }) => {
   const [isAnalysisPendingAdmin, setIsAnalysisPendingAdmin] = useState(false);
+  const forceFreshRef = useRef(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copiedFen, setCopiedFen] = useState(false);
@@ -1210,6 +1211,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setScoreMap({});
     setAnalysisProgress({ done: 0, total: 0 });
     setIsAnalysisPendingAdmin(false);
+    forceFreshRef.current = true;
     setAnalysisNonce((prev) => prev + 1);
   }, [match, recentGame, fenKey, reviewDepth]);
 
@@ -1264,8 +1266,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
     // Single source of truth workflow
     (async () => {
+      // Re-analyze: lewati semua sumber tersimpan & cache server, hitung ulang murni dari Stockfish
+      const fresh = forceFreshRef.current;
+
       // 1. Cek Sumber Resmi 1: match.chessComAnalysis yang tersimpan di record turnamen (PostgreSQL)
-      if (match?.chessComAnalysis && isQualityAnalysis(match.chessComAnalysis, uniqueFens.length)) {
+      if (!fresh && match?.chessComAnalysis && isQualityAnalysis(match.chessComAnalysis, uniqueFens.length)) {
         const parsed = match.chessComAnalysis as Record<string, PositionScore>;
         uniqueFens.forEach((f) => {
           scoreCacheRef.current.set(`${reviewDepth}|${f}`, parsed[f]);
@@ -1277,7 +1282,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       // 2. Cek Sumber Resmi 2: Central API /api/analysis (PostgreSQL chess_analysis_cache & server memory)
-      if (match?.id) {
+      if (!fresh && match?.id) {
         try {
           const res = await fetch(`/api/analysis?key=match_${match.id}_analysis`, { signal: ctrl.signal });
           if (res.ok) {
@@ -1298,7 +1303,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       // 3. Cek localStorage backup cache
-      if (typeof window !== 'undefined') {
+      if (!fresh && typeof window !== 'undefined') {
         try {
           const stored = localStorage.getItem(storageKey);
           if (stored) {
@@ -1357,11 +1362,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       for (const f of uniqueFens) {
         if (cancelled) return;
         if (accumulated[f]) continue;
-        let s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
+        let s = await fetchPositionScore(f, reviewDepth, ctrl.signal, fresh);
         if (!s && !cancelled) {
           await new Promise((r) => setTimeout(r, 600));
           if (!cancelled) {
-            s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
+            s = await fetchPositionScore(f, reviewDepth, ctrl.signal, fresh);
           }
         }
         if (cancelled) return;
@@ -1376,6 +1381,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
       if (!cancelled) {
         setScoreMap(accumulated);
+        // Reset SEBELUM publish: onSaveAnalysis mengubah match.chessComAnalysis dan memicu efek ini lagi
+        forceFreshRef.current = false;
         if (match?.id) {
           // Simpan ke 1 sumber resmi (central PostgreSQL database via /api/analysis)
           fetch('/api/analysis', {

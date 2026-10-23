@@ -288,9 +288,9 @@ async function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv
   });
 }
 
-async function evaluateCached(cleanFen: string, depth: number, multipv = 3) {
+async function evaluateCached(cleanFen: string, depth: number, multipv = 3, fresh = false) {
   const cacheKey = `${cleanFen}_d${depth}_m${multipv}`;
-  if (evalCache.has(cacheKey)) return evalCache.get(cacheKey);
+  if (!fresh && evalCache.has(cacheKey)) return evalCache.get(cacheKey);
   const result = await enqueue(() => evaluateWithStockfish19Lite(cleanFen, depth, multipv));
   if (result.reachedTarget) evalCache.set(cacheKey, result);
   return result;
@@ -307,7 +307,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const mpv = parseInt(searchParams.get('multipv') || '3', 10);
-    return NextResponse.json(await evaluateCached(fen.trim(), depth, mpv));
+    const fresh = searchParams.get('fresh') === '1';
+    return NextResponse.json(await evaluateCached(fen.trim(), depth, mpv, fresh));
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
