@@ -3,7 +3,7 @@
  * live eval bar, and move quality is derived from the real change in win probability
  * (the same idea Chess.com uses), instead of any heuristic / pseudo-random labelling.
  */
-import { Chess } from 'chess.js';
+import { Chess, Square, PieceSymbol, Color } from 'chess.js';
 import { centipawnsToWinChance } from './stockfishEngine';
 import { isBookPosition } from './openingBook';
 
@@ -184,41 +184,206 @@ export async function fetchPositionScore(
   return null;
 }
 
-const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+// Nilai standar materi (dalam satuan poin pion)
+export const PIECE_VALUES: Record<PieceSymbol, number> = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  k: 99, // Raja memiliki nilai tak terhingga dalam pertukaran
+};
 
-/**
- * Static exchange evaluation on one square: best net material gain (>= 0, side may
- * stand pat) for the side to move, always capturing with the least valuable attacker.
- */
-function see(chess: Chess, square: string, depth = 0): number {
-  if (depth > 12) return 0;
-  const caps = chess
-    .moves({ verbose: true })
-    .filter((mv) => mv.to === square && mv.captured)
-    .sort((a, b) => PIECE_VALUE[a.piece] - PIECE_VALUE[b.piece]);
-  if (caps.length === 0) return 0;
-  const mv = caps[0];
-  chess.move(mv);
-  const gain = PIECE_VALUE[mv.captured as string] - see(chess, square, depth + 1);
-  chess.undo();
-  return Math.max(0, gain);
+export interface EngineLine {
+  moveUci: string; // Contoh: "f3g5"
+  cp?: number;
+  mate?: number;
+}
+
+export interface BrilliantCheckInput {
+  fenBefore: string;       // FEN papan SEBELUM pemain melangkah
+  playedMoveUci: string;   // Langkah pemain dalam format UCI (misal: "b2b4" atau "e7e8q")
+  pv1: EngineLine;         // Langkah terbaik #1 dari Stockfish (MultiPV 1)
+  pv2?: EngineLine;        // Langkah terbaik #2 dari Stockfish (MultiPV 2)
+  playedEP: number;        // Expected Points (0.0 - 1.0) setelah langkah dimainkan
 }
 
 /**
- * Real sacrifice: after the exchange sequence on the destination square the mover
- * ends up at least 2 pawns of material down (a protected piece that trades evenly
- * is NOT a sacrifice).
+ * Konversi Centipawn / Mate ke Expected Points (0.00 - 1.00)
  */
-function isSacrifice(fenAfter: string, to: string, piece: string, captured?: string): boolean {
+export function evalToEP(cp?: number, mate?: number): number {
+  if (mate !== undefined) return mate > 0 ? 1.0 : 0.0;
+  if (cp === undefined) return 0.5;
+  const clamped = Math.max(-1000, Math.min(1000, cp));
+  return 1 / (1 + Math.exp(-0.00368208 * clamped));
+}
+
+export const evalToExpectedPoints = evalToEP;
+
+/**
+ * Menghitung Static Exchange Evaluation (SEE) pada satu petak spesifik
+ * dari sudut pandang pemain yang BARU SAJA giliran jalan di state papan saat ini.
+ * Mengembalikan berapa poin yang bisa dimenangkan oleh pemain yang sedang giliran jalan (side to move)
+ * jika dia memutuskan untuk memakan bidak di `targetSquare`.
+ */
+function calculateCaptureGainOnSquare(chess: Chess, targetSquare: Square, depth = 0): number {
+  if (depth > 12) return 0;
+  // Cari semua langkah legal yang bisa memakan ke targetSquare
+  const legalCaptures = chess
+    .moves({ verbose: true })
+    .filter((m) => m.to === targetSquare);
+
+  if (legalCaptures.length === 0) {
+    return 0; // Tidak ada yang bisa memakan ke petak ini
+  }
+
+  // Pilih penangkap dengan nilai paling kecil (Least Valuable Attacker - LVA)
+  legalCaptures.sort((a, b) => PIECE_VALUES[a.piece] - PIECE_VALUES[b.piece]);
+  const lvaMove = legalCaptures[0];
+
+  const capturedPieceValue = lvaMove.captured ? PIECE_VALUES[lvaMove.captured] : 0;
+
+  // Eksekusi tangkapan di papan simulasi
+  chess.move(lvaMove);
+
+  // Rekursif: Lawan bisa memilih untuk memakan balik (jika menguntungkan) atau berhenti (Math.max(0, ...))
+  const opponentCounterGain = calculateCaptureGainOnSquare(chess, targetSquare, depth + 1);
+
+  // Kembalikan state papan
+  chess.undo();
+
+  // Pihak yang memakan bisa memilih untuk TIDAK memakan jika hasilnya rugi (< 0)
+  return Math.max(0, capturedPieceValue - opponentCounterGain);
+}
+
+/**
+ * Mengecek apakah terdapat pengorbanan materi (Direct Sacrifice maupun Passive/Hanging Sacrifice)
+ */
+export function isMaterialSacrifice(fenBefore: string, playedMoveUci: string): {
+  isSacrifice: boolean;
+  netMaterialLost: number;
+  sacrificeType: 'DIRECT_SEE' | 'PASSIVE_HANGING' | 'NONE';
+} {
+  let board: Chess;
   try {
-    if (piece === 'p' || piece === 'k') return false;
-    const c = new Chess(fenAfter); // opponent to move
-    const oppGain = see(c, to);
-    const moverNet = (captured ? PIECE_VALUE[captured] : 0) - oppGain;
-    return moverNet <= -2;
+    board = new Chess(fenBefore);
   } catch {
+    return { isSacrifice: false, netMaterialLost: 0, sacrificeType: 'NONE' };
+  }
+  const playerColor: Color = board.turn();
+
+  const from = playedMoveUci.slice(0, 2) as Square;
+  const to = playedMoveUci.slice(2, 4) as Square;
+  const promotion = (playedMoveUci.length > 4 ? playedMoveUci[4] : undefined) as PieceSymbol | undefined;
+
+  let moveObj;
+  try {
+    moveObj = board.move({ from, to, promotion });
+  } catch {
+    return { isSacrifice: false, netMaterialLost: 0, sacrificeType: 'NONE' };
+  }
+  if (!moveObj) {
+    return { isSacrifice: false, netMaterialLost: 0, sacrificeType: 'NONE' };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1. CEK DIRECT SACRIFICE (Pengorbanan di petak tujuan langkah baru)
+  // ---------------------------------------------------------------------------
+  const initialGain = moveObj.captured ? PIECE_VALUES[moveObj.captured] : 0;
+  // Jika langkah promosi, nilai bidak di petak tujuan adalah bidak promosi
+  const movedPieceValue = moveObj.promotion
+    ? PIECE_VALUES[moveObj.promotion]
+    : PIECE_VALUES[moveObj.piece];
+
+  // Hanya perwira (Kuda, Gajah, Benteng, Menteri) yang dihitung sebagai pengorbanan Brilliant
+  if (movedPieceValue >= 3) {
+    // Berapa keuntungan bersih lawan jika lawan memakan bidak kita yang baru saja pindah ke petak `to`?
+    const opponentGainOnTarget = calculateCaptureGainOnSquare(board, to);
+    const netDirectSEE = initialGain - opponentGainOnTarget;
+
+    // Jika kita rugi bersih >= 2 poin (misal: Kuda gratis = -3, Benteng tukar Gajah = -2)
+    if (netDirectSEE <= -2) {
+      return {
+        isSacrifice: true,
+        netMaterialLost: Math.abs(netDirectSEE),
+        sacrificeType: 'DIRECT_SEE',
+      };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. CEK PASSIVE SACRIFICE (Meninggalkan perwira lain tergantung / En Prise)
+  // ---------------------------------------------------------------------------
+  // Cari semua petak yang berisi perwira milik pemain (selain pion dan raja, dan selain petak `to`)
+  let maxHangingLoss = 0;
+  const boardArray = board.board();
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const cell = boardArray[r][c];
+      if (
+        cell &&
+        cell.color === playerColor &&
+        cell.square !== to &&
+        PIECE_VALUES[cell.type] >= 3 &&
+        cell.type !== 'k'
+      ) {
+        // Berapa keuntungan bersih lawan jika lawan memakan perwira kita di petak ini?
+        const opponentGainOnHanging = calculateCaptureGainOnSquare(board, cell.square);
+        // Kurangi dengan keuntungan yang baru saja kita dapat di langkah `moveObj` (misal kita baru saja makan Menteri lawan)
+        const netPassiveLoss = opponentGainOnHanging - initialGain;
+
+        if (netPassiveLoss > maxHangingLoss) {
+          maxHangingLoss = netPassiveLoss;
+        }
+      }
+    }
+  }
+
+  if (maxHangingLoss >= 2) {
+    return {
+      isSacrifice: true,
+      netMaterialLost: maxHangingLoss,
+      sacrificeType: 'PASSIVE_HANGING',
+    };
+  }
+
+  return { isSacrifice: false, netMaterialLost: 0, sacrificeType: 'NONE' };
+}
+
+/**
+ * FUNGSI UTAMA: Menentukan apakah langkah berhak mendapat label BRILLIANT (!!)
+ */
+export function isBrilliantMove(input: BrilliantCheckInput): boolean {
+  const { fenBefore, playedMoveUci, pv1, pv2, playedEP } = input;
+
+  const ep1 = evalToEP(pv1.cp, pv1.mate);
+  const ep2 = pv2 ? evalToEP(pv2.cp, pv2.mate) : 0;
+  const epLoss = Math.max(0, ep1 - playedEP);
+
+  // GERBANG 1: Harus merupakan Best Move (atau selisih EP <= 1.5%)
+  const isTopEngineChoice = playedMoveUci === pv1.moveUci || epLoss <= 0.015;
+  if (!isTopEngineChoice) return false;
+
+  // GERBANG 2: Posisi setelah pengorbanan tidak boleh kalah (EP >= 0.45 / setara minimal -0.35 cp)
+  if (playedEP < 0.45) return false;
+
+  // GERBANG 3: Filter posisi yang sudah menang telak (Already Completely Winning)
+  // Jika EP1 > 92% DAN langkah alternatif kedua (EP2) juga masih menang mudah (> 82%),
+  // maka pengorbanan tersebut hanya "pamer" di posisi menang, bukan Brilliant krusial.
+  if (ep1 > 0.92 && ep2 > 0.82 && pv1.mate === undefined) {
     return false;
   }
+
+  // GERBANG 4: Pengecekan Pengorbanan Materi menggunakan SEE + Hanging Piece Check
+  const sacResult = isMaterialSacrifice(fenBefore, playedMoveUci);
+  if (!sacResult.isSacrifice) {
+    return false;
+  }
+
+  // GERBANG 5: Pastikan bukan kondisi "terpaksa buang perwira karena semua perwira terjebak"
+  // Jika langkah hanya mempertahankan posisi yang sudah jatuh bebas, kita pastikan EP tetap kompetitif
+  return true;
 }
 
 function legalMoveCount(fen: string): number {
@@ -229,12 +394,6 @@ function legalMoveCount(fen: string): number {
   }
 }
 
-export interface EngineLine {
-  moveUci: string;      // Contoh: "e2e4", "g1f3"
-  cp?: number;          // Skor Centipawn dari sudut pandang pemain yang melangkah
-  mate?: number;        // Mate in X (positif jika pemain menang, negatif jika kena mat)
-}
-
 export interface GreatMoveContext {
   playedMoveUci: string;
   legalMovesCount: number;
@@ -243,22 +402,6 @@ export interface GreatMoveContext {
   pv2?: EngineLine;           // Langkah terbaik #2 dari Stockfish sebelum melangkah
   prevPlayerEP: number;       // Expected Points pemain pada 1 langkah sebelumnya (sebelum lawan jalan)
   playedEP: number;           // Expected Points setelah langkah pemain dieksekusi
-}
-
-/**
- * Mengonversi evaluasi Centipawn / Mate menjadi Expected Points (0.00 - 1.00)
- */
-export function evalToExpectedPoints(cp?: number, mate?: number): number {
-  if (mate !== undefined) {
-    if (mate > 0) return 1.0;
-    if (mate < 0) return 0.0;
-  }
-  if (cp === undefined) return 0.5;
-  
-  // Clamp centipawn di antara -1000 dan 1000
-  const clampedCp = Math.max(-1000, Math.min(1000, cp));
-  // Rumus kurva logistik Lichess/Chess.com (skala 0.0 - 1.0)
-  return 1 / (1 + Math.exp(-0.00368208 * clampedCp));
 }
 
 /**
@@ -374,54 +517,54 @@ function classifyCore(
       ));
   if (isOpeningBook) return { ...base, loss: 0, label: 'book' };
 
-  if (loss <= 2) {
-    // ==========================================
-    // 2. BRILLIANT MOVE (!!)
-    // Pengorbanan materi perwira yang brilian dengan 4 syarat mutlak:
-    // a. Pengorbanan materi nyata (SEE <= -2 pawns)
-    // b. Pilihan teratas / nearly best Stockfish (loss <= 1.5)
-    // c. Posisi tidak kalah setelah pengorbanan (wa >= 48 / seimbang atau unggul)
-    // d. Bukan posisi yang sudah menang telak sebelumnya (wb < 85 / < +7.0)
-    // e. Bukan langkah paksaan & bukan sekadar recapture
-    // ==========================================
-    const isRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured;
-    if (
-      wb < 85 &&
-      wa >= 48 &&
-      !isRecapture &&
-      legalMoveCount(before.fen) > 1 &&
-      isSacrifice(m.fen, m.to, m.piece, m.captured)
-    ) {
+  const moverCp = (cpVal?: number) => (typeof cpVal === 'number' ? (m.color === 'w' ? cpVal : -cpVal) : undefined);
+  const moverMate = (mateVal?: number) => (typeof mateVal === 'number' ? (m.color === 'w' ? mateVal : -mateVal) : undefined);
+
+  const pv1: EngineLine = {
+    moveUci: before.bestUci || (before.lines?.[0]?.uci ?? playedUci),
+    cp: moverCp(before.cp),
+    mate: moverMate(before.mate),
+  };
+
+  const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
+  const pv2: EngineLine | undefined = secondLine
+    ? {
+        moveUci: secondLine.uci,
+        cp: moverCp(secondLine.cp),
+        mate: moverMate(secondLine.mate),
+      }
+    : undefined;
+
+  const prevPlayerEP = evalToEP(moverCp(before.cp), moverMate(before.mate));
+  const playedEP = evalToEP(moverCp(after.cp), moverMate(after.mate));
+
+  // ==========================================
+  // 2. BRILLIANT MOVE (!!)
+  // Pengorbanan materi perwira yang brilian (SEE + Passive Hanging Sacrifice)
+  // Sesuai standar Chess.com & Stockfish MultiPV
+  // ==========================================
+  const isRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured;
+  if (!isRecapture && legalMoveCount(before.fen) > 1) {
+    const brilliant = isBrilliantMove({
+      fenBefore: before.fen,
+      playedMoveUci: playedUci,
+      pv1,
+      pv2,
+      playedEP,
+    });
+
+    if (brilliant) {
       return { ...base, label: 'brilliant' };
     }
+  }
 
+  if (loss <= 2) {
     // ==========================================
     // 3. GREAT MOVE (!)
     // Menggunakan fungsi isGreatMove (The Only Move, Game Changer, & Skakmat Paksa Krusial)
     // ==========================================
     const isDirectEqualRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured && m.piece === prevMove.captured;
     const isNotOpening = m.ply > 8;
-
-    const moverCp = (cpVal?: number) => (typeof cpVal === 'number' ? (m.color === 'w' ? cpVal : -cpVal) : undefined);
-    const moverMate = (mateVal?: number) => (typeof mateVal === 'number' ? (m.color === 'w' ? mateVal : -mateVal) : undefined);
-
-    const pv1: EngineLine = {
-      moveUci: before.bestUci || (before.lines?.[0]?.uci ?? playedUci),
-      cp: moverCp(before.cp),
-      mate: moverMate(before.mate),
-    };
-
-    const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
-    const pv2: EngineLine | undefined = secondLine
-      ? {
-          moveUci: secondLine.uci,
-          cp: moverCp(secondLine.cp),
-          mate: moverMate(secondLine.mate),
-        }
-      : undefined;
-
-    const prevPlayerEP = evalToExpectedPoints(moverCp(before.cp), moverMate(before.mate));
-    const playedEP = evalToExpectedPoints(moverCp(after.cp), moverMate(after.mate));
 
     if (isNotOpening && pv2) {
       const great = isGreatMove({
