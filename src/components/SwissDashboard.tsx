@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Player, SwissMatch, MatchResult, SwissPairingOverride } from '../types/chess';
 import {
   calculateSwissStandings,
@@ -39,6 +39,7 @@ import { ChessBoardPreviewModal } from './ChessBoardPreviewModal';
 import { TournamentStatistics } from './TournamentStatistics';
 import { TournamentRulesModal } from './TournamentRulesModal';
 import { getPlayerBadge } from '../utils/eloRating';
+import { PositionScore } from '../utils/gameReview';
 
 interface SwissDashboardProps {
   players: Player[];
@@ -161,6 +162,19 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
     whitePlayer?: Player | null;
     blackPlayer?: Player | null;
   } | null>(null);
+
+  const handleCloseBoardPreview = useCallback(() => {
+    setBoardPreviewData(null);
+  }, []);
+
+  const handleSaveAnalysis = useCallback(
+    (matchId: string, analysis: Record<string, PositionScore>) => {
+      onUpdateMatches(
+        matches.map((m) => (m.id === matchId ? { ...m, chessComAnalysis: analysis } : m))
+      );
+    },
+    [matches, onUpdateMatches]
+  );
 
   // Sync avatar to player when fetched from Chess.com
   const handleAvatarSync = (username: string, avatarUrl: string) => {
@@ -353,43 +367,6 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
       );
       onUpdateMatches(updated);
 
-      // Otomatis simpan analisis match ke server database agar user lain langsung dapat hasil instan
-      if (recentGame.pgn) {
-        const storageKey = `chesscom_review_match_${match.id}_d14`;
-        fetch('/api/analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key: storageKey,
-            pgn: recentGame.pgn,
-            depth: 14,
-          }),
-        })
-          .then((res) => res.json())
-          .then((jsonRes) => {
-            if (jsonRes?.success && jsonRes?.data) {
-              const withAnalysis: SwissMatch = {
-                ...updatedMatchData,
-                chessComAnalysis: jsonRes.data,
-              };
-              onUpdateMatches(matches.map((m) => (m.id === match.id ? withAnalysis : m)));
-            }
-          })
-          .catch(() => {});
-
-        if (recentGame.url) {
-          const gameKey = `chesscom_review_game_${recentGame.url.replace(/[^a-zA-Z0-9]/g, '_')}_d14`;
-          fetch('/api/analysis', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              key: gameKey,
-              pgn: recentGame.pgn,
-              depth: 14,
-            }),
-          }).catch(() => {});
-        }
-      }
 
       setMatchSyncMessage({
         matchId: match.id,
@@ -1387,8 +1364,8 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
         match={boardPreviewData?.match || null}
         recentGame={boardPreviewData?.recentGame || null}
         whitePlayer={boardPreviewData?.whitePlayer || null}
-        blackPlayer={boardPreviewData?.blackPlayer || null}
-        onClose={() => setBoardPreviewData(null)}
+        onClose={handleCloseBoardPreview}
+        onSaveAnalysis={handleSaveAnalysis}
       />
 
       {/* Tournament Rules Modal (Fallback jika onOpenRules tidak disediakan dari luar) */}

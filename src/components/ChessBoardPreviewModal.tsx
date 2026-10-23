@@ -74,6 +74,7 @@ export interface ChessBoardPreviewModalProps {
   whitePlayer?: Player | null;
   blackPlayer?: Player | null;
   onClose: () => void;
+  onSaveAnalysis?: (matchId: string, analysis: Record<string, PositionScore>) => void;
 }
 
 export type ChessComBadgeType =
@@ -1128,6 +1129,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   whitePlayer,
   blackPlayer,
   onClose,
+  onSaveAnalysis,
 }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1202,11 +1204,25 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const uniqueFens = Array.from(new Set(fens));
     const storageKey = getGameStorageKey(match, recentGame, fenKey, reviewDepth);
 
+    const isQualityAnalysis = (
+      scores: Record<string, PositionScore> | null | undefined,
+      expectedCount: number
+    ): boolean => {
+      if (!scores || typeof scores !== 'object') return false;
+      const entries = Object.entries(scores);
+      if (entries.length < Math.max(2, expectedCount - 2)) return false;
+      // Make sure it contains real Stockfish engine calculations (best moves or candidate lines)
+      return entries.some(
+        ([f, s]) =>
+          f !== START_FEN &&
+          (!!s.bestSan || !!s.bestUci || (Array.isArray(s.lines) && s.lines.length > 0))
+      );
+    };
+
     // 1. Cek langsung dari data match yang sudah tersimpan di database turnamen
     if (match?.chessComAnalysis && typeof match.chessComAnalysis === 'object') {
       const matchStored = match.chessComAnalysis as Record<string, PositionScore>;
-      const hasMost = Object.keys(matchStored).length > 0;
-      if (hasMost) {
+      if (isQualityAnalysis(matchStored, uniqueFens.length)) {
         uniqueFens.forEach((f) => {
           if (matchStored[f]) scoreCacheRef.current.set(`${reviewDepth}|${f}`, matchStored[f]);
         });
@@ -1227,14 +1243,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         const stored = localStorage.getItem(storageKey);
         if (stored) {
           const parsed = JSON.parse(stored) as Record<string, PositionScore>;
-          const hasAll = uniqueFens.every((f) => !!parsed[f]);
-          if (hasAll) {
+          if (isQualityAnalysis(parsed, uniqueFens.length)) {
             uniqueFens.forEach((f) => {
               scoreCacheRef.current.set(`${reviewDepth}|${f}`, parsed[f]);
             });
             setScoreMap(parsed);
             setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
             return;
+          } else {
+            localStorage.removeItem(storageKey);
           }
         }
       } catch {
@@ -1289,8 +1306,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           const json = await serverRes.json();
           if (json?.success && json?.data && typeof json.data === 'object') {
             const serverScores = json.data as Record<string, PositionScore>;
-            const hasServerData = uniqueFens.every((f) => !!serverScores[f]) || Object.keys(serverScores).length >= uniqueFens.length - 2;
-            if (hasServerData) {
+            if (isQualityAnalysis(serverScores, uniqueFens.length)) {
               uniqueFens.forEach((f) => {
                 if (serverScores[f]) {
                   scoreCacheRef.current.set(`${reviewDepth}|${f}`, serverScores[f]);
@@ -1303,7 +1319,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   localStorage.setItem(storageKey, JSON.stringify(serverScores));
                 } catch {}
               }
-              return; // Analisis server ditemukan, selesai tanpa engine re-run!
+              return; // Analisis server valid ditemukan, selesai tanpa engine re-run!
             }
           }
         }
@@ -1316,7 +1332,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       for (const f of uniqueFens) {
         if (cancelled) return;
         if (accumulated[f]) continue;
-        const s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
+        let s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
+        if (!s && !cancelled) {
+          // Retry jika koneksi atau tab di background ter-throttle sejenak
+          await new Promise((r) => setTimeout(r, 600));
+          if (!cancelled) {
+            s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
+          }
+        }
         if (cancelled) return;
         done++;
         if (s) {
@@ -1346,6 +1369,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             }),
           }).catch(() => {});
         } catch {}
+
+        // Simpan ke match turnamen secara otomatis setelah analisis selesai akurat
+        if (match?.id) {
+          onSaveAnalysis?.(match.id, accumulated);
+        }
       }
     })();
 
@@ -1412,6 +1440,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
   }, [isOpen]);
 
+  // Stable ref for onClose so component re-renders NEVER cause history.back() or close loops
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   // Handle mobile device & browser back button (popstate) to return to tournament page rather than exiting website
   useEffect(() => {
     if (!isOpen || typeof window === 'undefined') return;
@@ -1422,9 +1454,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       isPushed = true;
     }
 
-    const handlePopState = () => {
+    const handlePopState = (e: PopStateEvent) => {
       // Hardware / browser back button or swipe-back was triggered
-      onClose();
+      if (e.state?.modal !== 'chess-analysis') {
+        onCloseRef.current();
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -1435,7 +1469,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         window.history.back();
       }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const replayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const moveHistoryRef = useRef<MoveHistoryItem[]>([]);

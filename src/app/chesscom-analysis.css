@@ -2201,36 +2201,30 @@
    CHESS.COM MOBILE APP ADAPTIVE SYSTEM (Matching Image 2)
    ========================================================================== */
 
-.chesscom-mobile-header {
-  display: none;
-}
-
-.chesscom-mobile-eval-bar {
-  display: none;
-}
-
-.chesscom-mobile-engine-lines {
-  display: none;
-}
-
-.chesscom-mobile-opening-bar {
-  display: none;
-}
-
-.chesscom-mobile-moves-sheet {
-  display: none;
-}
-
-.chesscom-mobile-review-card {
-  display: none;
-}
-
-.chesscom-mobile-bottom-bar {
-  display: none;
-}
-
+.chesscom-mobile-header,
+.chesscom-mobile-eval-bar,
+.chesscom-mobile-engine-lines,
+.chesscom-mobile-opening-bar,
+.chesscom-mobile-moves-sheet,
+.chesscom-mobile-review-card,
+.chesscom-mobile-explorer-sheet,
+.chesscom-mobile-bottom-bar,
 .chesscom-mobile-summary-view {
-  display: none;
+  display: none !important;
+}
+
+@media (min-width: 769px) {
+  .chesscom-mobile-header,
+  .chesscom-mobile-eval-bar,
+  .chesscom-mobile-engine-lines,
+  .chesscom-mobile-opening-bar,
+  .chesscom-mobile-moves-sheet,
+  .chesscom-mobile-review-card,
+  .chesscom-mobile-explorer-sheet,
+  .chesscom-mobile-bottom-bar,
+  .chesscom-mobile-summary-view {
+    display: none !important;
+  }
 }
 
 @media (max-width: 768px) {
