@@ -54,6 +54,10 @@ import {
   describeMoveTactics,
   LABEL_TITLE,
   calculateGameRating,
+  getWinProbability,
+  calculateMoveAccuracy,
+  calculateGameAccuracy,
+  ReviewLabel,
 } from '../utils/gameReview';
 import {
   detectOpeningFromFens,
@@ -89,6 +93,7 @@ export type ChessComBadgeType =
   | 'mistake'
   | 'miss'
   | 'blunder'
+  | 'forced'
   | 'missed_win';
 
 export const REVIEW_CLASSIFICATIONS: {
@@ -156,6 +161,12 @@ export const REVIEW_CLASSIFICATIONS: {
     label: 'Blunder',
     color: '#ca3431',
     details: 'Kesalahan fatal yang mengubah jalannya permainan secara drastis (membuang evaluasi di atas 2-3 pion / drop ≥30%).',
+  },
+  {
+    type: 'forced',
+    label: 'Forced',
+    color: '#888888',
+    details: 'Satu-satunya langkah legal yang dapat dimainkan pada posisi ini (misalnya keluar dari skak).',
   },
 ];
 
@@ -321,6 +332,13 @@ export const ChessComBadgeIcon: React.FC<{ type: ChessComBadgeType; size?: numbe
           >
             ??
           </text>
+        </svg>
+      );
+    case 'forced':
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} className="classification-icon-svg">
+          <circle cx="12" cy="12" r="11" fill="#78716c" />
+          <circle cx="12" cy="12" r="4" fill="#ffffff" />
         </svg>
       );
   }
@@ -1221,7 +1239,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       return;
     }
     const fens = [START_FEN, ...rawMoveHistory.map((m) => m.fen)];
-    const uniqueFens = Array.from(new Set(fens));
+    // Backward analysis queue as defined in Section 2 of Chess Analysis Architecture.md:
+    // Evaluating from endgame to opening primes the engine Transposition Table (Hash) for maximum efficiency!
+    const uniqueFens = Array.from(new Set(fens)).reverse();
     const storageKey = getGameStorageKey(match, recentGame, fenKey, reviewDepth);
 
     const isQualityAnalysis = (
@@ -1419,30 +1439,44 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   const moveHistory = useMemo<MoveHistoryItem[]>(() => {
     let prevLoss = 0;
-    return rawMoveHistory.map((m, i) => {
+    let prevClassification: ReviewLabel | undefined;
+    const items: MoveHistoryItem[] = [];
+
+    for (let i = 0; i < rawMoveHistory.length; i++) {
+      const m = rawMoveHistory[i];
       const before = scoreMap[i === 0 ? START_FEN : rawMoveHistory[i - 1]?.fen];
       const after = scoreMap[m.fen];
       if (!before || !after) {
         prevLoss = 0;
+        prevClassification = undefined;
         // Tidak ada data Stockfish untuk langkah ini: JANGAN tampilkan label heuristik sementara.
         // Kategori hanya boleh berasal dari engine agar tidak berubah-ubah (mis. Great -> Blunder).
-        return {
+        items.push({
           ...m,
           classification: undefined,
           feedbackTitle: undefined,
           feedbackDescription: `${m.san} - ${describeMoveTactics(m)}`,
           bestAlternative: undefined,
           bestAlternativeMove: undefined,
-        };
+        });
+        continue;
       }
       const r = classifyByEngine(
         m,
         before,
         after,
         prevLoss,
-        i > 0 ? rawMoveHistory[i - 1] : undefined
+        i > 0
+          ? {
+              to: rawMoveHistory[i - 1].to,
+              captured: rawMoveHistory[i - 1].captured,
+              classification: prevClassification,
+              loss: prevLoss,
+            }
+          : undefined
       );
       prevLoss = r.loss;
+      prevClassification = r.label;
       const playedUci = `${m.from}${m.to}${m.promotion || ''}`;
       const beforeFen = i === 0 ? START_FEN : rawMoveHistory[i - 1]?.fen;
       let validAltMove: { from: string; to: string; san: string; uci: string } | undefined;
@@ -1476,15 +1510,17 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         }
       }
 
-      return {
+      items.push({
         ...m,
-        classification: r.label,
+        classification: r.label as ChessComBadgeType,
         feedbackTitle: LABEL_TITLE[r.label],
         feedbackDescription: describeReview(m, r),
         bestAlternative: validAltMove ? validAltMove.san : undefined,
         bestAlternativeMove: validAltMove,
-      };
-    });
+      });
+    }
+
+    return items;
   }, [rawMoveHistory, scoreMap]);
 
   // Preload sound effects on modal open
@@ -2550,6 +2586,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       mistake: { w: 0, b: 0 },
       miss: { w: 0, b: 0 },
       blunder: { w: 0, b: 0 },
+      forced: { w: 0, b: 0 },
       missed_win: { w: 0, b: 0 },
     };
 
@@ -2641,6 +2678,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       mistake: 25,
       miss: 15,
       blunder: 5,
+      forced: 100,
       missed_win: 15,
     };
 
@@ -2655,8 +2693,47 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
     });
 
-    const wAcc = wTotal > 0 ? (wScore / wTotal).toFixed(1) : (isWhiteWin ? '67.6' : '54.0');
-    const bAcc = bTotal > 0 ? (bScore / bTotal).toFixed(1) : (isBlackWin ? '67.6' : '54.0');
+    const whiteMovesForAcc = moveHistory
+      .filter((m) => m.color === 'w')
+      .map((m, idx) => {
+        const prevFen = idx === 0 ? START_FEN : rawMoveHistory[idx * 2 - 1]?.fen;
+        const before = prevFen ? scoreMap[prevFen] : undefined;
+        const after = scoreMap[m.fen];
+        const moverCp = before ? before.cp : 0;
+        const moverMate = before ? before.mate : undefined;
+        const moverCpAfter = after ? after.cp : 0;
+        const moverMateAfter = after ? after.mate : undefined;
+        const winProbBefore = getWinProbability(moverCp, moverMate ?? null);
+        const winProbAfter = getWinProbability(moverCpAfter, moverMateAfter ?? null);
+        const winProbLost = Math.max(0, winProbBefore - winProbAfter);
+        const accuracy = calculateMoveAccuracy(winProbLost, m.classification === 'book' || m.classification === 'forced');
+        return { winProbBefore, accuracy, classification: m.classification || 'Good' };
+      });
+
+    const blackMovesForAcc = moveHistory
+      .filter((m) => m.color === 'b')
+      .map((m, idx) => {
+        const prevFen = rawMoveHistory[idx * 2]?.fen || START_FEN;
+        const before = scoreMap[prevFen];
+        const after = scoreMap[m.fen];
+        const moverCp = before ? -before.cp : 0;
+        const moverMate = before && before.mate !== undefined ? -before.mate : undefined;
+        const moverCpAfter = after ? -after.cp : 0;
+        const moverMateAfter = after && after.mate !== undefined ? -after.mate : undefined;
+        const winProbBefore = getWinProbability(moverCp, moverMate ?? null);
+        const winProbAfter = getWinProbability(moverCpAfter, moverMateAfter ?? null);
+        const winProbLost = Math.max(0, winProbBefore - winProbAfter);
+        const accuracy = calculateMoveAccuracy(winProbLost, m.classification === 'book' || m.classification === 'forced');
+        return { winProbBefore, accuracy, classification: m.classification || 'Good' };
+      });
+
+    const hasRealScores = Object.keys(scoreMap).length > 2;
+    const wAcc = hasRealScores && whiteMovesForAcc.length > 0
+      ? calculateGameAccuracy(whiteMovesForAcc).toFixed(1)
+      : (wTotal > 0 ? (wScore / wTotal).toFixed(1) : (isWhiteWin ? '67.6' : '54.0'));
+    const bAcc = hasRealScores && blackMovesForAcc.length > 0
+      ? calculateGameAccuracy(blackMovesForAcc).toFixed(1)
+      : (bTotal > 0 ? (bScore / bTotal).toFixed(1) : (isBlackWin ? '67.6' : '54.0'));
 
     const wRatingNum = calculateGameRating(
       parseFloat(wAcc),

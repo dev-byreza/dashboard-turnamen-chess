@@ -6,6 +6,21 @@
 import { Chess, Square, PieceSymbol, Color } from 'chess.js';
 import { centipawnsToWinChance } from './stockfishEngine';
 import { isBookPosition } from './openingBook';
+import {
+  getWinProbability,
+  calculateMoveAccuracy,
+  calculateGameAccuracy,
+  detectPieceSacrifice,
+  MoveClassification,
+} from './chessAnalysisEngine';
+
+export {
+  getWinProbability,
+  calculateMoveAccuracy,
+  calculateGameAccuracy,
+  detectPieceSacrifice,
+};
+export type { MoveClassification };
 
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -39,11 +54,13 @@ export type ReviewLabel =
   | 'inaccuracy'
   | 'mistake'
   | 'miss'
-  | 'blunder';
+  | 'blunder'
+  | 'forced';
 
 export interface ReviewedMove {
   label: ReviewLabel;
   loss: number; // win-probability points lost by mover (0..100)
+  accuracy?: number; // 0..100% CAPS accuracy
   bestUci?: string;
   bestSan?: string;
   evalBefore: PositionScore;
@@ -481,8 +498,8 @@ export function classifyByEngine(
   m: { ply: number; color: 'w' | 'b'; san: string; from: string; to: string; piece: string; captured?: string; promotion?: string; fen: string },
   before: PositionScore,
   after: PositionScore,
-  prevLoss: number, // loss of opponent's previous move (for "miss")
-  prevMove?: { to: string; captured?: string } // opponent's previous move (recapture check)
+  prevLoss: number, // loss of opponent's previous move (0..100)
+  prevMove?: { to: string; captured?: string; classification?: ReviewLabel; loss?: number }
 ): ReviewedMove {
   return classifyCore(m, before, after, prevLoss, prevMove);
 }
@@ -492,117 +509,130 @@ function classifyCore(
   before: PositionScore,
   after: PositionScore,
   prevLoss: number,
-  prevMove?: { to: string; captured?: string }
+  prevMove?: { to: string; captured?: string; classification?: ReviewLabel; loss?: number }
 ): ReviewedMove {
-  const mover = (s: PositionScore) => (m.color === 'w' ? s.winWhite : 100 - s.winWhite);
-  const wb = mover(before);
-  const wa = mover(after);
-  const loss = Math.max(0, wb - wa);
+  const moverCp = (s: PositionScore) => (m.color === 'w' ? s.cp : -s.cp);
+  const moverMate = (s: PositionScore) => (s.mate !== undefined ? (m.color === 'w' ? s.mate : -s.mate) : null);
+
   const playedUci = `${m.from}${m.to}${m.promotion || ''}`;
-  const isBest = !!before.bestUci && before.bestUci === playedUci;
-  const base = { loss, bestUci: before.bestUci, bestSan: before.bestSan, evalBefore: before, evalAfter: after };
+  const bestMoveUci = before.bestUci || (before.lines?.[0]?.uci ?? playedUci);
 
-  if (m.san.includes('#')) return { ...base, label: 'best' };
+  const cpBefore = moverCp(before);
+  const mateBefore = moverMate(before);
+  const cpAfter = moverCp(after);
+  const mateAfter = moverMate(after);
 
-  // ==========================================
-  // 1. BOOK MOVE (📖)
-  // Selama langkah sesuai teori buku pembukaan (Opening Explorer database),
-  // evaluasi Stockfish diabaikan dan langkah otomatis dilabeli Book Move.
-  // ==========================================
+  const winProbBefore = getWinProbability(cpBefore, mateBefore);
+  const winProbAfter = getWinProbability(cpAfter, mateAfter);
+  const winProbLost = Math.max(0, winProbBefore - winProbAfter);
+  const loss = Math.round(winProbLost * 1000) / 10;
+  const accuracy = calculateMoveAccuracy(winProbLost);
+
+  const base = {
+    loss,
+    accuracy,
+    bestUci: before.bestUci,
+    bestSan: before.bestSan,
+    evalBefore: before,
+    evalAfter: after,
+  };
+
+  const legalMoves = legalMoveCount(before.fen);
+
+  // 1. FORCED MOVE (⚪)
+  // Hanya ada 1 langkah legal pada posisi before
+  if (legalMoves <= 1) {
+    return { ...base, loss: 0, accuracy: 100, label: 'forced' };
+  }
+
+  // 2. BOOK MOVE (📖)
+  // Selama langkah sesuai teori buku pembukaan (ECO Explorer database dan ply <= 24)
   const isOpeningBook =
-    isBookPosition(m.fen) ||
+    (m.ply <= 24 && isBookPosition(m.fen)) ||
     (m.ply <= 2 &&
       ['e4', 'd4', 'c4', 'Nf3', 'g3', 'b3', 'f4', 'e5', 'd5', 'c5', 'e6', 'c6', 'Nf6', 'g6', 'd6', 'Nc6'].includes(
         m.san
       ));
-  if (isOpeningBook) return { ...base, loss: 0, label: 'book' };
+  if (isOpeningBook) return { ...base, loss: 0, accuracy: 100, label: 'book' };
 
-  const moverCp = (cpVal?: number) => (typeof cpVal === 'number' ? (m.color === 'w' ? cpVal : -cpVal) : undefined);
-  const moverMate = (mateVal?: number) => (typeof mateVal === 'number' ? (m.color === 'w' ? mateVal : -mateVal) : undefined);
+  const isBestOrNearlyBest = playedUci === bestMoveUci || winProbLost <= 0.015;
 
-  const pv1: EngineLine = {
-    moveUci: before.bestUci || (before.lines?.[0]?.uci ?? playedUci),
-    cp: moverCp(before.cp),
-    mate: moverMate(before.mate),
-  };
-
-  const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
-  const pv2: EngineLine | undefined = secondLine
-    ? {
-        moveUci: secondLine.uci,
-        cp: moverCp(secondLine.cp),
-        mate: moverMate(secondLine.mate),
-      }
-    : undefined;
-
-  const prevPlayerEP = evalToEP(moverCp(before.cp), moverMate(before.mate));
-  const playedEP = evalToEP(moverCp(after.cp), moverMate(after.mate));
-
-  // ==========================================
-  // 2. BRILLIANT MOVE (!!)
-  // Pengorbanan materi perwira yang brilian (SEE + Passive Hanging Sacrifice)
-  // Sesuai standar Chess.com & Stockfish MultiPV
-  // ==========================================
+  // 3. BRILLIANT MOVE (!!)
+  // Sesuai Section 4 & 5 Chess Analysis Architecture:
+  // - Langkah adalah Top Move (winProbLost <= 0.015 atau playedUci === bestMoveUci)
+  // - Terdeteksi pengorbanan materi perwira nyata (detectPieceSacrifice atau isMaterialSacrifice)
+  // - Posisi belum menang telak (winProbBefore < 0.88)
+  // - Setelah melangkah posisi tetap prima / tidak kalah (winProbAfter >= 0.40)
+  // - Bukan sekadar pertukaran bidak yang sama (recapture)
   const isRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured;
-  if (!isRecapture && legalMoveCount(before.fen) > 1) {
-    const brilliant = isBrilliantMove({
-      fenBefore: before.fen,
-      playedMoveUci: playedUci,
-      pv1,
-      pv2,
-      playedEP,
-    });
+  const isSacrifice =
+    detectPieceSacrifice(before.fen, playedUci) ||
+    isMaterialSacrifice(before.fen, playedUci).isSacrifice;
 
-    if (brilliant) {
-      return { ...base, label: 'brilliant' };
+  if (isBestOrNearlyBest && isSacrifice && !isRecapture && winProbBefore < 0.88 && winProbAfter >= 0.40) {
+    return { ...base, accuracy: 100, label: 'brilliant' };
+  }
+
+  // 4. GREAT MOVE (!)
+  // Sesuai Section 4 Chess Analysis Architecture:
+  // - Langkah adalah #1 bestMove (winProbLost <= 0.01 atau playedUci === bestMoveUci)
+  // - Selisih WinProb antara kandidat #1 dan kandidat #2 >= 15% (Uniqueness Gap)
+  // - Posisi bukan di tempat yang sudah menang telak (0.25 <= winProbAfter dan winProbBefore <= 0.92)
+  const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
+  if (secondLine && (playedUci === bestMoveUci || winProbLost <= 0.01)) {
+    const secondCp = moverCp({ cp: secondLine.cp } as any);
+    const secondMate = moverMate({ mate: secondLine.mate } as any);
+    const winProbSecondBest = getWinProbability(secondCp, secondMate);
+    const uniquenessGap = winProbBefore - winProbSecondBest;
+
+    if (uniquenessGap >= 0.15 && winProbAfter >= 0.25 && winProbBefore <= 0.92) {
+      return { ...base, accuracy: 100, label: 'great' };
     }
   }
 
-  if (loss <= 2) {
-    // ==========================================
-    // 3. GREAT MOVE (!)
-    // Menggunakan fungsi isGreatMove (The Only Move, Game Changer, & Skakmat Paksa Krusial)
-    // ==========================================
-    const isDirectEqualRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured && m.piece === prevMove.captured;
-    const isNotOpening = m.ply > 8;
-
-    if (isNotOpening && pv2) {
-      const great = isGreatMove({
-        playedMoveUci: playedUci,
-        legalMovesCount: legalMoveCount(before.fen),
-        isSimpleRecapture: isDirectEqualRecapture,
-        pv1,
-        pv2,
-        prevPlayerEP,
-        playedEP,
-      });
-
-      if (great) {
-        return { ...base, label: 'great' };
-      }
-    }
-
-    if (isBest) {
-      return { ...base, label: 'best' };
-    }
-    return { ...base, label: 'excellent' };
+  // 5. BEST MOVE (★)
+  // Langkah pilihan pertama engine atau selisih penurunan win probability <= 1%
+  if (playedUci === bestMoveUci || winProbLost <= 0.01) {
+    return { ...base, label: 'best' };
   }
 
-  if (loss <= 5) return { ...base, label: 'good' };
-  if (loss <= 10) return { ...base, label: 'inaccuracy' };
+  // 6. BLUNDER (MATE) (??)
+  // Membuang forced mate atau melangkah masuk ke forced mate lawan
+  const missedForcedMate =
+    mateBefore !== null &&
+    mateBefore !== undefined &&
+    mateBefore > 0 &&
+    (mateAfter === null || mateAfter === undefined || mateAfter < 0) &&
+    winProbAfter < 0.75;
 
-  // ==========================================
-  // 4. MISS (✕) vs MISTAKE (?) vs BLUNDER (??)
-  // Miss: Terjadi saat lawan baru saja melakukan Mistake/Blunder (prevLoss >= 10 & wb >= 55),
-  // evaluasi melonjak untuk kita, namun kita gagal mengeksekusi langkah penghukum sehingga
-  // evaluasi kembali turun (loss > 10). Langkah ini dilabeli Miss (melewatkan peluang emas).
-  // ==========================================
-  const isPunishingOpportunityMissed = prevLoss >= 10 && wb >= 55;
-  if (isPunishingOpportunityMissed) {
+  const steppedIntoForcedMate =
+    (mateBefore === null || mateBefore === undefined || mateBefore > 0) &&
+    mateAfter !== null &&
+    mateAfter !== undefined &&
+    mateAfter < 0 &&
+    winProbBefore >= 0.20;
+
+  if (missedForcedMate || steppedIntoForcedMate) {
+    return { ...base, loss: Math.max(loss, 25), label: 'blunder' };
+  }
+
+  // 7. MISS (❌)
+  // Lawan baru saja Blunder atau Mistake pada langkah sebelumnya (delta W prev >= 0.12),
+  // namun pemain gagal mengeksekusi keunggulan tersebut (winProbLost > 0.12 dan posisi belum hancur winProbAfter >= 0.35)
+  const opponentBlunderedLastTurn =
+    prevMove?.classification === 'blunder' ||
+    prevMove?.classification === 'mistake' ||
+    (prevMove?.loss !== undefined ? prevMove.loss >= 12 : prevLoss >= 12);
+
+  if (opponentBlunderedLastTurn && winProbLost > 0.12 && winProbAfter >= 0.35) {
     return { ...base, label: 'miss' };
   }
 
-  if (loss <= 20) return { ...base, label: 'mistake' };
+  // 8 - 12. STANDARD WIN-LOSS THRESHOLDS (Sesuai Matriks Tabel Section 4 Architecture.md)
+  if (winProbLost <= 0.025) return { ...base, label: 'excellent' };
+  if (winProbLost <= 0.055) return { ...base, label: 'good' };
+  if (winProbLost <= 0.105) return { ...base, label: 'inaccuracy' };
+  if (winProbLost <= 0.20) return { ...base, label: 'mistake' };
   return { ...base, label: 'blunder' };
 }
 
@@ -648,6 +678,7 @@ export const LABEL_TITLE: Record<ReviewLabel, string> = {
   mistake: 'Mistake ? (Kesalahan)',
   miss: 'Miss ✖ (Melewatkan Peluang)',
   blunder: 'Blunder ?? (Kesalahan Fatal)',
+  forced: 'Forced Move ⚪ (Langkah Tunggal Paksaan)',
 };
 
 export function describeMoveTactics(m: string | {
@@ -728,5 +759,7 @@ export function describeReview(
       return `${san} - Melewatkan Peluang ✖ Melewatkan kesempatan taktis untuk menghukum lawan (-${drop}%). ${ev}${best}`;
     case 'blunder':
       return `${san} - Blunder Fatal ?? Mengubah jalannya permainan secara drastis (-${drop}%). ${ev}${best}`;
+    case 'forced':
+      return `${san} - Langkah Paksaan ⚪ Satu-satunya langkah legal yang dapat dimainkan pada posisi ini. ${tactics} ${ev}`;
   }
 }
