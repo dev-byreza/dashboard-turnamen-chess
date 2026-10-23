@@ -1245,6 +1245,98 @@
   white-space: normal;
 }
 
+/* Expanded Coach Explanation Banner (When 'Explain' is clicked) */
+.review-active-coach-banner.expanded {
+  height: auto;
+  min-height: 58px;
+  align-items: flex-start;
+  padding-bottom: 0.5rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.active-coach-bubble.expanded {
+  height: auto;
+  padding: 0.65rem 0.85rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  overflow: visible;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  transition: all 0.2s ease-in-out;
+}
+
+.coach-explanation-expanded-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.coach-exp-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.35rem;
+}
+
+.coach-exp-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.coach-exp-badge-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.coach-exp-body-text {
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.coach-exp-lead {
+  margin: 0 0 0.45rem 0;
+  font-weight: 500;
+  color: #1e293b;
+  line-height: 1.52;
+}
+
+.coach-exp-advice-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  background: #f8fafc;
+  border-left: 3px solid #81b64c;
+  border-radius: 4px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #166534;
+  line-height: 1.45;
+}
+
+.coach-exp-advice-box .advice-star {
+  color: #81b64c;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.review-coach-card-body.expanded {
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+}
+
+.review-coach-explanation-text.expanded {
+  font-size: 0.82rem;
+  line-height: 1.52;
+}
+
 .bubble-eval-pill {
   background: #f1f2f4;
   color: #1e1d1a;

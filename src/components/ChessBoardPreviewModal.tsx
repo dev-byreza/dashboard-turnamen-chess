@@ -2996,12 +2996,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     };
   }, [currentBoardFen, scoreMap, currentCandidateLines, currentEval, currentPlyIndex, evalChartData.points]);
 
-  // Active Move Coach Feedback (Image 4 speech bubble comment: e.g. "d4 is the last book move")
+  // Active Move Coach Feedback with rich tactical explanations
   const currentMoveCoachComment = useMemo(() => {
     if (!isAnalysisComplete) {
       return {
         title: 'Menganalisis...',
+        summary: `Stockfish sedang menganalisis langkah (${analysisProgress.done}/${analysisProgress.total})...`,
         comment: `Stockfish sedang menganalisis langkah pertandingan (${analysisProgress.done}/${analysisProgress.total}). Data Game Review lengkap akan otomatis tampil begitu 100% selesai.`,
+        detailedExplanation: `Mesin Stockfish 19 Lite sedang menghitung variasi pohon taktis (${analysisProgress.done} dari ${analysisProgress.total} langkah selesai). Evaluasi lengkap akan segera muncul.`,
+        tacticalAdvice: undefined,
         badge: null as ChessComBadgeType | null,
       };
     }
@@ -3009,7 +3012,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (currentPlyIndex === -1) {
       return {
         title: 'Posisi Awal',
+        summary: 'Putih melangkah. Tinjau langkah demi langkah atau tekan Next.',
         comment: 'White to move. Tinjau langkah demi langkah atau tekan Next.',
+        detailedExplanation: 'Posisi awal catur standar. Kedua belah pihak memiliki evaluasi seimbang (0.00). Kunci fase ini adalah penguasaan sentrum (e4/d4), perkembangan perwira ringan (Kuda & Gajah), dan persiapan keselamatan raja.',
+        tacticalAdvice: 'Pilihlah pembukaan favorit Anda untuk mengontrol petak-petak tengah.',
         badge: null as ChessComBadgeType | null,
       };
     }
@@ -3017,12 +3023,18 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (!m) {
       return {
         title: 'Analisis',
+        summary: 'Meninjau posisi langkah catur.',
         comment: 'Meninjau posisi langkah catur.',
+        detailedExplanation: 'Meninjau evaluasi posisi langkah catur menggunakan Stockfish.',
+        tacticalAdvice: undefined,
         badge: null as ChessComBadgeType | null,
       };
     }
 
-    const action = describeMoveTactics(m);
+    const prevFen = currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
+    const scoreBefore = prevFen ? scoreMap[prevFen] : null;
+    const scoreAfter = m.fen ? scoreMap[m.fen] : null;
+    const tactics = describeMoveTactics(m);
     const opening = detectOpeningFromFens(
       rawMoveHistory.slice(0, currentPlyIndex + 1).map((x) => x.fen)
     );
@@ -3030,51 +3042,102 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const nextMove = moveHistory[currentPlyIndex + 1];
     const isLastBook = isBook && (!nextMove || nextMove.classification !== 'book');
 
-    let comment = '';
+    const bestAlt =
+      m.bestAlternative ||
+      m.bestAlternativeMove?.san ||
+      (bestMoveInfo && !bestMoveInfo.isCurrentMoveBest ? bestMoveSanDisplay || bestMoveInfo.san : '');
+
+    let summary = '';
+    let detailedExplanation = '';
+    let tacticalAdvice: string | undefined = undefined;
+
     switch (m.classification) {
       case 'brilliant':
-        comment = `${m.san} adalah langkah brilian!! Pengorbanan akurat.`;
+        summary = `${m.san} adalah langkah brilian!! Pengorbanan akurat.`;
+        detailedExplanation = `${m.san} adalah Langkah Brilian (!!) Spektakuler! Pengorbanan perwira (piece sacrifice) yang telah diperhitungkan secara akurat dan tajam oleh mesin Stockfish. ${tactics} Pengorbanan materi di petak ${m.to} ini bukan kecerobohan, melainkan kunci taktis yang merobek dinding pertahanan lawan, membuka lajur invasi langsung ke raja, dan memaksakan variasi kemenangan mutlak yang tak terbendung (Evaluasi: ${scoreAfter?.scoreDisplay || 'unggul mutlak'}).`;
+        tacticalAdvice = 'Kalkulasi taktis tingkat tinggi yang langsung mengunci inisiatif serangan mematikan.';
         break;
+
       case 'great':
-        comment = `${m.san} adalah langkah hebat! Mempertahankan posisi.`;
+        summary = `${m.san} adalah langkah hebat! Mempertahankan posisi.`;
+        detailedExplanation = `${m.san} adalah Langkah Hebat (Great Move !). Ini adalah satu-satunya langkah terbaik (only move) yang ada di papan dalam situasi kritis. Dalam posisi yang penuh tekanan dan komplikasi taktis rumit, langkah ini berhasil menemukan satu-satunya jalur yang mempertahankan keselamatan posisi atau keunggulan kemenangan (Evaluasi: ${scoreAfter?.scoreDisplay || 'solid'}), sementara semua alternatif langkah lainnya akan langsung berakibat buruk bagi posisi Anda.`;
+        tacticalAdvice = 'Presisi luar biasa dalam menemukan satu-satunya langkah kunci penyelamat posisi.';
         break;
+
       case 'book':
-        comment = isLastBook
+        summary = isLastBook
           ? `${m.san} adalah langkah teori pembukaan terakhir.`
           : `${m.san} adalah langkah pembukaan teori master.`;
+        detailedExplanation = `${m.san} adalah Langkah Teori Pembukaan (Book Move) dalam variasi ${opening?.name || 'Catur Teori'}. ${tactics} Langkah ini mengikuti prinsip catur klasik para Grandmaster dunia: memperebutkan kontrol petak tengah (sentrum), mengembangkan perwira ringan (Kuda dan Gajah) ke petak aktif, serta menyiapkan keamanan raja (rokade).`;
+        tacticalAdvice = 'Mengikuti jalur teori pembukaan master dunia untuk fondasi posisi yang kokoh.';
         break;
+
       case 'best':
-        comment = `${m.san} adalah langkah terbaik pilihan Stockfish.`;
+        summary = `${m.san} adalah langkah terbaik pilihan Stockfish.`;
+        detailedExplanation = `${m.san} adalah Langkah Terbaik (★) Pilihan Nomor Satu Stockfish! ${tactics} Langkah ini paling efisien dalam memaksimalkan koordinasi perwira, menguasai petak-petak strategis di pusat, dan memberikan tekanan optimal tanpa menyisakan kelemahan defensif bagi lawan (Evaluasi: ${scoreAfter?.scoreDisplay || 'solid'}).`;
+        tacticalAdvice = 'Langkah paling akurat yang memaksimalkan kontrol posisi dan probabilitas kemenangan.';
         break;
+
       case 'excellent':
-        comment = `${m.san} adalah langkah sangat bagus.`;
+        summary = `${m.san} adalah langkah sangat bagus.`;
+        detailedExplanation = `${m.san} adalah langkah Sangat Bagus (Excellent 👍). ${tactics} Menjaga keutuhan koordinasi perwira dan mengembangkan rencana permainan dengan solid tanpa memberikan celah taktis balasan bagi lawan (Evaluasi: ${scoreAfter?.scoreDisplay || 'seimbang'}).`;
+        tacticalAdvice = 'Langkah posisi yang sehat dan menjaga kestabilan permainan.';
         break;
+
       case 'good':
-        comment = `${m.san} adalah langkah bagus dan aman.`;
+        summary = `${m.san} adalah langkah bagus dan aman.`;
+        detailedExplanation = `${m.san} adalah langkah Bagus dan Aman (Good ✔). ${tactics} Pilihan yang wajar dan mempertahankan keseimbangan permainan, meskipun masih ada langkah lain yang sedikit lebih agresif.`;
+        tacticalAdvice = 'Mempertahankan konsistensi posisi tanpa resiko blunder.';
         break;
+
       case 'inaccuracy':
-        comment = `${m.san} adalah ketidakakuratan. Sedikit kehilangan inisiatif.`;
+        summary = `${m.san} adalah ketidakakuratan. Sedikit kehilangan inisiatif.`;
+        detailedExplanation = `${m.san} tergolong Ketidakakuratan (Inaccuracy ?!). Posisi tidak langsung terancam bahaya materi, namun langkah ini kurang optimal dan melepaskan sedikit inisiatif berharga (evaluasi berubah dari ${scoreBefore?.scoreDisplay || 'prima'} menjadi ${scoreAfter?.scoreDisplay || 'sedikit menurun'}). ${tactics} Langkah ini memberi lawan kesempatan mudah untuk menyamakan kedudukan atau mengontrol petak sentral.`;
+        tacticalAdvice = bestAlt
+          ? `Langkah yang jauh lebih tajam dan dinamis adalah **${bestAlt}**. Pilihan ini langsung menekan kelemahan lawan dan menjaga dominasi inisiatif.`
+          : 'Aktifkan perwira ke petak tengah untuk mempertahankan inisiatif serangan.';
         break;
+
       case 'mistake':
-        comment = `${m.san} adalah kesalahan. Merusak struktur posisi.`;
+        summary = `${m.san} adalah kesalahan. Merusak struktur posisi.`;
+        detailedExplanation = `${m.san} merupakan Kesalahan Taktis (Mistake ?). Langkah ini merusak keharmonisan perwira dan kestabilan posisi (evaluasi bergeser dari ${scoreBefore?.scoreDisplay || 'seimbang'} ke ${scoreAfter?.scoreDisplay || 'tertekan'}). ${tactics} Meskipun tidak langsung kehilangan perwira secara cuma-cuma, langkah ini melepaskan kontrol petak kunci dan memberi lawan ruang bebas untuk melancarkan serangan balasan yang berbahaya.`;
+        tacticalAdvice = bestAlt
+          ? `Pilihan yang jauh lebih presisi adalah **${bestAlt}**. Langkah tersebut mempertahankan tekanan aktif dan menjaga koordinasi perwira tanpa membuka celah bagi lawan.`
+          : 'Perbaiki koordinasi perwira dan perkuat struktur pertahanan.';
         break;
+
       case 'miss':
       case 'missed_win':
-        comment = `${m.san} adalah Miss. Melewatkan peluang taktis.`;
+        summary = `${m.san} adalah Miss. Melewatkan peluang taktis.`;
+        detailedExplanation = `${m.san} adalah Miss (✖) — Melewatkan Peluang Emas! Lawan pada giliran sebelumnya melakukan kesalahan posisi, namun langkah ini gagal menemukan manuver hukuman taktis terbaik. Alih-alih merebut keunggulan mutlak atau memenangkan materi berharga, langkah ini membiarkan lawan keluar dari tekanan dan memulihkan posisinya.`;
+        tacticalAdvice = bestAlt
+          ? `Langkah penentu kemenangan yang dilewatkan adalah **${bestAlt}**! Dengan memainkan ${bestAlt}, posisi lawan akan langsung runtuh atau kehilangan materi secara signifikan.`
+          : 'Manfaatkan kelemahan struktur lawan untuk merebut keunggulan mutlak.';
         break;
+
       case 'blunder':
-        comment = `${m.san} adalah Blunder fatal. Mengubah alur permainan.`;
+        summary = `${m.san} adalah Blunder fatal. Mengubah alur permainan.`;
+        detailedExplanation = `${m.san} dinilai sebagai Blunder Fatal (??). Langkah ini mengubah arah permainan secara drastis (evaluasi turun dari ${scoreBefore?.scoreDisplay || 'unggul'} menjadi ${scoreAfter?.scoreDisplay || 'kalah'}). ${tactics} Manuver ini merusak struktur pertahanan secara fatal, meninggalkan perwira penting tanpa penjagaan memadai, atau membiarkan lawan melancarkan serangan kombinasi mematikan.`;
+        tacticalAdvice = bestAlt
+          ? `Rekomendasi terbaik Stockfish adalah **${bestAlt}**. Langkah ini mengamankan perwira, menjaga keharmonisan pertahanan raja, dan mencegah lawan merebut inisiatif serangan.`
+          : 'Amankan perwira dan prioritaskan keselamatan raja.';
         break;
+
       default:
-        comment = `${m.san} dimainkan.`;
+        summary = `${m.san} dimainkan.`;
+        detailedExplanation = `${m.san} dimainkan di papan catur. ${tactics}`;
+        tacticalAdvice = undefined;
     }
 
     return {
       title: m.feedbackTitle || 'Move Review',
-      comment,
+      summary,
+      comment: summary,
+      detailedExplanation,
+      tacticalAdvice,
       badge: m.classification || null,
     };
-  }, [currentPlyIndex, moveHistory, rawMoveHistory, isAnalysisComplete, analysisProgress.done, analysisProgress.total]);
+  }, [currentPlyIndex, moveHistory, rawMoveHistory, scoreMap, isAnalysisComplete, analysisProgress.done, analysisProgress.total, bestMoveInfo, bestMoveSanDisplay]);
 
   // Jump to move by classification with cycling support
   const handleJumpToClassification = (type: ChessComBadgeType, colorFilter?: 'w' | 'b') => {
@@ -4008,12 +4071,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   <div className="review-coach-avatar-wrapper">
                     <CoachAvatarSvg size={44} className="review-coach-avatar-img" />
                   </div>
-                  <div className="review-coach-card-body">
+                  <div className={`review-coach-card-body ${showExplanation ? 'expanded' : ''}`}>
                     <div className="review-coach-top-row">
                       {showExplanation ? (
                         <>
                           <Lightbulb size={20} style={{ color: '#eab308' }} />
-                          <p className="review-coach-title-text">Penjelasan Taktis</p>
+                          <p className="review-coach-title-text">{currentMoveCoachComment.title}</p>
                         </>
                       ) : showBestMove ? (
                         <>
@@ -4034,15 +4097,25 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         {showBestMove ? 'Best' : currentEvalBarData.scoreDisplay}
                       </span>
                     </div>
-                    <p className="review-coach-explanation-text">
-                      {showExplanation ? (
-                        currentMoveCoachComment.comment
-                      ) : showBestMove ? (
-                        `Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`
-                      ) : (
-                        currentMoveCoachComment.comment
-                      )}
-                    </p>
+                    {showExplanation ? (
+                      <div className="coach-exp-body-text" style={{ marginTop: '0.4rem' }}>
+                        <p className="coach-exp-lead">
+                          {currentMoveCoachComment.detailedExplanation}
+                        </p>
+                        {currentMoveCoachComment.tacticalAdvice && (
+                          <div className="coach-exp-advice-box">
+                            <span className="advice-star">★</span>
+                            <span>{currentMoveCoachComment.tacticalAdvice}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="review-coach-explanation-text">
+                        {showBestMove
+                          ? `Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`
+                          : currentMoveCoachComment.summary}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -4417,50 +4490,68 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   ) : (
                     <>
                       {/* Coach Speech Bubble Banner */}
-                      <div className="review-active-coach-banner">
+                      <div className={`review-active-coach-banner ${showExplanation ? 'expanded' : ''}`}>
                         <div className="coach-avatar">
-                          <CoachAvatarSvg size={44} />
+                          <CoachAvatarSvg size={showExplanation ? 48 : 44} />
                         </div>
-                        <div className="active-coach-bubble">
-                          <div className="bubble-text-left">
-                            {showExplanation ? (
-                              <>
-                                <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
-                                <span>
-                                  {currentMoveCoachComment.comment}
+                        <div className={`active-coach-bubble ${showExplanation ? 'expanded' : ''}`}>
+                          {showExplanation ? (
+                            <div className="coach-explanation-expanded-view">
+                              <div className="coach-exp-top-row">
+                                <div className="coach-exp-title-group">
+                                  <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
+                                  <span className="coach-exp-badge-name">
+                                    {currentMoveCoachComment.title}
+                                  </span>
+                                  {currentMoveCoachComment.badge && (
+                                    <ChessComBadgeIcon type={currentMoveCoachComment.badge} size={17} />
+                                  )}
+                                </div>
+                                <span className="bubble-eval-pill">
+                                  {currentEvalBarData.scoreDisplay}
                                 </span>
-                              </>
-                            ) : showBestMove ? (
-                              <>
+                              </div>
+
+                              <div className="coach-exp-body-text">
+                                <p className="coach-exp-lead">
+                                  {currentMoveCoachComment.detailedExplanation}
+                                </p>
+                                {currentMoveCoachComment.tacticalAdvice && (
+                                  <div className="coach-exp-advice-box">
+                                    <span className="advice-star">★</span>
+                                    <span>{currentMoveCoachComment.tacticalAdvice}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : showBestMove ? (
+                            <>
+                              <div className="bubble-text-left">
                                 <ChessComBadgeIcon type="best" size={18} />
                                 <span>
                                   {`Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`}
                                 </span>
-                              </>
-                            ) : (
-                              <>
+                              </div>
+                              <span className="bubble-eval-pill" style={{ background: '#81b64c', color: '#ffffff' }}>
+                                Best
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="bubble-text-left">
                                 {currentMoveCoachComment.badge && (
                                   <ChessComBadgeIcon
                                     type={currentMoveCoachComment.badge}
                                     size={18}
                                   />
                                 )}
-                                <span>{currentMoveCoachComment.comment}</span>
-                              </>
-                            )}
-                          </div>
-                          <span
-                            className="bubble-eval-pill"
-                            style={
-                              showBestMove
-                                ? { background: '#81b64c', color: '#ffffff' }
-                                : undefined
-                            }
-                          >
-                            {showBestMove
-                              ? 'Best'
-                              : currentEvalBarData.scoreDisplay}
-                          </span>
+                                <span>{currentMoveCoachComment.summary}</span>
+                              </div>
+                              <span className="bubble-eval-pill">
+                                {currentEvalBarData.scoreDisplay}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
