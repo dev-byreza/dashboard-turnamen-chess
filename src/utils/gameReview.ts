@@ -254,7 +254,11 @@ function classifyCore(
 
   if (m.san.includes('#')) return { ...base, label: 'best' };
 
-  // Opening theory: any theoretical position from opening database or standard first moves is ALWAYS a Book Move!
+  // ==========================================
+  // 1. BOOK MOVE (📖)
+  // Selama langkah sesuai teori buku pembukaan (Opening Explorer database),
+  // evaluasi Stockfish diabaikan dan langkah otomatis dilabeli Book Move.
+  // ==========================================
   const isOpeningBook =
     isBookPosition(m.fen) ||
     (m.ply <= 2 &&
@@ -264,45 +268,62 @@ function classifyCore(
   if (isOpeningBook) return { ...base, loss: 0, label: 'book' };
 
   if (loss <= 2) {
-    // Brilliant: genuine sacrifice (SEE), still near-best, not recapture, not forced,
-    // not already winning big and leaves a real edge for the mover.
+    // ==========================================
+    // 2. BRILLIANT MOVE (!!)
+    // Pengorbanan materi perwira yang brilian dengan 4 syarat mutlak:
+    // a. Pengorbanan materi nyata (SEE <= -2 pawns)
+    // b. Pilihan teratas / nearly best Stockfish (loss <= 1.5)
+    // c. Posisi tidak kalah setelah pengorbanan (wa >= 48 / seimbang atau unggul)
+    // d. Bukan posisi yang sudah menang telak sebelumnya (wb < 85 / < +7.0)
+    // e. Bukan langkah paksaan & bukan sekadar recapture
+    // ==========================================
     const isRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured;
     if (
       wb < 85 &&
-      wa >= 55 &&
+      wa >= 48 &&
       !isRecapture &&
       legalMoveCount(before.fen) > 1 &&
       isSacrifice(m.fen, m.to, m.piece, m.captured)
     ) {
       return { ...base, label: 'brilliant' };
     }
-    // Seperti Chess.com: "Best" vs "Great" vs "Excellent"
+
+    // ==========================================
+    // 3. GREAT MOVE (!)
+    // Langkah krusial penentu permainan (The Only Move):
+    // a. MultiPV Check: Langkah #1 menjaga keunggulan/imbang, sedangkan langkah #2
+    //    jatuh sangat jauh (selisih probabilitas >= 12% atau cpDiff >= 120 cp).
+    // b. Membalikkan keadaan / satu-satunya penyelamat: Dari posisi kalah/tertekan
+    //    (wb <= 40) menemukan satu-satunya langkah bertahan (loss <= 0.6) atau
+    //    membalikkan ke imbang/menang (wa >= 48).
+    // c. Teknik endgame / dorongan pion bebas penentu promosi & skak benteng aktif.
+    // ==========================================
     const isDirectEqualRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured && m.piece === prevMove.captured;
-    const isNotOpening = m.ply > 8;
+    const isNotOpening = m.ply > 6;
     const isTopChoice = isBest || (loss <= 0.3 && wb < 95);
 
     if (isTopChoice && isNotOpening && !isDirectEqualRecapture && legalMoveCount(before.fen) > 1) {
-      // 1. MultiPV check (Gap runner-up): Langkah #2 jelas lebih buruk (wa - secondWin >= 6% atau cpDiff >= 75)
+      // Syarat A: MultiPV Gap (Selisih langkah #1 vs #2 sangat jauh)
       const second = before.lines && before.lines.length >= 2 ? before.lines[1] : null;
       if (second && wb < 92) {
         const secondWin = m.color === 'w' ? second.winWhite : 100 - second.winWhite;
         const cpDiff = typeof before.cp === 'number' && typeof second.cp === 'number'
           ? (m.color === 'w' ? before.cp - second.cp : second.cp - before.cp)
           : 0;
-        if (wa - secondWin >= 6 || cpDiff >= 75) return { ...base, label: 'great' };
+        if (wa - secondWin >= 10 || cpDiff >= 100) return { ...base, label: 'great' };
       }
 
-      // 2. Satu-satunya langkah bertahan kritis di bawah tekanan (Only Move / Critical Defense):
-      // Posisi terdesak atau sulit (wb <= 40), dan pemain menemukan satu-satunya langkah akurat (loss <= 0.6)
-      // Contoh: Raja lolos dari skak tajam (Kc3) atau Ratu memblokir ancaman skakmat (Qg3)
-      if (wb <= 40 && loss <= 0.6) {
+      // Syarat B: Membalikkan keadaan dari kalah menjadi imbang/menang setelah blunder lawan
+      if (wb <= 40 && wa >= 48 && loss <= 0.6) {
         return { ...base, label: 'great' };
       }
 
-      // 3. Teknik Endgame Krusial / Dorongan Pion Bebas:
-      // Di babak akhir (tanpa ratu atau materi berkurang):
-      // - Mendorong pion bebas ke depan (rank 4, 5, 6, 7) yang menentukan jalannya promosi
-      // - Manuver benteng aktif / skak kunci di endgame (Re7+, Rxf5)
+      // Syarat C: Satu-satunya langkah penyelamat di bawah tekanan (Only Defensive Move)
+      if (wb <= 38 && loss <= 0.5) {
+        return { ...base, label: 'great' };
+      }
+
+      // Syarat D: Teknik Endgame Krusial / Dorongan Pion Bebas Promosi
       const isEndgame = before.fen.split(' ')[0].replace(/[^qQ]/g, '').length === 0;
       if (isEndgame && loss <= 0.5) {
         if (m.piece === 'p' && ['4', '5', '6', '7'].includes(m.to[1])) {
@@ -313,7 +334,7 @@ function classifyCore(
         }
       }
 
-      // 4. Terobosan Taktis / Dorongan Pion Pusat Kunci di Posisi Tajam (c5, f5, d5, e5)
+      // Syarat E: Terobosan Taktis / Dorongan Pion Pusat Kunci di Posisi Tajam
       if (
         m.piece === 'p' &&
         ['c5', 'f5', 'd5', 'e5', 'c4', 'f4', 'd4', 'e4'].includes(m.san) &&
@@ -332,9 +353,19 @@ function classifyCore(
 
   if (loss <= 5) return { ...base, label: 'good' };
   if (loss <= 10) return { ...base, label: 'inaccuracy' };
-  // Miss: gagal memanfaatkan kesalahan lawan (lawan baru saja salah >=10% DAN posisi kita
-  // memang sudah menguntungkan). Selain itu kesalahan biasa = Mistake.
-  if (loss <= 20) return { ...base, label: prevLoss >= 10 && wb >= 60 ? 'miss' : 'mistake' };
+
+  // ==========================================
+  // 4. MISS (✕) vs MISTAKE (?) vs BLUNDER (??)
+  // Miss: Terjadi saat lawan baru saja melakukan Mistake/Blunder (prevLoss >= 10 & wb >= 55),
+  // evaluasi melonjak untuk kita, namun kita gagal mengeksekusi langkah penghukum sehingga
+  // evaluasi kembali turun (loss > 10). Langkah ini dilabeli Miss (melewatkan peluang emas).
+  // ==========================================
+  const isPunishingOpportunityMissed = prevLoss >= 10 && wb >= 55;
+  if (isPunishingOpportunityMissed) {
+    return { ...base, label: 'miss' };
+  }
+
+  if (loss <= 20) return { ...base, label: 'mistake' };
   return { ...base, label: 'blunder' };
 }
 
