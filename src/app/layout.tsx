@@ -67,6 +67,9 @@ export const metadata: Metadata = {
       'Portal resmi Turnamen Catur Chess Club Poliwako. Jadwal sistem Swiss, live standings, dan analisis Stockfish 19.',
     images: ['/images/logo-chess-club-sorowako.png'],
   },
+  verification: {
+    google: 'google9e513362f436402a',
+  },
 };
 
 export default function RootLayout({
@@ -77,6 +80,8 @@ export default function RootLayout({
   return (
     <html lang="id" className={coinageFont.variable}>
       <head>
+        <meta name="google-site-verification" content="google9e513362f436402a" />
+        <meta name="google-site-verification" content="9e513362f436402a" />
         <link rel="icon" type="image/png" href="/images/logo-chess-club-sorowako.png" />
         <link rel="shortcut icon" href="/images/logo-chess-club-sorowako.png" />
         <link rel="apple-touch-icon" href="/images/logo-chess-club-sorowako.png" />
