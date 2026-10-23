@@ -1848,7 +1848,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     currentClassification === 'blunder' ||
     currentClassification === 'missed_win';
 
-  const shouldShowBestArrow = (showBestMove || isSuboptimalMove) && !!bestMoveInfo;
+  const shouldShowBestArrow = showBestMove && !!bestMoveInfo;
 
   // Dynamic color for Best Move arrow & highlights (Brilliant: #31c4b9, Great: #5091c5, Best: #9bc64e)
   const bestMoveColor = useMemo(() => {
@@ -3807,7 +3807,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           <Lightbulb size={20} style={{ color: '#eab308' }} />
                           <p className="review-coach-title-text">Penjelasan Taktis</p>
                         </>
-                      ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
+                      ) : showBestMove ? (
                         <>
                           <ChessComBadgeIcon type="best" size={20} />
                           <p className="review-coach-title-text">Best Move</p>
@@ -3823,15 +3823,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         </>
                       )}
                       <span className="review-coach-eval-pill">
-                        {(!showExplanation && isSuboptimalMove) || showBestMove
-                          ? 'Best'
-                          : currentEvalBarData.scoreDisplay}
+                        {showBestMove ? 'Best' : currentEvalBarData.scoreDisplay}
                       </span>
                     </div>
                     <p className="review-coach-explanation-text">
                       {showExplanation ? (
                         currentMoveCoachComment.comment
-                      ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
+                      ) : showBestMove ? (
                         `Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`
                       ) : (
                         currentMoveCoachComment.comment
@@ -3848,7 +3846,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       setShowBestMove(!showBestMove);
                       setShowExplanation(false);
                     }}
-                    className={`mobile-action-pill ${(!showExplanation && isSuboptimalMove) || showBestMove ? 'active' : ''}`}
+                    className={`mobile-action-pill ${showBestMove ? 'active' : ''}`}
                   >
                     <Star size={15} />
                     <span>Best</span>
@@ -4214,7 +4212,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                                   {currentMoveCoachComment.comment}
                                 </span>
                               </>
-                            ) : (!showExplanation && isSuboptimalMove && bestMoveInfo) || showBestMove ? (
+                            ) : showBestMove ? (
                               <>
                                 <ChessComBadgeIcon type="best" size={18} />
                                 <span>
@@ -4236,12 +4234,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           <span
                             className="bubble-eval-pill"
                             style={
-                              (!showExplanation && isSuboptimalMove) || showBestMove
+                              showBestMove
                                 ? { background: '#81b64c', color: '#ffffff' }
                                 : undefined
                             }
                           >
-                            {(!showExplanation && isSuboptimalMove) || showBestMove
+                            {showBestMove
                               ? 'Best'
                               : currentEvalBarData.scoreDisplay}
                           </span>
@@ -4256,10 +4254,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                             setShowBestMove(!showBestMove);
                             setShowExplanation(false);
                           }}
-                          className={`btn-best-move ${(!showExplanation && isSuboptimalMove) || showBestMove ? 'active' : ''}`}
+                          className={`btn-best-move ${showBestMove ? 'active' : ''}`}
                           title="Perlihatkan langkah terbaik di papan catur"
                         >
-                          <Star size={15} fill={(!showExplanation && isSuboptimalMove) || showBestMove ? '#ffffff' : 'none'} />
+                          <Star size={15} fill={showBestMove ? '#ffffff' : 'none'} />
                           <span>Best</span>
                         </button>
                         <button
