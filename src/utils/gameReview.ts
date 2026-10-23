@@ -275,7 +275,9 @@ function classifyCore(
     ) {
       return { ...base, label: 'brilliant' };
     }
-    if (isBest || loss < 0.3) {
+    // Seperti Chess.com: "Best" hanya jika langkah yang dimainkan = pilihan #1 engine.
+    // Langkah hampir-setara tapi bukan pilihan #1 tetap "Excellent".
+    if (isBest) {
       // 1. MultiPV check: Runner-up move is distinctly worse (wa - secondWin >= 7 or cpDiff >= 90)
       const second = before.lines && before.lines.length >= 2 ? before.lines[1] : null;
       if (second && wb < 92) {
@@ -286,19 +288,9 @@ function classifyCore(
         if (wa - secondWin >= 7 || cpDiff >= 90) return { ...base, label: 'great' };
       }
 
-      // 2. Crucial saving move under heavy pressure: position was difficult (wb <= 45),
-      // and player found the critical move that held or saved the game (wa >= 40)
-      if (wb <= 45 && wa >= 40 && loss <= 0.8 && isBest) {
-        return { ...base, label: 'great' };
-      }
-
-      // 3. Punishing opponent's mistake or blunder with the sharpest move
-      if (prevLoss >= 10 && loss <= 0.4 && isBest && wb < 90) {
-        return { ...base, label: 'great' };
-      }
-
-      // 4. Critical transition or defensive move with few good alternatives
-      if (wb < 80 && wa >= 55 && loss <= 0.2 && isBest && (m.san.includes('x') || m.san.includes('+') || m.piece === 'k')) {
+      // 2. Crucial saving move under heavy pressure: position was difficult (wb <= 40),
+      // and player found the critical move that held or saved the game (wa >= 45)
+      if (wb <= 40 && wa >= 45 && loss <= 0.8) {
         return { ...base, label: 'great' };
       }
 
@@ -309,8 +301,10 @@ function classifyCore(
 
   if (loss <= 5) return { ...base, label: 'good' };
   if (loss <= 10) return { ...base, label: 'inaccuracy' };
-  if (loss <= 20) return { ...base, label: prevLoss >= 10 ? 'miss' : 'mistake' };
-  return { ...base, label: prevLoss >= 10 && wb >= 70 ? 'miss' : 'blunder' };
+  // Miss: gagal memanfaatkan kesalahan lawan (lawan baru saja salah >=10% DAN posisi kita
+  // memang sudah menguntungkan). Selain itu kesalahan biasa = Mistake.
+  if (loss <= 20) return { ...base, label: prevLoss >= 10 && wb >= 60 ? 'miss' : 'mistake' };
+  return { ...base, label: 'blunder' };
 }
 
 /**
