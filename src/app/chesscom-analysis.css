@@ -3608,3 +3608,93 @@
   flex-shrink: 0;
 }
 
+/* Mobile Variation Notice & Reset Bar */
+.mobile-variation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.75rem;
+  margin: 0.35rem 0.6rem;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.mobile-variation-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #fca5a5;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.mobile-variation-label svg {
+  color: #f87171;
+  flex-shrink: 0;
+}
+
+.mobile-variation-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.8rem;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+  transition: all 0.15s ease;
+}
+
+.mobile-variation-btn:active {
+  transform: scale(0.96);
+  background: #dc2626;
+}
+
+.mobile-action-pill.mobile-action-reset-pill {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  color: #fca5a5 !important;
+  font-weight: 700 !important;
+}
+
+.mobile-action-pill.mobile-action-reset-pill:active {
+  background: rgba(239, 68, 68, 0.35) !important;
+  color: #ffffff !important;
+}
+
+.mobile-bottom-btn.mobile-bottom-reset-btn {
+  color: #ef4444 !important;
+  font-weight: 700 !important;
+}
+
+.mobile-bottom-btn.mobile-bottom-reset-btn svg {
+  color: #ef4444 !important;
+}
+
+/* Smooth Piece Sliding Animation (Chess.com standard 200ms cubic-bezier) */
+@keyframes chessPieceSlide {
+  0% {
+    transform: translate(var(--slide-x), var(--slide-y));
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.piece-container.piece-sliding {
+  animation: chessPieceSlide 200ms cubic-bezier(0.25, 1, 0.5, 1) both !important;
+  will-change: transform;
+  z-index: 30 !important;
+  pointer-events: none;
+}
+
+
+

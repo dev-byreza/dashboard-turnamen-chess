@@ -1175,6 +1175,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [chessInstance, setChessInstance] = useState<Chess>(() => new Chess());
   const [rawMoveHistory, setMoveHistory] = useState<MoveHistoryItem[]>([]);
   const [originalGameHistory, setOriginalGameHistory] = useState<MoveHistoryItem[]>([]);
+  const branchPlyIndexRef = useRef<number>(-1);
   const [currentPlyIndex, setCurrentPlyIndex] = useState<number>(-1); // -1 = start pos
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<string[]>([]);
@@ -1675,10 +1676,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   const handleResetToOriginalGame = () => {
     setMoveHistory(originalGameHistory);
-    setCurrentPlyIndex(originalGameHistory.length - 1);
+    const targetPly =
+      branchPlyIndexRef.current >= 0 && branchPlyIndexRef.current < originalGameHistory.length
+        ? branchPlyIndexRef.current
+        : originalGameHistory.length - 1;
+    setCurrentPlyIndex(targetPly);
     setSelectedSquare(null);
     setLegalMoves([]);
     setShowBestMove(false);
+    branchPlyIndexRef.current = -1;
   };
 
   // Current Board FEN
@@ -2162,6 +2168,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       });
 
       if (moveAttempt) {
+        // Remember the natural game ply before branching if not already in a variation
+        if (!isVariationActive) {
+          branchPlyIndexRef.current = showBestMove
+            ? Math.max(-1, currentPlyIndex - 1)
+            : currentPlyIndex;
+        }
+
         // Branch from current ply (or pre-move if best move preview was active)
         const baseHistory = showBestMove
           ? currentPlyIndex <= 0
@@ -2407,6 +2420,114 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
     return matrix;
   }, [effectiveBoardFen]);
+
+  // Smooth Piece Slide Animation (Chess.com standard 200ms cubic-bezier transition)
+  const prevPlyRef = useRef<number>(currentPlyIndex);
+  const [animatingMove, setAnimatingMove] = useState<{
+    moves: { square: Square; dx: number; dy: number }[];
+    animKey: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const prevPly = prevPlyRef.current;
+    prevPlyRef.current = currentPlyIndex;
+
+    // Only animate on a single ply step forward or backward
+    const diff = currentPlyIndex - prevPly;
+    if (Math.abs(diff) !== 1) {
+      setAnimatingMove(null);
+      return;
+    }
+
+    // Skip slide if piece was physically moved by drag-and-drop
+    if (Date.now() - lastDragDropTimeRef.current < 400 && diff === 1) {
+      setAnimatingMove(null);
+      return;
+    }
+
+    const isForward = diff === 1;
+    const moveIndex = isForward ? currentPlyIndex : prevPly;
+    const m = moveHistory[moveIndex];
+    if (!m || !m.from || !m.to) {
+      setAnimatingMove(null);
+      return;
+    }
+
+    const calcDeltas = (fromSq: string, toSq: string) => {
+      const fromC = fromSq.charCodeAt(0) - 97;
+      const fromR = 8 - parseInt(fromSq[1], 10);
+      const toC = toSq.charCodeAt(0) - 97;
+      const toR = 8 - parseInt(toSq[1], 10);
+
+      const fromVisCol = isFlipped ? 7 - fromC : fromC;
+      const fromVisRow = isFlipped ? 7 - fromR : fromR;
+      const toVisCol = isFlipped ? 7 - toC : toC;
+      const toVisRow = isFlipped ? 7 - toR : toR;
+
+      return {
+        dx: (fromVisCol - toVisCol) * 100,
+        dy: (fromVisRow - toVisRow) * 100,
+      };
+    };
+
+    const movesToAnimate: { square: Square; dx: number; dy: number }[] = [];
+
+    if (isForward) {
+      const d = calcDeltas(m.from, m.to);
+      movesToAnimate.push({ square: m.to as Square, dx: d.dx, dy: d.dy });
+
+      // Castling secondary piece (Rook)
+      const isKingMove = m.piece?.toLowerCase() === 'k';
+      if (isKingMove) {
+        if (m.from === 'e1' && m.to === 'g1') {
+          const rd = calcDeltas('h1', 'f1');
+          movesToAnimate.push({ square: 'f1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e1' && m.to === 'c1') {
+          const rd = calcDeltas('a1', 'd1');
+          movesToAnimate.push({ square: 'd1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'g8') {
+          const rd = calcDeltas('h8', 'f8');
+          movesToAnimate.push({ square: 'f8', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'c8') {
+          const rd = calcDeltas('a8', 'd8');
+          movesToAnimate.push({ square: 'd8', dx: rd.dx, dy: rd.dy });
+        }
+      }
+    } else {
+      // Backward: piece returned to m.from
+      const d = calcDeltas(m.to, m.from);
+      movesToAnimate.push({ square: m.from as Square, dx: d.dx, dy: d.dy });
+
+      // Castling undo (Rook returns to corner)
+      const isKingMove = m.piece?.toLowerCase() === 'k';
+      if (isKingMove) {
+        if (m.from === 'e1' && m.to === 'g1') {
+          const rd = calcDeltas('f1', 'h1');
+          movesToAnimate.push({ square: 'h1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e1' && m.to === 'c1') {
+          const rd = calcDeltas('d1', 'a1');
+          movesToAnimate.push({ square: 'a1', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'g8') {
+          const rd = calcDeltas('f8', 'h8');
+          movesToAnimate.push({ square: 'h8', dx: rd.dx, dy: rd.dy });
+        } else if (m.from === 'e8' && m.to === 'c8') {
+          const rd = calcDeltas('d8', 'a8');
+          movesToAnimate.push({ square: 'a8', dx: rd.dx, dy: rd.dy });
+        }
+      }
+    }
+
+    setAnimatingMove({
+      moves: movesToAnimate,
+      animKey: `${currentPlyIndex}-${Date.now()}`,
+    });
+
+    const timer = setTimeout(() => {
+      setAnimatingMove(null);
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [currentPlyIndex, moveHistory, isFlipped]);
 
   // Captured pieces and material advantage (Chess.com style)
   const capturedPieces = useMemo(() => {
@@ -4043,16 +4164,28 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                               />
                             )}
 
-                            {/* Chess Piece Vector */}
-                            {piece && (
-                              <div
-                                className="piece-container"
-                                draggable={false}
-                                onDragStart={(e) => e.preventDefault()}
-                              >
-                                <ChessComNeoPiece piece={piece} />
-                              </div>
-                            )}
+                            {/* Chess Piece Vector with Smooth Slide Animation */}
+                            {piece && (() => {
+                              const anim = animatingMove?.moves.find((am) => am.square === squareName);
+                              return (
+                                <div
+                                  key={anim ? `slide-${squareName}-${animatingMove?.animKey}` : `static-${squareName}-${piece}`}
+                                  className={`piece-container ${anim ? 'piece-sliding' : ''}`}
+                                  style={
+                                    anim
+                                      ? ({
+                                          '--slide-x': `${anim.dx}%`,
+                                          '--slide-y': `${anim.dy}%`,
+                                        } as React.CSSProperties)
+                                      : undefined
+                                  }
+                                  draggable={false}
+                                  onDragStart={(e) => e.preventDefault()}
+                                >
+                                  <ChessComNeoPiece piece={piece} />
+                                </div>
+                              );
+                            })()}
 
                             {/* Floating Classification Badge on Moved Piece Square */}
                             {showBadgeOnSquare && currentMoveItem.classification && (
@@ -4188,6 +4321,25 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               </span>
             </div>
 
+            {/* Mobile Variation Notice & Reset Bar */}
+            {isVariationActive && (
+              <div className="mobile-variation-banner">
+                <div className="mobile-variation-label">
+                  <RotateCcw size={13} className="mobile-variation-icon" />
+                  <span>Variasi Langkah Manual</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetToOriginalGame}
+                  className="mobile-variation-btn"
+                  title="Kembalikan papan ke langkah pertandingan asli"
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset Langkah Asli</span>
+                </button>
+              </div>
+            )}
+
             {/* Mobile Content: Explorer, Analysis Moves Sheet, or Review Card */}
             {showExplorer ? (
               <div className="chesscom-mobile-explorer-sheet">
@@ -4314,8 +4466,19 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   </div>
                 </div>
 
-                {/* Mobile Action Buttons: Best, Explain, Next */}
+                {/* Mobile Action Buttons: Reset, Best, Explain, Next */}
                 <div className="mobile-review-action-row">
+                  {isVariationActive && (
+                    <button
+                      type="button"
+                      onClick={handleResetToOriginalGame}
+                      className="mobile-action-pill mobile-action-reset-pill"
+                      title="Kembalikan ke langkah pertandingan asli"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Reset</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -5235,14 +5398,26 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           className={`chesscom-mobile-bottom-bar ${!isReviewActive ? 'mobile-hidden-on-summary' : ''}`}
           aria-label="Kontrol Navigasi Mobile"
         >
-          <button
-            type="button"
-            onClick={() => setIsEngineModalOpen(true)}
-            className="mobile-bottom-btn"
-          >
-            <Sliders size={18} />
-            <span>Options</span>
-          </button>
+          {isVariationActive ? (
+            <button
+              type="button"
+              onClick={handleResetToOriginalGame}
+              className="mobile-bottom-btn mobile-bottom-reset-btn"
+              title="Reset variasi manual dan kembali ke langkah pertandingan asli"
+            >
+              <RotateCcw size={18} />
+              <span>Reset</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsEngineModalOpen(true)}
+              className="mobile-bottom-btn"
+            >
+              <Sliders size={18} />
+              <span>Options</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowExplorer(!showExplorer)}
