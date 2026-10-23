@@ -1177,6 +1177,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [isEngineModalOpen, setIsEngineModalOpen] = useState<boolean>(false);
   const [mobileMode, setMobileMode] = useState<'analysis' | 'review'>('analysis');
   const [showExplorer, setShowExplorer] = useState<boolean>(false);
+  const [analysisNonce, setAnalysisNonce] = useState(0);
   const [stockfishDepth, setStockfishDepth] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('stockfish_depth');
@@ -1205,6 +1206,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
     setScoreMap({});
     setAnalysisProgress({ done: 0, total: 0 });
+    setAnalysisNonce((prev) => prev + 1);
   }, [match, recentGame, fenKey, reviewDepth]);
 
   useEffect(() => {
@@ -1223,7 +1225,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       if (!scores || typeof scores !== 'object') return false;
       const entries = Object.entries(scores);
       if (entries.length < Math.max(2, expectedCount - 2)) return false;
-      // Make sure it contains real Stockfish engine calculations (best moves or candidate lines)
       const hasRealEval = entries.some(
         ([f, s]) =>
           f !== START_FEN &&
@@ -1254,25 +1255,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       return true;
     };
 
-    // 1. Cek langsung dari data match yang sudah tersimpan di database turnamen
-    if (match?.chessComAnalysis && typeof match.chessComAnalysis === 'object') {
-      const matchStored = match.chessComAnalysis as Record<string, PositionScore>;
-      if (isQualityAnalysis(matchStored, uniqueFens.length)) {
-        uniqueFens.forEach((f) => {
-          if (matchStored[f]) scoreCacheRef.current.set(`${reviewDepth}|${f}`, matchStored[f]);
-        });
-        setScoreMap(matchStored);
-        setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(storageKey, JSON.stringify(matchStored));
-          } catch {}
-        }
-        return;
-      }
-    }
-
-    // 2. Cek penyimpanan lokal browser (localStorage)
+    // 1. Cek penyimpanan lokal browser (localStorage) murni per-user pada depth yang dipilih
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem(storageKey);
@@ -1289,15 +1272,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             localStorage.removeItem(storageKey);
           }
         }
-      } catch {
-        // Abaikan parse error, lanjut ke pengecekan server
-      }
+      } catch {}
     }
 
     const ctrl = new AbortController();
     let cancelled = false;
 
-    // 3. Cek in-memory cache dan posisi pembukaan (Book Move)
+    // 2. Inisialisasi in-memory cache untuk depth ini dan book moves
     const initial: Record<string, PositionScore> = {};
     uniqueFens.forEach((f) => {
       const hit = scoreCacheRef.current.get(`${reviewDepth}|${f}`);
@@ -1327,41 +1308,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       return;
     }
 
-    // Inisialisasi scoreMap langsung dengan posisi awal & book moves agar eval bar tidak nol
     setScoreMap(initial);
     setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
 
+    // 3. Analisis mandiri 100% lokal di browser user pada kedalaman (depth) yang dipilih
     (async () => {
-      // 4. Coba ambil dari Shared Analysis Database (/api/analysis) agar user lain langsung dapat hasil instant
-      try {
-        const serverRes = await fetch(`/api/analysis?key=${encodeURIComponent(storageKey)}`, {
-          signal: ctrl.signal,
-        });
-        if (serverRes.ok) {
-          const json = await serverRes.json();
-          if (json?.success && json?.data && typeof json.data === 'object') {
-            const serverScores = json.data as Record<string, PositionScore>;
-            if (isQualityAnalysis(serverScores, uniqueFens.length)) {
-              uniqueFens.forEach((f) => {
-                if (serverScores[f]) {
-                  scoreCacheRef.current.set(`${reviewDepth}|${f}`, serverScores[f]);
-                }
-              });
-              setScoreMap(serverScores);
-              setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
-              if (typeof window !== 'undefined') {
-                try {
-                  localStorage.setItem(storageKey, JSON.stringify(serverScores));
-                } catch {}
-              }
-              return; // Analisis server valid ditemukan, selesai tanpa engine re-run!
-            }
-          }
-        }
-      } catch {
-        // Lanjut ke kalkulasi engine jika server cache belum ada
-      }
-
       const accumulated: Record<string, PositionScore> = { ...initial };
       let done = Object.keys(initial).length;
       for (const f of uniqueFens) {
@@ -1369,7 +1320,6 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         if (accumulated[f]) continue;
         let s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
         if (!s && !cancelled) {
-          // Retry jika koneksi atau tab di background ter-throttle sejenak
           await new Promise((r) => setTimeout(r, 600));
           if (!cancelled) {
             s = await fetchPositionScore(f, reviewDepth, ctrl.signal);
@@ -1386,28 +1336,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       if (!cancelled) {
-        // Simpan hasil analisis 100% lengkap ke state dan localStorage
+        // Simpan hanya ke localStorage lokal browser user (tidak dikirim ke database bersama)
         setScoreMap(accumulated);
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem(storageKey, JSON.stringify(accumulated));
           } catch {}
-        }
-        // Simpan juga ke Shared Server Database PostgreSQL (/api/analysis) agar user lain tidak perlu analisis ulang!
-        try {
-          fetch('/api/analysis', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              key: storageKey,
-              data: accumulated,
-            }),
-          }).catch(() => {});
-        } catch {}
-
-        // Simpan ke match turnamen secara otomatis setelah analisis selesai akurat
-        if (match?.id) {
-          onSaveAnalysis?.(match.id, accumulated);
         }
       }
     })();
@@ -1416,8 +1350,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       cancelled = true;
       ctrl.abort();
     };
-    // Re-run otomatis jika depth, fenKey, atau game berubah!
-  }, [isOpen, fenKey, reviewDepth, match?.id, recentGame?.url]);
+    // Re-run otomatis jika depth, fenKey, analysisNonce, atau game berubah!
+  }, [isOpen, fenKey, reviewDepth, analysisNonce, match?.id, recentGame?.url]);
 
   const isAnalyzing = analysisProgress.total > 0 && analysisProgress.done < analysisProgress.total;
   const isAnalysisComplete =
@@ -2445,23 +2379,48 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setTimeout(() => setCopiedPgn(false), 2000);
   };
 
-  // Players info
+  // Extract PGN tags if available for authentic player and match metadata
+  const pgnHeaders = useMemo(() => {
+    const pgn = recentGame?.pgn || match?.chessComPgn || '';
+    if (!pgn) return {};
+    const headers: Record<string, string> = {};
+    const regex = /\[(\w+)\s+"([^"]+)"\]/g;
+    let matchArr;
+    while ((matchArr = regex.exec(pgn)) !== null) {
+      headers[matchArr[1].toLowerCase()] = matchArr[2];
+    }
+    return headers;
+  }, [recentGame?.pgn, match?.chessComPgn]);
+
+  // Players info (priority: player roster -> recentGame -> PGN header -> match player ID)
   const whiteName =
     whitePlayer?.name ||
     recentGame?.white.username ||
+    pgnHeaders['white'] ||
     (match?.whitePlayerId ? `Pemain #${match.whitePlayerId.slice(0, 4)}` : 'Putih');
   const blackName =
     blackPlayer?.name ||
     recentGame?.black.username ||
+    pgnHeaders['black'] ||
     (match?.blackPlayerId ? `Pemain #${match.blackPlayerId.slice(0, 4)}` : 'Hitam');
 
   const whiteRating =
-    whitePlayer?.rating || recentGame?.white.rating || 500;
+    whitePlayer?.rating ||
+    recentGame?.white.rating ||
+    (pgnHeaders['whiteelo'] ? parseInt(pgnHeaders['whiteelo'], 10) : 500);
   const blackRating =
-    blackPlayer?.rating || recentGame?.black.rating || 500;
+    blackPlayer?.rating ||
+    recentGame?.black.rating ||
+    (pgnHeaders['blackelo'] ? parseInt(pgnHeaders['blackelo'], 10) : 500);
 
-  const whiteUsername = whitePlayer?.chessComUsername || recentGame?.white.username;
-  const blackUsername = blackPlayer?.chessComUsername || recentGame?.black.username;
+  const whiteUsername =
+    whitePlayer?.chessComUsername ||
+    recentGame?.white.username ||
+    pgnHeaders['white'];
+  const blackUsername =
+    blackPlayer?.chessComUsername ||
+    recentGame?.black.username ||
+    pgnHeaders['black'];
 
   // Move groups for the 3-column table
   const moveRows = useMemo(() => {
@@ -4405,10 +4364,20 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                         type="button"
                         onClick={() => setIsEngineModalOpen(true)}
                         className="depth-pill-badge"
-                        title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth}`}
+                        title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth} (Klik untuk ubah)`}
                       >
                         <Cpu size={12} />
                         <span>Depth {stockfishDepth}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearCache}
+                        className="depth-pill-badge"
+                        title="Analisis ulang game ini pada kedalaman saat ini"
+                        style={{ cursor: 'pointer', opacity: 0.85 }}
+                      >
+                        <RotateCcw size={11} />
+                        <span>Re-analyze</span>
                       </button>
                     </div>
 
@@ -4970,7 +4939,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           isOpen={isEngineModalOpen}
           onClose={() => setIsEngineModalOpen(false)}
           currentDepth={stockfishDepth}
-          onDepthChange={(newDepth) => setStockfishDepth(newDepth)}
+          onDepthChange={(newDepth) => {
+            setStockfishDepth(newDepth);
+            setScoreMap({});
+            setAnalysisProgress({ done: 0, total: 0 });
+            setAnalysisNonce((prev) => prev + 1);
+          }}
           isEngineActive={isEngineActive}
           onToggleEngineActive={(active) => setIsEngineActive(active)}
           onClearCache={handleClearCache}
