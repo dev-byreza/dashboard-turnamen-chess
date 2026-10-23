@@ -1492,7 +1492,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       // Fallback to safe tactical/developing move from beforeFen if engine alt is missing/invalid
-      if (!validAltMove && ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(r.label) && beforeFen) {
+      if (!validAltMove && ['inaccuracy', 'mistake', 'miss', 'blunder', 'missed_win'].includes(r.label) && beforeFen) {
         const fallbackAlt = findSafeAlternativeMove(beforeFen, m.san);
         if (fallbackAlt) {
           validAltMove = fallbackAlt;
@@ -2041,24 +2041,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         }
       }
 
-      // 2. Check if classified as best, brilliant, great, or book
-      const isCurrentMoveBest =
-        currentMove.classification === 'best' ||
-        currentMove.classification === 'brilliant' ||
-        currentMove.classification === 'great' ||
-        currentMove.classification === 'book';
-
-      if (isCurrentMoveBest) {
-        return {
-          from: currentMove.from as Square,
-          to: currentMove.to as Square,
-          san: currentMove.san,
-          isCurrentMoveBest: true,
-          classification: currentMove.classification,
-        };
-      }
-
-      // 3. Fallback to alternative move
+      // 2. Fallback to alternative best move if available
       if (currentMove.bestAlternativeMove) {
         const v = validateMove(
           currentMove.bestAlternativeMove.from,
@@ -2073,6 +2056,43 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             classification: 'best' as ChessComBadgeType,
           };
         }
+      }
+
+      // 3. Fallback to scoreMap candidate move on prevFen
+      if (prevFen && scoreMap[prevFen]?.bestUci && scoreMap[prevFen].bestUci.length >= 4) {
+        const u = scoreMap[prevFen].bestUci!;
+        const v = validateMove(u.slice(0, 2), u.slice(2, 4), u.slice(4, 5) || undefined);
+        if (v) {
+          const isCurrentMoveBest =
+            (currentMove.from === v.from && currentMove.to === v.to) ||
+            currentMove.san === v.san;
+          return {
+            from: v.from,
+            to: v.to,
+            san: v.san,
+            isCurrentMoveBest,
+            classification: isCurrentMoveBest ? currentMove.classification : ('best' as ChessComBadgeType),
+          };
+        }
+      }
+
+      // 4. Positive move or move played fallback (best, brilliant, great, book, excellent, good)
+      const isPositiveMove =
+        currentMove.classification === 'best' ||
+        currentMove.classification === 'brilliant' ||
+        currentMove.classification === 'great' ||
+        currentMove.classification === 'book' ||
+        currentMove.classification === 'excellent' ||
+        currentMove.classification === 'good';
+
+      if (isPositiveMove) {
+        return {
+          from: currentMove.from as Square,
+          to: currentMove.to as Square,
+          san: currentMove.san,
+          isCurrentMoveBest: true,
+          classification: currentMove.classification,
+        };
       }
     }
 
@@ -2122,7 +2142,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     currentClassification === 'blunder' ||
     currentClassification === 'missed_win';
 
-  const shouldShowBestArrow = showBestMove && !!bestMoveInfo;
+  const shouldShowBestArrow =
+    (showBestMove ||
+      (isReviewActive &&
+        (isSuboptimalMove ||
+          currentClassification === 'brilliant' ||
+          currentClassification === 'great' ||
+          currentClassification === 'best' ||
+          currentClassification === 'excellent')) ||
+      (!isReviewActive && isEngineActive)) &&
+    !!bestMoveInfo;
 
   // Dynamic color for Best Move arrow & highlights (Brilliant: #31c4b9, Great: #5091c5, Best: #9bc64e)
   const bestMoveColor = useMemo(() => {

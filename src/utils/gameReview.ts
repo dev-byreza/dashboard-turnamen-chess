@@ -530,8 +530,8 @@ function classifyCore(
   const base = {
     loss,
     accuracy,
-    bestUci: before.bestUci,
-    bestSan: before.bestSan,
+    bestUci: bestMoveUci || before.bestUci || before.lines?.[0]?.uci || undefined,
+    bestSan: before.bestSan || before.lines?.[0]?.san || undefined,
     evalBefore: before,
     evalAfter: after,
   };
