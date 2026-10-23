@@ -1282,9 +1282,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       // 2. Cek Sumber Resmi 2: Central API /api/analysis (PostgreSQL chess_analysis_cache & server memory)
-      if (!fresh && match?.id) {
+      const centralKey = match?.id ? `match_${match.id}_analysis` : storageKey;
+      if (!fresh && centralKey) {
         try {
-          const res = await fetch(`/api/analysis?key=match_${match.id}_analysis`, { signal: ctrl.signal });
+          const res = await fetch(`/api/analysis?key=${encodeURIComponent(centralKey)}`, { signal: ctrl.signal });
           if (res.ok) {
             const json = await res.json();
             if (json?.success && json?.data && isQualityAnalysis(json.data, uniqueFens.length)) {
@@ -1295,7 +1296,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               setScoreMap(json.data);
               setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
               setIsAnalysisPendingAdmin(false);
-              onSaveAnalysis?.(match.id, json.data);
+              if (match?.id) {
+                onSaveAnalysis?.(match.id, json.data);
+              }
               return;
             }
           }
@@ -1383,14 +1386,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         setScoreMap(accumulated);
         // Reset SEBELUM publish: onSaveAnalysis mengubah match.chessComAnalysis dan memicu efek ini lagi
         forceFreshRef.current = false;
-        if (match?.id) {
-          // Simpan ke 1 sumber resmi (central PostgreSQL database via /api/analysis)
+        const centralKey = match?.id ? `match_${match.id}_analysis` : storageKey;
+        if (centralKey) {
+          // Simpan ke 1 sumber resmi (central PostgreSQL database via /api/analysis) lengkap dengan kandidat MultiPV
           fetch('/api/analysis', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: `match_${match.id}_analysis`, data: accumulated }),
+            body: JSON.stringify({ key: centralKey, data: accumulated }),
           }).catch(() => {});
-
+        }
+        if (match?.id) {
           // Simpan ke database turnamen matches (match.chessComAnalysis)
           onSaveAnalysis?.(match.id, accumulated);
         }

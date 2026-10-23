@@ -276,25 +276,55 @@ function classifyCore(
     ) {
       return { ...base, label: 'brilliant' };
     }
-    // Seperti Chess.com: "Best" hanya jika langkah yang dimainkan = pilihan #1 engine.
-    // Langkah hampir-setara tapi bukan pilihan #1 tetap "Excellent".
-    if (isBest) {
-      // 1. MultiPV check: Runner-up move is distinctly worse (wa - secondWin >= 7 or cpDiff >= 90)
+    // Seperti Chess.com: "Best" vs "Great" vs "Excellent"
+    const isDirectEqualRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured && m.piece === prevMove.captured;
+    const isNotOpening = m.ply > 8;
+    const isTopChoice = isBest || (loss <= 0.3 && wb < 95);
+
+    if (isTopChoice && isNotOpening && !isDirectEqualRecapture && legalMoveCount(before.fen) > 1) {
+      // 1. MultiPV check (Gap runner-up): Langkah #2 jelas lebih buruk (wa - secondWin >= 6% atau cpDiff >= 75)
       const second = before.lines && before.lines.length >= 2 ? before.lines[1] : null;
       if (second && wb < 92) {
         const secondWin = m.color === 'w' ? second.winWhite : 100 - second.winWhite;
         const cpDiff = typeof before.cp === 'number' && typeof second.cp === 'number'
           ? (m.color === 'w' ? before.cp - second.cp : second.cp - before.cp)
           : 0;
-        if (wa - secondWin >= 7 || cpDiff >= 90) return { ...base, label: 'great' };
+        if (wa - secondWin >= 6 || cpDiff >= 75) return { ...base, label: 'great' };
       }
 
-      // 2. Crucial saving move under heavy pressure: position was difficult (wb <= 40),
-      // and player found the critical move that held or saved the game (wa >= 45)
-      if (wb <= 40 && wa >= 45 && loss <= 0.8) {
+      // 2. Satu-satunya langkah bertahan kritis di bawah tekanan (Only Move / Critical Defense):
+      // Posisi terdesak atau sulit (wb <= 40), dan pemain menemukan satu-satunya langkah akurat (loss <= 0.6)
+      // Contoh: Raja lolos dari skak tajam (Kc3) atau Ratu memblokir ancaman skakmat (Qg3)
+      if (wb <= 40 && loss <= 0.6) {
         return { ...base, label: 'great' };
       }
 
+      // 3. Teknik Endgame Krusial / Dorongan Pion Bebas:
+      // Di babak akhir (tanpa ratu atau materi berkurang):
+      // - Mendorong pion bebas ke depan (rank 4, 5, 6, 7) yang menentukan jalannya promosi
+      // - Manuver benteng aktif / skak kunci di endgame (Re7+, Rxf5)
+      const isEndgame = before.fen.split(' ')[0].replace(/[^qQ]/g, '').length === 0;
+      if (isEndgame && loss <= 0.5) {
+        if (m.piece === 'p' && ['4', '5', '6', '7'].includes(m.to[1])) {
+          return { ...base, label: 'great' };
+        }
+        if (m.piece === 'r' && (m.san.includes('+') || m.san.includes('x'))) {
+          return { ...base, label: 'great' };
+        }
+      }
+
+      // 4. Terobosan Taktis / Dorongan Pion Pusat Kunci di Posisi Tajam (c5, f5, d5, e5)
+      if (
+        m.piece === 'p' &&
+        ['c5', 'f5', 'd5', 'e5', 'c4', 'f4', 'd4', 'e4'].includes(m.san) &&
+        wb >= 60 &&
+        loss <= 0.5
+      ) {
+        return { ...base, label: 'great' };
+      }
+    }
+
+    if (isBest) {
       return { ...base, label: 'best' };
     }
     return { ...base, label: 'excellent' };
