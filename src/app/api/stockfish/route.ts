@@ -19,26 +19,25 @@ function centipawnsToWinChance(cp: number, mate?: number): number {
   return Math.round(Math.max(0, Math.min(100, chance)) * 10) / 10;
 }
 
-// Convert UCI (e.g. "f3d4") to SAN ("Nxd4") and from/to
+// Convert UCI (e.g. "f3d4") to SAN ("Nxd4") and from/to - returns null if move is ILLEGAL on fenStr
 function parseUciMove(fenStr: string, uci: string) {
+  if (!uci || uci.length < 4) return null;
   try {
     const c = new Chess(fenStr);
     const from = uci.slice(0, 2);
     const to = uci.slice(2, 4);
     const promotion = uci.slice(4, 5) || undefined;
     const m = c.move({ from, to, promotion: promotion as any });
+    if (!m) return null;
     return {
-      san: m ? m.san : uci,
-      from,
-      to,
-      piece: m ? m.piece : undefined,
+      san: m.san,
+      from: m.from,
+      to: m.to,
+      piece: m.piece,
+      legal: true,
     };
   } catch {
-    return {
-      san: uci,
-      from: uci.slice(0, 2),
-      to: uci.slice(2, 4),
-    };
+    return null;
   }
 }
 
@@ -80,6 +79,33 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   return p;
 }
 
+function flushEngine(engine: any): Promise<void> {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        activeLineListener = null;
+        resolve();
+      }
+    }, 400);
+
+    activeLineListener = (line: string) => {
+      if (line.includes('readyok')) {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          activeLineListener = null;
+          resolve();
+        }
+      }
+    };
+
+    engine.processCommand('stop');
+    engine.processCommand('isready');
+  });
+}
+
 function formatPvContinuation(startFen: string, uciMoves: string[], maxMoves = 8): string {
   try {
     const c = new Chess(startFen);
@@ -112,10 +138,12 @@ function formatPvContinuation(startFen: string, uciMoves: string[], maxMoves = 8
   }
 }
 
-function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3): Promise<any> {
+async function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3): Promise<any> {
+  const engine = getEngine();
+  await flushEngine(engine);
+
   return new Promise((resolve, reject) => {
     try {
-      const engine = getEngine();
       const targetDepth = Math.min(24, Math.max(6, depth));
       const pvCount = Math.min(5, Math.max(1, multipv));
       engine.processCommand(`setoption name MultiPV value ${pvCount}`);
@@ -185,22 +213,53 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
           clearTimeout(timer);
           activeLineListener = null;
           const parts = line.split(/\s+/);
-          const bestUci = parts[1] && parts[1] !== '(none)' ? parts[1] : latest.bestMoveUci;
-          const parsed = bestUci
-            ? parseUciMove(cleanFen, bestUci)
-            : { san: '', from: '', to: '' };
-          const lines = Array.from(lineMap.entries())
-            .sort((a, b) => a[0] - b[0])
-            .map(([rank, l]) => ({
-              rank,
-              uci: l.uci,
-              san: parseUciMove(cleanFen, l.uci).san,
-              continuation: formatPvContinuation(cleanFen, l.pvMoves || [l.uci]),
-              scoreCp: l.cp,
-              mateIn: l.mate,
-              scoreDisplay: l.display,
-              winChanceWhite: centipawnsToWinChance(l.cp, l.mate),
-            }));
+          const rawBestUci = parts[1] && parts[1] !== '(none)' ? parts[1] : latest.bestMoveUci;
+
+          // Parse and strictly validate move legality on cleanFen
+          let parsed = rawBestUci ? parseUciMove(cleanFen, rawBestUci) : null;
+          let bestUci = parsed ? rawBestUci : '';
+
+          const validLines: any[] = [];
+          const sortedEntries = Array.from(lineMap.entries()).sort((a, b) => a[0] - b[0]);
+          for (const [rank, l] of sortedEntries) {
+            const p = parseUciMove(cleanFen, l.uci);
+            if (p) {
+              validLines.push({
+                rank,
+                uci: l.uci,
+                san: p.san,
+                continuation: formatPvContinuation(cleanFen, l.pvMoves || [l.uci]),
+                scoreCp: l.cp,
+                mateIn: l.mate,
+                scoreDisplay: l.display,
+                winChanceWhite: centipawnsToWinChance(l.cp, l.mate),
+              });
+              if (!parsed) {
+                bestUci = l.uci;
+                parsed = p;
+              }
+            }
+          }
+
+          // Fallback to first legal move from cleanFen if engine move was somehow invalid
+          if (!parsed) {
+            try {
+              const c = new Chess(cleanFen);
+              const legals = c.moves({ verbose: true });
+              if (legals.length > 0) {
+                const fb = legals[0];
+                bestUci = `${fb.from}${fb.to}${fb.promotion || ''}`;
+                parsed = {
+                  san: fb.san,
+                  from: fb.from,
+                  to: fb.to,
+                  piece: fb.piece,
+                  legal: true,
+                };
+              }
+            } catch {}
+          }
+
           resolve({
             success: true,
             fen: cleanFen,
@@ -211,17 +270,15 @@ function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3):
             mateIn: latest.mateIn,
             winChanceWhite: centipawnsToWinChance(latest.scoreCp, latest.mateIn),
             bestMoveUci: bestUci,
-            bestMoveSan: parsed.san,
-            bestMoveFrom: parsed.from,
-            bestMoveTo: parsed.to,
-            lines,
+            bestMoveSan: parsed ? parsed.san : '',
+            bestMoveFrom: parsed ? parsed.from : '',
+            bestMoveTo: parsed ? parsed.to : '',
+            lines: validLines,
             engine: 'Stockfish 19 Lite WASM',
           });
         }
       };
 
-      engine.processCommand('ucinewgame');
-      engine.processCommand(`setoption name MultiPV value ${Math.max(1, Math.min(5, multipv))}`);
       engine.processCommand(`position fen ${cleanFen}`);
       engine.processCommand(`go depth ${targetDepth}`);
     } catch (err) {

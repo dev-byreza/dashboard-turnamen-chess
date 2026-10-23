@@ -630,6 +630,59 @@ export function detectOpening(moves: MoveHistoryItem[], pgn?: string): string {
   return 'Opening tidak terdaftar';
 }
 
+/**
+ * Helper: find actual safe legal tactical or developing move from position before this move.
+ * Strictly checks legality with Chess(prevFen) so it never returns an illegal move or move from an empty square.
+ */
+export function findSafeAlternativeMove(
+  prevFen: string,
+  currentSan?: string
+): { from: Square; to: Square; san: string; uci: string } | null {
+  if (!prevFen) return null;
+  try {
+    const c = new Chess(prevFen);
+    const legal = c.moves({ verbose: true });
+    if (legal.length === 0) return null;
+
+    // Filter out blunders (especially Queen capturing into an enemy defended square)
+    const safeCandidates = legal.filter((l) => {
+      if (currentSan && l.san === currentSan) return false;
+      if (l.piece === 'q') {
+        const sim = new Chess(prevFen);
+        sim.move(l);
+        const opp = sim.turn();
+        if (sim.isAttacked(l.to as any, opp)) {
+          return false; // NEVER suggest moving Queen into an attacked square
+        }
+      }
+      return true;
+    });
+
+    const cand =
+      safeCandidates.find(
+        (l) =>
+          (l.captured || l.san.includes('+') || l.san.includes('#')) &&
+          l.piece !== 'q'
+      ) ||
+      safeCandidates.find((l) =>
+        ['e4', 'e5', 'd4', 'd5', 'c4', 'c5', 'Nf3', 'Nc3', 'Nf6', 'Nc6'].includes(l.san)
+      ) ||
+      safeCandidates[0] ||
+      (currentSan ? legal.find((l) => l.san !== currentSan) : null) ||
+      legal[0];
+
+    if (cand) {
+      return {
+        from: cand.from as Square,
+        to: cand.to as Square,
+        san: cand.san,
+        uci: `${cand.from}${cand.to}${cand.promotion || ''}`,
+      };
+    }
+  } catch {}
+  return null;
+}
+
 export function classifyGameMoves(
   rawMoves: MoveHistoryItem[],
   matchResult: string | null = null
@@ -754,48 +807,7 @@ export function classifyGameMoves(
         index === 0
           ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
           : rawMoves[index - 1]?.fen;
-      if (!prevFen) return null;
-      try {
-        const c = new Chess(prevFen);
-        const legal = c.moves({ verbose: true });
-
-        // Filter out blunders (especially Queen capturing into an enemy defended square)
-        const safeCandidates = legal.filter((l) => {
-          if (l.san === currentSan) return false;
-          if (l.piece === 'q') {
-            const sim = new Chess(prevFen);
-            sim.move(l);
-            const opp = sim.turn();
-            if (sim.isAttacked(l.to as any, opp)) {
-              return false; // NEVER suggest moving Queen into an attacked square
-            }
-          }
-          return true;
-        });
-
-        const cand =
-          safeCandidates.find(
-            (l) =>
-              (l.captured || l.san.includes('+') || l.san.includes('#')) &&
-              l.piece !== 'q'
-          ) ||
-          safeCandidates.find((l) =>
-            ['e4', 'e5', 'd4', 'd5', 'c4', 'c5', 'Nf3', 'Nc3', 'Nf6', 'Nc6'].includes(l.san)
-          ) ||
-          safeCandidates[0] ||
-          legal.find((l) => l.san !== currentSan) ||
-          legal[0];
-
-        if (cand) {
-          return {
-            from: cand.from,
-            to: cand.to,
-            san: cand.san,
-            uci: `${cand.from}${cand.to}`,
-          };
-        }
-      } catch {}
-      return null;
+      return findSafeAlternativeMove(prevFen, currentSan);
     };
 
     // 1. BRILLIANT
@@ -1212,11 +1224,34 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       const entries = Object.entries(scores);
       if (entries.length < Math.max(2, expectedCount - 2)) return false;
       // Make sure it contains real Stockfish engine calculations (best moves or candidate lines)
-      return entries.some(
+      const hasRealEval = entries.some(
         ([f, s]) =>
           f !== START_FEN &&
           (!!s.bestSan || !!s.bestUci || (Array.isArray(s.lines) && s.lines.length > 0))
       );
+      if (!hasRealEval) return false;
+
+      // Verify that every best move in scores is strictly legal in its corresponding FEN
+      for (const [fen, s] of entries) {
+        if (s.bestUci && s.bestUci.length >= 4) {
+          try {
+            const c = new Chess(fen);
+            const from = s.bestUci.slice(0, 2);
+            const to = s.bestUci.slice(2, 4);
+            const promo = s.bestUci.slice(4, 5) || undefined;
+            const isLegal = c.moves({ verbose: true }).some(
+              (m) => m.from === from && m.to === to && (!promo || m.promotion === promo)
+            );
+            if (!isLegal) {
+              console.warn('[Review] Detected illegal move in cached analysis, purging cache:', s.bestUci, fen);
+              return false;
+            }
+          } catch {
+            return false;
+          }
+        }
+      }
+      return true;
     };
 
     // 1. Cek langsung dari data match yang sudah tersimpan di database turnamen
@@ -1414,21 +1449,45 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       );
       prevLoss = r.loss;
       const playedUci = `${m.from}${m.to}${m.promotion || ''}`;
-      const hasAlt = !!r.bestUci && r.bestUci !== playedUci;
+      const beforeFen = i === 0 ? START_FEN : rawMoveHistory[i - 1]?.fen;
+      let validAltMove: { from: string; to: string; san: string; uci: string } | undefined;
+
+      // Strictly validate r.bestUci on beforeFen so alternative move is 100% legal
+      if (r.bestUci && r.bestUci !== playedUci && beforeFen) {
+        try {
+          const c = new Chess(beforeFen);
+          const from = r.bestUci.slice(0, 2);
+          const to = r.bestUci.slice(2, 4);
+          const promo = r.bestUci.slice(4, 5) || undefined;
+          const matched = c.moves({ verbose: true }).find(
+            (lm) => lm.from === from && lm.to === to && (!promo || lm.promotion === promo)
+          );
+          if (matched) {
+            validAltMove = {
+              from: matched.from,
+              to: matched.to,
+              san: matched.san,
+              uci: `${matched.from}${matched.to}${matched.promotion || ''}`,
+            };
+          }
+        } catch {}
+      }
+
+      // Fallback to safe tactical/developing move from beforeFen if engine alt is missing/invalid
+      if (!validAltMove && ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(r.label) && beforeFen) {
+        const fallbackAlt = findSafeAlternativeMove(beforeFen, m.san);
+        if (fallbackAlt) {
+          validAltMove = fallbackAlt;
+        }
+      }
+
       return {
         ...m,
         classification: r.label,
         feedbackTitle: LABEL_TITLE[r.label],
         feedbackDescription: describeReview(m, r),
-        bestAlternative: hasAlt ? r.bestSan : undefined,
-        bestAlternativeMove: r.bestUci
-          ? {
-              from: r.bestUci.slice(0, 2),
-              to: r.bestUci.slice(2, 4),
-              san: r.bestSan || r.bestUci,
-              uci: r.bestUci,
-            }
-          : undefined,
+        bestAlternative: validAltMove ? validAltMove.san : undefined,
+        bestAlternativeMove: validAltMove,
       };
     });
   }, [rawMoveHistory, scoreMap]);
@@ -1817,10 +1876,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       .catch(() => {});
   }, [isOpen, currentPlyIndex, moveHistory]);
 
-  // Best Move info computation powered by Stockfish 19 Lite
+  // Best Move info computation powered by Stockfish 19 Lite with strict move legality verification
   const bestMoveInfo = useMemo(() => {
     if (currentPlyIndex >= 0 && moveHistory[currentPlyIndex]) {
       const currentMove = moveHistory[currentPlyIndex];
+      const prevFen =
+        currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
 
       const isSub =
         currentMove.classification === 'inaccuracy' ||
@@ -1829,43 +1890,130 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         currentMove.classification === 'blunder' ||
         currentMove.classification === 'missed_win';
 
+      // Helper to strictly validate that candidate move is 100% legal on prevFen
+      const validateMove = (fromSq?: string, toSq?: string, promo?: string) => {
+        if (!prevFen || !fromSq || !toSq) return null;
+        try {
+          const c = new Chess(prevFen);
+          const matched = c.moves({ verbose: true }).find(
+            (lm) => lm.from === fromSq && lm.to === toSq && (!promo || lm.promotion === promo)
+          );
+          if (matched) {
+            return {
+              from: matched.from as Square,
+              to: matched.to as Square,
+              san: matched.san,
+            };
+          }
+        } catch {}
+        return null;
+      };
+
       // If suboptimal move, provide the best alternative move as the target for the arrow
       if (isSub) {
+        // 1. Check currentMove.bestAlternativeMove if legal on prevFen
         if (currentMove.bestAlternativeMove?.from && currentMove.bestAlternativeMove?.to) {
-          return {
-            from: currentMove.bestAlternativeMove.from as Square,
-            to: currentMove.bestAlternativeMove.to as Square,
-            san: currentMove.bestAlternativeMove.san,
-            isCurrentMoveBest: false,
-            classification: 'best' as ChessComBadgeType,
-          };
+          const v = validateMove(
+            currentMove.bestAlternativeMove.from,
+            currentMove.bestAlternativeMove.to
+          );
+          if (v) {
+            return {
+              from: v.from,
+              to: v.to,
+              san: v.san,
+              isCurrentMoveBest: false,
+              classification: 'best' as ChessComBadgeType,
+            };
+          }
         }
+
+        // 2. Check decisionEval?.bestMoveUci if legal on prevFen
         if (decisionEval?.bestMoveUci && decisionEval.bestMoveUci.length >= 4) {
-          return {
-            from: decisionEval.bestMoveUci.slice(0, 2) as Square,
-            to: decisionEval.bestMoveUci.slice(2, 4) as Square,
-            san: decisionEval.bestMoveSan || decisionEval.bestMoveUci,
-            isCurrentMoveBest: false,
-            classification: 'best' as ChessComBadgeType,
-          };
+          const v = validateMove(
+            decisionEval.bestMoveUci.slice(0, 2),
+            decisionEval.bestMoveUci.slice(2, 4),
+            decisionEval.bestMoveUci.slice(4, 5) || undefined
+          );
+          if (v) {
+            return {
+              from: v.from,
+              to: v.to,
+              san: v.san,
+              isCurrentMoveBest: false,
+              classification: 'best' as ChessComBadgeType,
+            };
+          }
+        }
+
+        // 3. Check decisionEval candidate lines
+        if (Array.isArray(decisionEval?.lines)) {
+          for (const line of decisionEval.lines) {
+            if (line.uci && line.uci.length >= 4) {
+              const v = validateMove(line.uci.slice(0, 2), line.uci.slice(2, 4));
+              if (v) {
+                return {
+                  from: v.from,
+                  to: v.to,
+                  san: v.san,
+                  isCurrentMoveBest: false,
+                  classification: 'best' as ChessComBadgeType,
+                };
+              }
+            }
+          }
+        }
+
+        // 4. Check scoreMap on prevFen
+        if (prevFen && scoreMap[prevFen]?.bestUci && scoreMap[prevFen].bestUci.length >= 4) {
+          const u = scoreMap[prevFen].bestUci!;
+          const v = validateMove(u.slice(0, 2), u.slice(2, 4));
+          if (v) {
+            return {
+              from: v.from,
+              to: v.to,
+              san: v.san,
+              isCurrentMoveBest: false,
+              classification: 'best' as ChessComBadgeType,
+            };
+          }
+        }
+
+        // 5. Fallback safe candidate from getBestAlternative
+        if (prevFen) {
+          const alt = findSafeAlternativeMove(prevFen, currentMove.san);
+          if (alt) {
+            return {
+              from: alt.from as Square,
+              to: alt.to as Square,
+              san: alt.san,
+              isCurrentMoveBest: false,
+              classification: 'best' as ChessComBadgeType,
+            };
+          }
         }
       }
 
       // 1. Check Stockfish 19 Lite evaluation on the decision position (prevFen)
       if (decisionEval?.bestMoveUci && decisionEval.bestMoveUci.length >= 4) {
-        const from = decisionEval.bestMoveUci.slice(0, 2) as Square;
-        const to = decisionEval.bestMoveUci.slice(2, 4) as Square;
-        const isCurrentMoveBest =
-          (currentMove.from === from && currentMove.to === to) ||
-          currentMove.san === decisionEval.bestMoveSan;
+        const v = validateMove(
+          decisionEval.bestMoveUci.slice(0, 2),
+          decisionEval.bestMoveUci.slice(2, 4),
+          decisionEval.bestMoveUci.slice(4, 5) || undefined
+        );
+        if (v) {
+          const isCurrentMoveBest =
+            (currentMove.from === v.from && currentMove.to === v.to) ||
+            currentMove.san === v.san;
 
-        return {
-          from,
-          to,
-          san: decisionEval.bestMoveSan || decisionEval.bestMoveUci,
-          isCurrentMoveBest,
-          classification: currentMove.classification,
-        };
+          return {
+            from: v.from,
+            to: v.to,
+            san: v.san,
+            isCurrentMoveBest,
+            classification: currentMove.classification,
+          };
+        }
       }
 
       // 2. Check if classified as best, brilliant, great, or book
@@ -1887,13 +2035,19 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
       // 3. Fallback to alternative move
       if (currentMove.bestAlternativeMove) {
-        return {
-          from: currentMove.bestAlternativeMove.from as Square,
-          to: currentMove.bestAlternativeMove.to as Square,
-          san: currentMove.bestAlternativeMove.san,
-          isCurrentMoveBest: false,
-          classification: 'best' as ChessComBadgeType,
-        };
+        const v = validateMove(
+          currentMove.bestAlternativeMove.from,
+          currentMove.bestAlternativeMove.to
+        );
+        if (v) {
+          return {
+            from: v.from,
+            to: v.to,
+            san: v.san,
+            isCurrentMoveBest: false,
+            classification: 'best' as ChessComBadgeType,
+          };
+        }
       }
     }
 
@@ -1911,16 +2065,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
 
     return null;
-  }, [currentPlyIndex, moveHistory, decisionEval, currentEval]);
+  }, [currentPlyIndex, moveHistory, rawMoveHistory, decisionEval, currentEval, scoreMap]);
 
-  // Clean SAN display for best move (converting UCI like "d4d5" to clean SAN "d5")
+  // Clean SAN display for best move (converting UCI like "d8f6" to clean SAN "Qf6")
   const bestMoveSanDisplay = useMemo(() => {
     if (!bestMoveInfo) return '';
     const prevFen =
       currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
-    if (bestMoveInfo.san && !/^[a-h][1-8][a-h][1-8]/.test(bestMoveInfo.san)) {
-      return bestMoveInfo.san;
-    }
     if (bestMoveInfo.from && bestMoveInfo.to && prevFen) {
       try {
         const c = new Chess(prevFen);
@@ -1928,7 +2079,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         if (m?.san) return m.san;
       } catch {}
     }
-    return bestMoveInfo.san || '';
+    if (bestMoveInfo.san && !/^[a-h][1-8][a-h][1-8]/.test(bestMoveInfo.san)) {
+      return bestMoveInfo.san;
+    }
+    return '';
   }, [bestMoveInfo, currentPlyIndex, rawMoveHistory]);
 
   // Current move classification
