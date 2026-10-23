@@ -23,6 +23,7 @@ export interface PositionScore {
     san: string;
     continuation?: string;
     cp: number;
+    mate?: number;
     winWhite: number;
     scoreDisplay: string;
   }[];
@@ -147,6 +148,7 @@ export async function fetchPositionScore(
                 san: l.san,
                 continuation: l.continuation,
                 cp: l.scoreCp,
+                mate: l.mateIn ?? l.mate,
                 winWhite: l.winChanceWhite,
                 scoreDisplay: l.scoreDisplay,
               }))
@@ -227,6 +229,111 @@ function legalMoveCount(fen: string): number {
   }
 }
 
+export interface EngineLine {
+  moveUci: string;      // Contoh: "e2e4", "g1f3"
+  cp?: number;          // Skor Centipawn dari sudut pandang pemain yang melangkah
+  mate?: number;        // Mate in X (positif jika pemain menang, negatif jika kena mat)
+}
+
+export interface GreatMoveContext {
+  playedMoveUci: string;
+  legalMovesCount: number;
+  isSimpleRecapture: boolean; // True jika hanya memukul balik di petak yang sama dengan nilai setara
+  pv1: EngineLine;            // Langkah terbaik #1 dari Stockfish sebelum melangkah
+  pv2?: EngineLine;           // Langkah terbaik #2 dari Stockfish sebelum melangkah
+  prevPlayerEP: number;       // Expected Points pemain pada 1 langkah sebelumnya (sebelum lawan jalan)
+  playedEP: number;           // Expected Points setelah langkah pemain dieksekusi
+}
+
+/**
+ * Mengonversi evaluasi Centipawn / Mate menjadi Expected Points (0.00 - 1.00)
+ */
+export function evalToExpectedPoints(cp?: number, mate?: number): number {
+  if (mate !== undefined) {
+    if (mate > 0) return 1.0;
+    if (mate < 0) return 0.0;
+  }
+  if (cp === undefined) return 0.5;
+  
+  // Clamp centipawn di antara -1000 dan 1000
+  const clampedCp = Math.max(-1000, Math.min(1000, cp));
+  // Rumus kurva logistik Lichess/Chess.com (skala 0.0 - 1.0)
+  return 1 / (1 + Math.exp(-0.00368208 * clampedCp));
+}
+
+/**
+ * Fungsi utama penentu apakah sebuah langkah adalah Great Move (!)
+ */
+export function isGreatMove(ctx: GreatMoveContext): boolean {
+  const { playedMoveUci, legalMovesCount, isSimpleRecapture, pv1, pv2, prevPlayerEP, playedEP } = ctx;
+
+  // 1. Jika hanya ada 1 langkah legal (misal: satu-satunya langkah keluar dari skak), bukan Great Move
+  if (legalMovesCount <= 1 || !pv2) {
+    return false;
+  }
+
+  const ep1 = evalToExpectedPoints(pv1.cp, pv1.mate);
+  const ep2 = evalToExpectedPoints(pv2.cp, pv2.mate);
+  const epLoss = Math.max(0, ep1 - playedEP);
+
+  // 2. Syarat Wajib: Harus merupakan Best Move (atau selisih EP <= 1.5%)
+  const isBestMove = playedMoveUci === pv1.moveUci || epLoss <= 0.015;
+  if (!isBestMove) {
+    return false;
+  }
+
+  // 3. Syarat Wajib: Posisi setelah melangkah tidak boleh masih kalah telak (EP >= 0.20)
+  if (playedEP < 0.20) {
+    return false;
+  }
+
+  // 4. Filter Noise: Jika posisi sudah menang mutlak sejak awal DAN langkah ke-2 juga masih menang mutlak
+  // Contoh: PV1 (+9.0 / EP 0.99) vs PV2 (+5.0 / EP 0.92) -> keduanya menang mudah, bukan Great Move
+  if (ep1 > 0.92 && ep2 > 0.80) {
+    return false;
+  }
+
+  // Hitung selisih eksklusivitas antara pilihan #1 dan pilihan #2 (MultiPV Gap)
+  const multiPvGap = ep1 - ep2;
+
+  // 5. Filter Recapture Sederhana:
+  // Jika lawan makan perwira kita dan kita hanya makan balik, butuh gap yang sangat ekstrem
+  if (isSimpleRecapture && multiPvGap < 0.35) {
+    return false;
+  }
+
+  // ============================================================================
+  // SKENARIO 1: "THE ONLY MOVE" (Langkah Tunggal Penyelamat / Penjaga Keunggulan)
+  // ============================================================================
+  // Langkah #1 unggul minimal 15% peluang menang dibanding langkah terbaik #2
+  if (multiPvGap >= 0.15) {
+    return true;
+  }
+
+  // ============================================================================
+  // SKENARIO 2: "GAME CHANGER" (Membalikkan Keadaan Setelah Lawan Lengah)
+  // ============================================================================
+  // a. Dari posisi tertekan/kalah (<= 0.35) berbalik menjadi imbang/unggul (>= 0.50)
+  const savedLostGame = prevPlayerEP <= 0.35 && playedEP >= 0.50 && multiPvGap >= 0.10;
+  
+  // b. Dari posisi seimbang (<= 0.55) melonjak menjadi menang (>= 0.72)
+  const seizedWinningAdvantage = prevPlayerEP <= 0.55 && playedEP >= 0.72 && multiPvGap >= 0.10;
+
+  if (savedLostGame || seizedWinningAdvantage) {
+    return true;
+  }
+
+  // ============================================================================
+  // SKENARIO 3: MENEMUKAN SKAKMAT PAKSA KRUSIAL (Mate in 2+)
+  // ============================================================================
+  // PV1 adalah skakmat (>= 2 langkah), sedangkan PV2 bukan skakmat dan EP2 < 0.85
+  if (pv1.mate !== undefined && pv1.mate >= 2 && pv2.mate === undefined && ep2 < 0.85) {
+    return true;
+  }
+
+  return false;
+}
+
 export function classifyByEngine(
   m: { ply: number; color: 'w' | 'b'; san: string; from: string; to: string; piece: string; captured?: string; promotion?: string; fen: string },
   before: PositionScore,
@@ -290,57 +397,44 @@ function classifyCore(
 
     // ==========================================
     // 3. GREAT MOVE (!)
-    // Langkah krusial penentu permainan (The Only Move):
-    // a. MultiPV Check: Langkah #1 menjaga keunggulan/imbang, sedangkan langkah #2
-    //    jatuh sangat jauh (selisih probabilitas >= 12% atau cpDiff >= 120 cp).
-    // b. Membalikkan keadaan / satu-satunya penyelamat: Dari posisi kalah/tertekan
-    //    (wb <= 40) menemukan satu-satunya langkah bertahan (loss <= 0.6) atau
-    //    membalikkan ke imbang/menang (wa >= 48).
-    // c. Teknik endgame / dorongan pion bebas penentu promosi & skak benteng aktif.
+    // Menggunakan fungsi isGreatMove (The Only Move, Game Changer, & Skakmat Paksa Krusial)
     // ==========================================
     const isDirectEqualRecapture = !!prevMove?.captured && prevMove.to === m.to && !!m.captured && m.piece === prevMove.captured;
-    const isNotOpening = m.ply > 6;
-    const isTopChoice = isBest || (loss <= 0.3 && wb < 95);
+    const isNotOpening = m.ply > 8;
 
-    if (isTopChoice && isNotOpening && !isDirectEqualRecapture && legalMoveCount(before.fen) > 1) {
-      // Syarat A: MultiPV Gap (Selisih langkah #1 vs #2 sangat jauh)
-      const second = before.lines && before.lines.length >= 2 ? before.lines[1] : null;
-      if (second && wb < 92) {
-        const secondWin = m.color === 'w' ? second.winWhite : 100 - second.winWhite;
-        const cpDiff = typeof before.cp === 'number' && typeof second.cp === 'number'
-          ? (m.color === 'w' ? before.cp - second.cp : second.cp - before.cp)
-          : 0;
-        if (wa - secondWin >= 10 || cpDiff >= 100) return { ...base, label: 'great' };
-      }
+    const moverCp = (cpVal?: number) => (typeof cpVal === 'number' ? (m.color === 'w' ? cpVal : -cpVal) : undefined);
+    const moverMate = (mateVal?: number) => (typeof mateVal === 'number' ? (m.color === 'w' ? mateVal : -mateVal) : undefined);
 
-      // Syarat B: Membalikkan keadaan dari kalah menjadi imbang/menang setelah blunder lawan
-      if (wb <= 40 && wa >= 48 && loss <= 0.6) {
-        return { ...base, label: 'great' };
-      }
+    const pv1: EngineLine = {
+      moveUci: before.bestUci || (before.lines?.[0]?.uci ?? playedUci),
+      cp: moverCp(before.cp),
+      mate: moverMate(before.mate),
+    };
 
-      // Syarat C: Satu-satunya langkah penyelamat di bawah tekanan (Only Defensive Move)
-      if (wb <= 38 && loss <= 0.5) {
-        return { ...base, label: 'great' };
-      }
-
-      // Syarat D: Teknik Endgame Krusial / Dorongan Pion Bebas Promosi
-      const isEndgame = before.fen.split(' ')[0].replace(/[^qQ]/g, '').length === 0;
-      if (isEndgame && loss <= 0.5) {
-        if (m.piece === 'p' && ['4', '5', '6', '7'].includes(m.to[1])) {
-          return { ...base, label: 'great' };
+    const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
+    const pv2: EngineLine | undefined = secondLine
+      ? {
+          moveUci: secondLine.uci,
+          cp: moverCp(secondLine.cp),
+          mate: moverMate(secondLine.mate),
         }
-        if (m.piece === 'r' && (m.san.includes('+') || m.san.includes('x'))) {
-          return { ...base, label: 'great' };
-        }
-      }
+      : undefined;
 
-      // Syarat E: Terobosan Taktis / Dorongan Pion Pusat Kunci di Posisi Tajam
-      if (
-        m.piece === 'p' &&
-        ['c5', 'f5', 'd5', 'e5', 'c4', 'f4', 'd4', 'e4'].includes(m.san) &&
-        wb >= 60 &&
-        loss <= 0.5
-      ) {
+    const prevPlayerEP = evalToExpectedPoints(moverCp(before.cp), moverMate(before.mate));
+    const playedEP = evalToExpectedPoints(moverCp(after.cp), moverMate(after.mate));
+
+    if (isNotOpening && pv2) {
+      const great = isGreatMove({
+        playedMoveUci: playedUci,
+        legalMovesCount: legalMoveCount(before.fen),
+        isSimpleRecapture: isDirectEqualRecapture,
+        pv1,
+        pv2,
+        prevPlayerEP,
+        playedEP,
+      });
+
+      if (great) {
         return { ...base, label: 'great' };
       }
     }
