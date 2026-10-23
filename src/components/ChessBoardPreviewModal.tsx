@@ -1150,6 +1150,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   isAdmin = false,
 }) => {
   const [isAnalysisPendingAdmin, setIsAnalysisPendingAdmin] = useState(false);
+  const [userTriggeredClientAnalysis, setUserTriggeredClientAnalysis] = useState(false);
   const forceFreshRef = useRef(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1215,6 +1216,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setScoreMap({});
     setAnalysisProgress({ done: 0, total: 0 });
     setIsAnalysisPendingAdmin(false);
+    setUserTriggeredClientAnalysis(true);
     forceFreshRef.current = true;
     setAnalysisNonce((prev) => prev + 1);
   }, [match, recentGame, fenKey, reviewDepth]);
@@ -1333,8 +1335,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       // 4. Jika belum ada analisis resmi dari admin:
-      // Regular user / pengunjung tidak menjalankan analisis client liar agar hasil 100% dari 1 sumber resmi admin
-      if (match && !isAdmin) {
+      // Regular user / pengunjung menunggu admin, KECUALI jika pengunjung secara mandiri menekan tombol "Mulai Analisis Mandiri"
+      if (match && !isAdmin && !userTriggeredClientAnalysis) {
         setIsAnalysisPendingAdmin(true);
         setAnalysisProgress({ done: 0, total: uniqueFens.length });
         return;
@@ -3595,13 +3597,13 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.75rem', color: '#cbd5e1' }}>
                         Hasil evaluasi Stockfish resmi akan otomatis tampil dari satu sumber setelah dianalisis admin.
                       </p>
-                      {isAdmin && (
+                      {isAdmin ? (
                         <button
                           type="button"
                           onClick={handleClearCache}
                           style={{
                             marginTop: '0.5rem',
-                            padding: '0.4rem 0.9rem',
+                            padding: '0.45rem 1rem',
                             background: '#81b64c',
                             color: '#ffffff',
                             border: 'none',
@@ -3612,6 +3614,24 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           }}
                         >
                           ⚡ Jalankan Analisis Resmi (Admin)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleClearCache}
+                          style={{
+                            marginTop: '0.5rem',
+                            padding: '0.45rem 1rem',
+                            background: '#81b64c',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ⚡ Mulai Analisis Mandiri Sekarang
                         </button>
                       )}
                     </div>
@@ -4442,7 +4462,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
                         Hasil evaluasi resmi Stockfish akan otomatis tampil dari satu sumber setelah dianalisis oleh admin turnamen.
                       </p>
-                      {isAdmin && (
+                      {isAdmin ? (
                         <button
                           type="button"
                           onClick={handleClearCache}
@@ -4459,6 +4479,24 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           }}
                         >
                           ⚡ Jalankan Analisis Resmi Sekarang (Admin)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleClearCache}
+                          style={{
+                            marginTop: '0.6rem',
+                            padding: '0.45rem 1.1rem',
+                            background: '#81b64c',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ⚡ Mulai Analisis Mandiri Sekarang
                         </button>
                       )}
                     </div>
@@ -4689,17 +4727,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <Cpu size={12} />
                       <span>Depth {stockfishDepth}</span>
                     </button>
-                    {(isAdmin || !match) && (
-                      <button
-                        type="button"
-                        onClick={handleClearCache}
-                        className="review-meta-pill"
-                        title="Analisis ulang game ini pada kedalaman saat ini dan perbarui ke database publik"
-                      >
-                        <RotateCcw size={11} />
-                        <span>Re-analyze</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleClearCache}
+                      className="review-meta-pill"
+                      title="Analisis ulang game ini menggunakan Stockfish dan bersihkan cache lama"
+                    >
+                      <RotateCcw size={11} />
+                      <span>Re-analyze</span>
+                    </button>
                     {match?.id && !isAnalysisPendingAdmin && isAnalysisComplete && (
                       <span
                         className="review-meta-pill official"

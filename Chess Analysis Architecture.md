@@ -77,11 +77,11 @@ Urutan pengecekan harus dieksekusi dari atas ke bawah:
 | **1** | **Forced** | ⚪ | Jumlah langkah legal pada `fenBefore` == `1`. |
 | **2** | **Book** | 📖 | `fenAfter` terdaftar di database ECO Opening Book (dan `ply <= 24`). |
 | **3** | **Brilliant** | `!!` | Langkah adalah Top Move ($\Delta W \le 0.015$ atau `played == best`), `isSacrifice == true`, posisi belum menang telak ($W_{\text{before}} < 0.88$), dan setelah melangkah posisi tetap bagus ($W_{\text{after}} \ge 0.40$). |
-| **4** | **Great** | `!` | Langkah adalah `bestMove` ($\Delta W \le 0.01$), satu-satunya langkah bagus di mana selisih dengan kandidat ke-2 besar ($W_{\text{before}} - W_{\text{secondBest}} \ge 0.15$), serta bukan di posisi yang sudah menang telak ($0.25 \le W_{\text{after}} \le 0.90$). |
-| **5** | **Best** | ⭐ | `playedUci === bestUci` ATAU $\Delta W \le 0.01$. |
+| **4** | **Great** | `!` | Langkah adalah `#1 bestMove` mutlak di mana selisih keunggulan terhadap kandidat ke-2 sangat besar ($W_{\text{before}} - W_{\text{secondBest}} \ge 0.15$), serta bukan di posisi yang sudah menang telak ($0.25 \le W_{\text{after}} \le 0.90$). |
+| **5** | **Best** | ⭐ | `playedUci === bestUci` (HANYA langkah pilihan nomor 1 Stockfish; langkah alternatif yang bagus masuk ke Excellent). |
 | **6** | **Miss** | ❌ | Langkah lawan sebelumnya adalah `Blunder` atau `Mistake` ($\Delta W_{\text{prev}} \ge 0.12$), namun pemain gagal memanfaatkannya ($\Delta W > 0.12$ dan bukan karena masuk ke mate lawan). |
 | **7** | **Blunder (Mate)** | `??` | Membuang *Forced Mate* ($\text{mate}_{\text{before}} > 0 \rightarrow \text{mate}_{\text{after}} == \text{null}$ dan $W_{\text{after}} < 0.75$) ATAU melangkah masuk ke *Forced Mate* lawan ($\text{mate}_{\text{before}} == \text{null} \rightarrow \text{mate}_{\text{after}} < 0$). |
-| **8** | **Excellent** | 👍 | $0.01 < \Delta W \le 0.025$ |
+| **8** | **Excellent** | 👍 | Bukan pilihan #1 engine (`playedUci !== bestUci`), namun langkah alternatif yang sangat kuat ($\Delta W \le 0.025$). |
 | **9** | **Good** | ✔️ | $0.025 < \Delta W \le 0.055$ |
 | **10** | **Inaccuracy** | `?!` | $0.055 < \Delta W \le 0.105$ |
 | **11** | **Mistake** | `?` | $0.105 < \Delta W \le 0.20$ |

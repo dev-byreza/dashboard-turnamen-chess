@@ -514,7 +514,7 @@ function classifyCore(
   const moverMate = (s: PositionScore) => (s.mate !== undefined ? (m.color === 'w' ? s.mate : -s.mate) : null);
 
   const playedUci = `${m.from}${m.to}${m.promotion || ''}`;
-  const bestMoveUci = before.bestUci || (before.lines?.[0]?.uci ?? playedUci);
+  const bestMoveUci = before.bestUci || before.lines?.[0]?.uci || '';
 
   const cpBefore = moverCp(before);
   const mateBefore = moverMate(before);
@@ -556,11 +556,11 @@ function classifyCore(
       ));
   if (isOpeningBook) return { ...base, loss: 0, accuracy: 100, label: 'book' };
 
-  const isBestOrNearlyBest = playedUci === bestMoveUci || winProbLost <= 0.015;
+  const isEngineTopMove = !!bestMoveUci && playedUci === bestMoveUci;
 
   // 3. BRILLIANT MOVE (!!)
   // Sesuai Section 4 & 5 Chess Analysis Architecture:
-  // - Langkah adalah Top Move (winProbLost <= 0.015 atau playedUci === bestMoveUci)
+  // - Langkah adalah Top Move (#1 engine atau hampir terbaik winProbLost <= 0.015)
   // - Terdeteksi pengorbanan materi perwira nyata (detectPieceSacrifice atau isMaterialSacrifice)
   // - Posisi belum menang telak (winProbBefore < 0.88)
   // - Setelah melangkah posisi tetap prima / tidak kalah (winProbAfter >= 0.40)
@@ -570,17 +570,17 @@ function classifyCore(
     detectPieceSacrifice(before.fen, playedUci) ||
     isMaterialSacrifice(before.fen, playedUci).isSacrifice;
 
-  if (isBestOrNearlyBest && isSacrifice && !isRecapture && winProbBefore < 0.88 && winProbAfter >= 0.40) {
+  if ((isEngineTopMove || winProbLost <= 0.015) && isSacrifice && !isRecapture && winProbBefore < 0.88 && winProbAfter >= 0.40) {
     return { ...base, accuracy: 100, label: 'brilliant' };
   }
 
   // 4. GREAT MOVE (!)
   // Sesuai Section 4 Chess Analysis Architecture:
-  // - Langkah adalah #1 bestMove (winProbLost <= 0.01 atau playedUci === bestMoveUci)
+  // - Langkah adalah #1 bestMove
   // - Selisih WinProb antara kandidat #1 dan kandidat #2 >= 15% (Uniqueness Gap)
   // - Posisi bukan di tempat yang sudah menang telak (0.25 <= winProbAfter dan winProbBefore <= 0.92)
   const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
-  if (secondLine && (playedUci === bestMoveUci || winProbLost <= 0.01)) {
+  if (secondLine && isEngineTopMove) {
     const secondCp = moverCp({ cp: secondLine.cp } as any);
     const secondMate = moverMate({ mate: secondLine.mate } as any);
     const winProbSecondBest = getWinProbability(secondCp, secondMate);
@@ -592,8 +592,9 @@ function classifyCore(
   }
 
   // 5. BEST MOVE (★)
-  // Langkah pilihan pertama engine atau selisih penurunan win probability <= 1%
-  if (playedUci === bestMoveUci || winProbLost <= 0.01) {
+  // HANYA diberikan jika pemain benar-benar menemukan langkah pilihan pertama engine (#1 Best Move)
+  // Langkah alternatif yang bagus namun bukan #1 akan masuk ke kategori Excellent (👍)
+  if (isEngineTopMove) {
     return { ...base, label: 'best' };
   }
 

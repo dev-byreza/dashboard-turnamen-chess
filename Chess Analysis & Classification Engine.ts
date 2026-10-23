@@ -327,10 +327,10 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     };
   }
 
-  const isBestOrNearlyBest = playedUci === bestMoveUci || winProbLost <= 0.015;
+  const isEngineTopMove = !!bestMoveUci && playedUci === bestMoveUci;
 
   // 3. BRILLIANT, GREAT, & BEST MOVES
-  if (isBestOrNearlyBest) {
+  if (isEngineTopMove || winProbLost <= 0.015) {
     // Syarat Brilliant (!!):
     // - Langkah terbaik / hampir terbaik
     // - Mengorbankan materi (isSacrifice)
@@ -348,10 +348,10 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     }
 
     // Syarat Great Move (!):
-    // - Langkah harus #1 terbaik atau kehilangan <= 1%
+    // - Langkah harus #1 pilihan engine
     // - Selisih WinProb antara kandidat #1 (evalBefore) dan kandidat #2 (evalSecondBest) >= 15%
     // - Posisi setelah melangkah kompetitif/unggul (0.25 <= winProbAfter <= 0.92)
-    if (evalSecondBest && winProbLost <= 0.01) {
+    if (evalSecondBest && isEngineTopMove) {
       const winProbSecondBest = getWinProbability(evalSecondBest.cp, evalSecondBest.mate);
       const uniquenessGap = winProbBefore - winProbSecondBest;
 
@@ -367,7 +367,8 @@ export function classifyChessMove(params: ClassifyMoveParams): {
       }
     }
 
-    if (playedUci === bestMoveUci || winProbLost <= 0.01) {
+    // Best Move (★) HANYA diberikan jika pemain benar-benar memainkan pilihan #1 engine
+    if (isEngineTopMove) {
       return {
         classification: 'Best',
         isSacrifice,
