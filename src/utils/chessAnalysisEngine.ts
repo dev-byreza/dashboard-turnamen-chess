@@ -314,10 +314,6 @@ export function classifyChessMove(params: ClassifyMoveParams): {
   const winProbBefore = getWinProbability(evalBefore.cp, evalBefore.mate);
   const winProbAfter = getWinProbability(evalAfter.cp, evalAfter.mate);
   const winProbLost = Math.max(0, winProbBefore - winProbAfter);
-  const cpLoss =
-    evalBefore.cp !== null && evalBefore.cp !== undefined && evalAfter.cp !== null && evalAfter.cp !== undefined
-      ? Math.max(0, evalBefore.cp - evalAfter.cp)
-      : 0;
 
   const isSacrifice = detectPieceSacrifice(fenBefore, playedUci);
 
@@ -345,16 +341,43 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     };
   }
 
-  const isEngineTopMove = !!bestMoveUci && playedUci === bestMoveUci;
+  // Fallback jika engine bestMoveUci belum terisi, namun tidak ada kehilangan winProb atau mengarah ke skakmat paksa
+  const isEngineTopMove = (!!bestMoveUci && playedUci === bestMoveUci) || (!bestMoveUci && winProbLost <= 0.005);
+
+  const hasForcedMateAfter = evalAfter.mate !== null && evalAfter.mate !== undefined && evalAfter.mate > 0;
+  const hadForcedMateBefore = evalBefore.mate !== null && evalBefore.mate !== undefined && evalBefore.mate > 0;
+  const secondBestHasForcedMate =
+    evalSecondBest?.mate !== null && evalSecondBest?.mate !== undefined && evalSecondBest.mate > 0;
+
+  const winProbSecondBest = evalSecondBest
+    ? getWinProbability(evalSecondBest.cp, evalSecondBest.mate)
+    : winProbBefore;
+  const uniquenessGap = evalSecondBest ? Math.max(0, winProbBefore - winProbSecondBest) : 0;
+
+  // Cek eksploitasi pin mutlak (misal Qd7-h3! di mana pion g2 ter-pin oleh Rg8)
+  const isPinExploit = isTacticalPinExploit(fenBefore, playedUci);
 
   // 3. BRILLIANT, GREAT, & BEST MOVES
-  if (isEngineTopMove || winProbLost <= 0.015) {
+  if (
+    isEngineTopMove ||
+    winProbLost <= 0.015 ||
+    hasForcedMateAfter ||
+    (isPinExploit && winProbAfter >= 0.85 && winProbLost <= 0.05)
+  ) {
     // Syarat Brilliant (!!):
-    // - Langkah terbaik / hampir terbaik
+    // - Langkah terbaik / hampir terbaik (atau menghasilkan skakmat paksa)
     // - Mengorbankan materi (isSacrifice)
-    // - Posisi sebelum melangkah belum menang telak (winProbBefore < 0.88)
     // - Posisi setelah melangkah tidak kalah (winProbAfter >= 0.40)
-    if (isSacrifice && winProbBefore < 0.88 && winProbAfter >= 0.40) {
+    // - Filter anti-showoff: Bukan pengorbanan sia-sia di posisi yang sudah menang telak,
+    //   KECUALI langkah tersebut mengarah ke skakmat paksa (hasForcedMateAfter / hadForcedMateBefore)
+    //   atau langkah terbaik ke-2 belum menang mudah (winProbSecondBest < 0.85)
+    const isNotTrivialWinningShowoff =
+      winProbBefore < 0.92 ||
+      hasForcedMateAfter ||
+      hadForcedMateBefore ||
+      (evalSecondBest !== undefined && winProbSecondBest < 0.85 && !secondBestHasForcedMate);
+
+    if (isSacrifice && isNotTrivialWinningShowoff && winProbAfter >= 0.40) {
       return {
         classification: 'Brilliant',
         isSacrifice: true,
@@ -366,69 +389,66 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     }
 
     // Syarat Great Move (!) Standar Chess.com:
-    // - WAJIB merupakan langkah #1 terbaik engine (isEngineTopMove === true)
+    // - Merupakan langkah #1 terbaik engine (atau langkah eksploitasi pin taktis yang tetap menang mutlak)
     // - Bukan langkah paksa (legalMovesCount > 1)
-    // - Posisi belum menang mutlak (winProbBefore <= 0.92)
     // - Posisi setelah melangkah tetap terjaga (winProbAfter >= 0.30)
-    if (isEngineTopMove && legalMovesCount > 1 && winProbBefore <= 0.92 && winProbAfter >= 0.30) {
-      let uniquenessGap = 0;
-      if (evalSecondBest) {
-        const winProbSecondBest = getWinProbability(evalSecondBest.cp, evalSecondBest.mate);
-        uniquenessGap = winProbBefore - winProbSecondBest;
-      }
-
-      // Skenario A: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding pilihan #2)
-      if (uniquenessGap >= 0.15) {
+    if (legalMovesCount > 1 && winProbAfter >= 0.30) {
+      // Skenario A: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice seperti Qd7-h3! di mana pion g2 ter-pin oleh Rg8)
+      // Tetap dievaluasi meskipun bestMoveUci adalah Rxg2+ (selama Qxh3 tetap menang mutlak winProbAfter >= 0.85)
+      if (isPinExploit && (!evalSecondBest || uniquenessGap >= 0.05 || hasForcedMateAfter || winProbAfter >= 0.85)) {
         return {
           classification: 'Great',
           isSacrifice,
           winProbBefore,
           winProbAfter,
-          winProbLost,
+          winProbLost: 0,
           accuracy: 100,
         };
       }
 
-      // Skenario B: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice) yang terverifikasi ray-casting + gap >= 10%
-      if (uniquenessGap >= 0.10 && isTacticalPinExploit(fenBefore, playedUci)) {
-        return {
-          classification: 'Great',
-          isSacrifice,
-          winProbBefore,
-          winProbAfter,
-          winProbLost,
-          accuracy: 100,
-        };
-      }
+      if (isEngineTopMove) {
+        // Skenario B: Menemukan skakmat paksa dari posisi non-mate (atau satu-satunya jalur mate saat opsi ke-2 bukan mate)
+        const foundForcedMate =
+          (!hadForcedMateBefore && hasForcedMateAfter) ||
+          (hasForcedMateAfter && evalSecondBest !== undefined && !secondBestHasForcedMate && winProbSecondBest < 0.90);
+        if (foundForcedMate && (!evalSecondBest || uniquenessGap >= 0.05 || !secondBestHasForcedMate)) {
+          return {
+            classification: 'Great',
+            isSacrifice,
+            winProbBefore,
+            winProbAfter,
+            winProbLost,
+            accuracy: 100,
+          };
+        }
 
-      // Skenario C: Menemukan skakmat paksa dari posisi non-mate + gap >= 10%
-      const foundForcedMate =
-        (evalBefore.mate === null || evalBefore.mate <= 0) &&
-        evalAfter.mate !== null &&
-        evalAfter.mate > 0;
-      if (foundForcedMate && uniquenessGap >= 0.10) {
-        return {
-          classification: 'Great',
-          isSacrifice,
-          winProbBefore,
-          winProbAfter,
-          winProbLost,
-          accuracy: 100,
-        };
-      }
+        if (winProbBefore <= 0.95) {
+          // Skenario C: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding pilihan #2)
+          if (uniquenessGap >= 0.15) {
+            return {
+              classification: 'Great',
+              isSacrifice,
+              winProbBefore,
+              winProbAfter,
+              winProbLost,
+              accuracy: 100,
+            };
+          }
 
-      // Skenario D: Game Changer (Menyelamatkan game kalah / melonjak dari seimbang menjadi menang dengan gap >= 10%)
-      const savedLostGame = winProbBefore <= 0.35 && winProbAfter >= 0.50 && uniquenessGap >= 0.10;
-      const seizedWin = winProbBefore <= 0.55 && winProbAfter >= 0.72 && uniquenessGap >= 0.10;
-      if (savedLostGame || seizedWin) {
-        return {
-          classification: 'Great',
-          isSacrifice,
-          winProbBefore,
-          winProbAfter,
-          winProbLost,
-          accuracy: 100,
-        };
+          // Skenario D: Game Changer (Menyelamatkan game kalah / melonjak dari seimbang menjadi menang dengan gap >= 10%)
+          const savedLostGame = winProbBefore <= 0.35 && winProbAfter >= 0.50 && uniquenessGap >= 0.10;
+          const seizedWin = winProbBefore <= 0.55 && winProbAfter >= 0.72 && uniquenessGap >= 0.10;
+          if (savedLostGame || seizedWin) {
+            return {
+              classification: 'Great',
+              isSacrifice,
+              winProbBefore,
+              winProbAfter,
+              winProbLost,
+              accuracy: 100,
+            };
+          }
+        }
       }
     }
 
@@ -447,61 +467,44 @@ export function classifyChessMove(params: ClassifyMoveParams): {
 
   // 4. MATE BLUNDER & MISSED MATE CHECKS
   const hadForcedMate = evalBefore.mate !== null && evalBefore.mate !== undefined && evalBefore.mate > 0;
-  const hasForcedMateAfter = evalAfter.mate !== null && evalAfter.mate !== undefined && evalAfter.mate > 0;
 
   if (hadForcedMate && !isEngineTopMove) {
-    // Skenario 1: Memiliki Mate in 1, tapi memainkan langkah lain yang bukan mate in 1
-    if (evalBefore.mate === 1 && (!evalAfter.mate || evalAfter.mate > 1)) {
-      if (winProbAfter >= 0.50) {
-        return {
-          classification: 'Miss',
-          isSacrifice,
-          winProbBefore,
-          winProbAfter,
-          winProbLost: Math.max(winProbLost, 0.20),
-          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.20)),
-        };
-      } else {
-        return {
-          classification: 'Blunder',
-          isSacrifice,
-          winProbBefore,
-          winProbAfter,
-          winProbLost: Math.max(winProbLost, 0.35),
-          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.35)),
-        };
-      }
+    // Jika membuang forced mate dan posisi berbalik imbang/kalah (winProbAfter < 0.50) -> Blunder
+    if (!hasForcedMateAfter && winProbAfter < 0.50) {
+      return {
+        classification: 'Blunder',
+        isSacrifice,
+        winProbBefore,
+        winProbAfter,
+        winProbLost: Math.max(winProbLost, 0.30),
+        accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.30)),
+      };
     }
 
-    // Skenario 2: Memiliki forced mate (Mate in N), namun membuang forced mate tersebut
-    if (!hasForcedMateAfter) {
-      if (winProbAfter >= 0.50) {
-        return {
-          classification: 'Miss',
-          isSacrifice,
-          winProbBefore,
-          winProbAfter,
-          winProbLost: Math.max(winProbLost, 0.20),
-          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.20)),
-        };
-      } else {
-        return {
-          classification: 'Blunder',
-          isSacrifice,
-          winProbBefore,
-          winProbAfter,
-          winProbLost: Math.max(winProbLost, 0.35),
-          accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.35)),
-        };
-      }
+    // Jika membuang forced mate menjadi keunggulan tipis/sedang (0.50 <= winProbAfter < 0.85) -> Miss
+    if (!hasForcedMateAfter && winProbAfter < 0.85) {
+      return {
+        classification: 'Miss',
+        isSacrifice,
+        winProbBefore,
+        winProbAfter,
+        winProbLost: Math.max(winProbLost, 0.15),
+        accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.15)),
+      };
     }
+
+    // Jika winProbAfter >= 0.85 (misal masih unggul telak +9.0 atau -21.1),
+    // JANGAN dihukum sebagai Blunder/Miss; biarkan lanjut ke evaluasi normal (Excellent / Good).
   }
 
+  // Melangkah masuk ke skakmat paksa lawan:
+  // Hanya dihitung Blunder jika posisi sebelumnya belum kalah telak (winProbBefore >= 0.30)
   const steppedIntoForcedMate =
     !hadForcedMate &&
+    (evalBefore.mate === null || evalBefore.mate === undefined || evalBefore.mate >= 0) &&
     evalAfter.mate !== null &&
     evalAfter.mate < 0 &&
-    winProbBefore >= 0.20;
+    winProbBefore >= 0.30;
 
   if (steppedIntoForcedMate) {
     return {
@@ -518,9 +521,9 @@ export function classifyChessMove(params: ClassifyMoveParams): {
   const opponentBlunderedLastTurn =
     previousOpponentMoveClass === 'Blunder' ||
     previousOpponentMoveClass === 'Mistake' ||
-    previousOpponentWinLoss >= 0.12;
+    previousOpponentWinLoss >= 0.15;
 
-  if (opponentBlunderedLastTurn && winProbLost > 0.12 && winProbAfter >= 0.35) {
+  if (opponentBlunderedLastTurn && winProbLost >= 0.15 && winProbAfter >= 0.35 && winProbBefore <= 0.90) {
     return {
       classification: 'Miss',
       isSacrifice,
@@ -531,28 +534,22 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     };
   }
 
-  // 6. STANDARD WIN-LOSS THRESHOLDS (Sesuai Chess Analysis Architecture.md)
-  // Menangani Sigmoid Flat-Tail Anomaly: Jika posisi sudah kalah/menang jauh, kehilangan materi perwira/pion
-  // tetap harus dideteksi sebagai Blunder / Mistake / Inaccuracy berdasarkan centipawn loss (cpLoss).
+  // 6. STANDARD WIN-PROBABILITY THRESHOLDS (Murni Berbasis Win Probability / Expected Points seperti Chess.com)
+  // Di Chess.com, klasifikasi langkah ditentukan oleh berapa persen peluang menang (Expected Points) yang hilang (winProbLost).
+  // Mengandalkan `cpLoss >= 300` secara mentah menyebabkan ledakan jumlah Blunder palsu ketika posisi sudah
+  // menang/kalah mutlak (misal dari +9.0 turun ke +5.5, atau dari -5.0 turun ke -9.0).
   let classification: MoveClassification;
-  let effectiveWinLoss = winProbLost;
 
-  if (winProbLost >= 0.20 || cpLoss >= 300) {
+  if (winProbLost >= 0.20) {
     classification = 'Blunder';
-    effectiveWinLoss = Math.max(winProbLost, 0.25);
-  } else if (winProbLost >= 0.105 || cpLoss >= 180) {
+  } else if (winProbLost >= 0.10) {
     classification = 'Mistake';
-    effectiveWinLoss = Math.max(winProbLost, 0.15);
-  } else if (winProbLost >= 0.055 || cpLoss >= 90) {
+  } else if (winProbLost >= 0.05) {
     classification = 'Inaccuracy';
-    effectiveWinLoss = Math.max(winProbLost, 0.08);
-  } else if (winProbLost <= 0.025 && cpLoss < 40) {
+  } else if (winProbLost <= 0.02) {
     classification = 'Excellent';
-  } else if (winProbLost <= 0.055 && cpLoss < 80) {
-    classification = 'Good';
   } else {
-    classification = 'Inaccuracy';
-    effectiveWinLoss = Math.max(winProbLost, 0.08);
+    classification = 'Good';
   }
 
   return {
@@ -560,8 +557,8 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     isSacrifice,
     winProbBefore,
     winProbAfter,
-    winProbLost: effectiveWinLoss,
-    accuracy: calculateMoveAccuracy(effectiveWinLoss),
+    winProbLost,
+    accuracy: calculateMoveAccuracy(winProbLost),
   };
 }
 
