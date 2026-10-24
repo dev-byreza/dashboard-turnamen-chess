@@ -76,6 +76,8 @@ export interface AnalyzedMoveResult {
   winProbLost: number;
   accuracy: number;
   bestMoveUci: string;
+  /** Panah saran langkah terbaik (null jika langkah pemain sudah Best / Great / Brilliant / Book) */
+  feedbackArrow: { from: Square; to: Square } | null;
   evalBefore: EngineLine;
   evalAfter: EngineLine;
 }
@@ -196,6 +198,69 @@ export function isSquareDefended(chess: Chess, square: Square, defenderColor: Co
 }
 
 /**
+ * Menghitung Static Exchange Evaluation (SEE) sederhana pada petak tertentu
+ * untuk mengetahui berapa materi yang bisa dimenangkan pihak yang sedang giliran jalan.
+ */
+function getSeeCaptureGain(chess: Chess, targetSquare: Square, depth = 0): number {
+  if (depth > 10) return 0;
+  const captures = chess.moves({ verbose: true }).filter((m) => m.to === targetSquare);
+  if (captures.length === 0) return 0;
+
+  captures.sort((a, b) => PIECE_VALUES[a.piece] - PIECE_VALUES[b.piece]);
+  const lva = captures[0];
+  const capturedVal = lva.captured ? PIECE_VALUES[lva.captured] : 0;
+
+  chess.move(lva);
+  const counterGain = getSeeCaptureGain(chess, targetSquare, depth + 1);
+  chess.undo();
+
+  return Math.max(0, capturedVal - counterGain);
+}
+
+/**
+ * Menghitung apakah sebuah langkah secara langsung menaruh perwira (N/B/R/Q) ke petak yang
+ * dapat dimakan gratis oleh lawan (atau ditukar dengan bidak yang jauh lebih murah),
+ * atau meninggalkan perwira tanpa pengawalan.
+ * Mengembalikan jumlah materi bersih yang hilang dalam centipawn (misal 900 untuk Menteri gratis).
+ */
+export function getDirectMaterialBlunderLoss(fenBefore: string, playedUci: string): number {
+  let chess: Chess;
+  try {
+    chess = new Chess(fenBefore);
+  } catch {
+    return 0;
+  }
+
+  const from = playedUci.slice(0, 2) as Square;
+  const to = playedUci.slice(2, 4) as Square;
+  const promotion = (playedUci.length > 4 ? playedUci[4] : undefined) as PieceSymbol | undefined;
+
+  const movingPiece = chess.get(from);
+  if (!movingPiece) return 0;
+
+  const targetPiece = chess.get(to);
+  const capturedVal = targetPiece ? PIECE_VALUES[targetPiece.type] : 0;
+
+  let moveObj: Move;
+  try {
+    moveObj = chess.move({ from, to, promotion });
+  } catch {
+    return 0;
+  }
+  if (!moveObj) return 0;
+
+  // Hanya periksa kehilangan materi jika langkah tersebut BUKAN pengorbanan yang menang/paksa skakmat
+  const opponentGainOnDestination = getSeeCaptureGain(chess, to);
+  const netDirectLoss = opponentGainOnDestination - capturedVal;
+
+  if (netDirectLoss >= 200) {
+    return netDirectLoss;
+  }
+
+  return 0;
+}
+
+/**
  * Mendeteksi apakah langkah yang baru dimainkan merupakan pengorbanan materi (Sacrifice).
  * Menggunakan analisis serangan balasan pada posisi setelah langkah dimainkan.
  */
@@ -286,6 +351,28 @@ export function detectPieceSacrifice(fenBefore: string, playedUci: string): bool
   return false;
 }
 
+/**
+ * Menentukan apakah panah saran langkah terbaik (Best Move Arrow) harus ditampilkan di papan.
+ * Panah HANYA muncul jika langkah pemain BUKAN Best / Great / Brilliant / Book.
+ */
+export function shouldShowBestMoveArrow(
+  classification: MoveClassification | string,
+  playedUci?: string,
+  bestMoveUci?: string
+): boolean {
+  const c = classification.toLowerCase();
+  if (c === 'best' || c === 'great' || c === 'brilliant' || c === 'book') {
+    return false;
+  }
+  if (!bestMoveUci || bestMoveUci.length < 4) {
+    return false;
+  }
+  if (playedUci && playedUci.slice(0, 4) === bestMoveUci.slice(0, 4)) {
+    return false;
+  }
+  return true;
+}
+
 // ============================================================================
 // 5. CORE MOVE CLASSIFIER
 // ============================================================================
@@ -314,8 +401,13 @@ export function classifyChessMove(params: ClassifyMoveParams): {
   const winProbBefore = getWinProbability(evalBefore.cp, evalBefore.mate);
   const winProbAfter = getWinProbability(evalAfter.cp, evalAfter.mate);
   const winProbLost = Math.max(0, winProbBefore - winProbAfter);
+  const cpLoss =
+    evalBefore.cp !== null && evalBefore.cp !== undefined && evalAfter.cp !== null && evalAfter.cp !== undefined
+      ? Math.max(0, evalBefore.cp - evalAfter.cp)
+      : 0;
 
   const isSacrifice = detectPieceSacrifice(fenBefore, playedUci);
+  const directMaterialBlunderLoss = getDirectMaterialBlunderLoss(fenBefore, playedUci);
 
   // 1. FORCED MOVE (Hanya ada 1 langkah legal -> Best Move)
   if (legalMovesCount === 1) {
@@ -357,12 +449,17 @@ export function classifyChessMove(params: ClassifyMoveParams): {
   // Cek eksploitasi pin mutlak (misal Qd7-h3! di mana pion g2 ter-pin oleh Rg8)
   const isPinExploit = isTacticalPinExploit(fenBefore, playedUci);
 
+  // JANGAN masuk ke kategori Best/Excellent otomatis jika pemain menaruh perwira gratis di posisi kalah (misal Qe4?? di depan Nxe4)
+  const isUnsoundPieceHangInLostPos =
+    !isEngineTopMove && directMaterialBlunderLoss >= 300 && winProbAfter < 0.25 && cpLoss >= 250;
+
   // 3. BRILLIANT, GREAT, & BEST MOVES
   if (
-    isEngineTopMove ||
-    winProbLost <= 0.015 ||
-    hasForcedMateAfter ||
-    (isPinExploit && winProbAfter >= 0.85 && winProbLost <= 0.05)
+    !isUnsoundPieceHangInLostPos &&
+    (isEngineTopMove ||
+      winProbLost <= 0.015 ||
+      hasForcedMateAfter ||
+      (isPinExploit && winProbAfter >= 0.85 && winProbLost <= 0.05))
   ) {
     // Syarat Brilliant (!!):
     // - Langkah terbaik / hampir terbaik (atau menghasilkan skakmat paksa)
@@ -394,7 +491,6 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     // - Posisi setelah melangkah tetap terjaga (winProbAfter >= 0.30)
     if (legalMovesCount > 1 && winProbAfter >= 0.30) {
       // Skenario A: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice seperti Qd7-h3! di mana pion g2 ter-pin oleh Rg8)
-      // Tetap dievaluasi meskipun bestMoveUci adalah Rxg2+ (selama Qxh3 tetap menang mutlak winProbAfter >= 0.85)
       if (isPinExploit && (!evalSecondBest || uniquenessGap >= 0.05 || hasForcedMateAfter || winProbAfter >= 0.85)) {
         return {
           classification: 'Great',
@@ -465,7 +561,34 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     }
   }
 
-  // 4. MATE BLUNDER & MISSED MATE CHECKS
+  // 4. PENANGANAN KHUSUS MENARUH PERWIRA GRATIS DI POSISI KALAH (Sigmoid Flat-Tail Guard)
+  // Contoh: Gambar Qe4 (image_6df7a2.png) saat posisi sudah -18.0 (winProbBefore ~ 0.025) lalu menaruh Menteri gratis
+  // di e4 yang dijaga Kuda f6 sehingga menjadi -29.7 (winProbAfter ~ 0.024).
+  // Meskipun winProbLost ~ 0.001, menaruh Menteri/Benteng/Perwira gratis (directMaterialBlunderLoss >= 300 & cpLoss >= 300)
+  // tidak boleh pernah dinilai "Excellent" atau "Good"!
+  if (!isEngineTopMove && directMaterialBlunderLoss >= 300 && cpLoss >= 250 && winProbAfter < 0.30) {
+    // Jika membuang Menteri gratis (>= 700 cp) atau posisi sebelumnya masih di atas -1000 cp -> Mistake / Inaccuracy
+    if (directMaterialBlunderLoss >= 700 && (evalBefore.cp === null || evalBefore.cp > -1500)) {
+      return {
+        classification: 'Mistake',
+        isSacrifice: false,
+        winProbBefore,
+        winProbAfter,
+        winProbLost: Math.max(winProbLost, 0.12),
+        accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.12)),
+      };
+    }
+    return {
+      classification: 'Inaccuracy',
+      isSacrifice: false,
+      winProbBefore,
+      winProbAfter,
+      winProbLost: Math.max(winProbLost, 0.06),
+      accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.06)),
+    };
+  }
+
+  // 5. MATE BLUNDER & MISSED MATE CHECKS
   const hadForcedMate = evalBefore.mate !== null && evalBefore.mate !== undefined && evalBefore.mate > 0;
 
   if (hadForcedMate && !isEngineTopMove) {
@@ -492,9 +615,6 @@ export function classifyChessMove(params: ClassifyMoveParams): {
         accuracy: calculateMoveAccuracy(Math.max(winProbLost, 0.15)),
       };
     }
-
-    // Jika winProbAfter >= 0.85 (misal masih unggul telak +9.0 atau -21.1),
-    // JANGAN dihukum sebagai Blunder/Miss; biarkan lanjut ke evaluasi normal (Excellent / Good).
   }
 
   // Melangkah masuk ke skakmat paksa lawan:
@@ -517,7 +637,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     };
   }
 
-  // 5. MISS (❌) - Gagal menghukum kesalahan/blunder lawan pada langkah sebelumnya
+  // 6. MISS (❌) - Gagal menghukum kesalahan/blunder lawan pada langkah sebelumnya
   const opponentBlunderedLastTurn =
     previousOpponentMoveClass === 'Blunder' ||
     previousOpponentMoveClass === 'Mistake' ||
@@ -534,10 +654,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     };
   }
 
-  // 6. STANDARD WIN-PROBABILITY THRESHOLDS (Murni Berbasis Win Probability / Expected Points seperti Chess.com)
-  // Di Chess.com, klasifikasi langkah ditentukan oleh berapa persen peluang menang (Expected Points) yang hilang (winProbLost).
-  // Mengandalkan `cpLoss >= 300` secara mentah menyebabkan ledakan jumlah Blunder palsu ketika posisi sudah
-  // menang/kalah mutlak (misal dari +9.0 turun ke +5.5, atau dari -5.0 turun ke -9.0).
+  // 7. STANDARD WIN-PROBABILITY THRESHOLDS
   let classification: MoveClassification;
 
   if (winProbLost >= 0.20) {
@@ -546,10 +663,14 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     classification = 'Mistake';
   } else if (winProbLost >= 0.05) {
     classification = 'Inaccuracy';
-  } else if (winProbLost <= 0.02) {
+  } else if (winProbLost <= 0.02 && cpLoss < 150) {
     classification = 'Excellent';
-  } else {
+  } else if (cpLoss < 300) {
     classification = 'Good';
+  } else {
+    // Jika di posisi yang sudah kalah/menang mutlak tetapi langkah ini kehilangan >= 300 cp (tanpa mengubah winProb),
+    // turunkan maksimal ke Inaccuracy (bukan Excellent/Good, dan bukan Blunder agar total Blunder tetap akurat).
+    classification = 'Inaccuracy';
   }
 
   return {
@@ -677,6 +798,9 @@ export async function analyzeFullGamePgn(
       previousOpponentWinLoss: prevWinLoss,
     });
 
+    const rawBestUci = evalBefore.pv[0] || '';
+    const showArrow = shouldShowBestMoveArrow(result.classification, step.uci, rawBestUci);
+
     const analyzedMove: AnalyzedMoveResult = {
       ply: step.ply,
       color: step.color,
@@ -690,7 +814,13 @@ export async function analyzeFullGamePgn(
       winProbAfter: result.winProbAfter,
       winProbLost: result.winProbLost,
       accuracy: result.accuracy,
-      bestMoveUci: evalBefore.pv[0] || step.uci,
+      bestMoveUci: showArrow ? rawBestUci : '',
+      feedbackArrow: showArrow
+        ? {
+          from: rawBestUci.slice(0, 2) as Square,
+          to: rawBestUci.slice(2, 4) as Square,
+        }
+        : null,
       evalBefore,
       evalAfter: evalAfterNormalized,
     };

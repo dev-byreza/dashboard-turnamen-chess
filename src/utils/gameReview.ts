@@ -11,6 +11,8 @@ import {
   calculateMoveAccuracy,
   calculateGameAccuracy,
   detectPieceSacrifice,
+  getDirectMaterialBlunderLoss,
+  shouldShowBestMoveArrow,
   MoveClassification,
 } from './chessAnalysisEngine';
 
@@ -19,6 +21,8 @@ export {
   calculateMoveAccuracy,
   calculateGameAccuracy,
   detectPieceSacrifice,
+  getDirectMaterialBlunderLoss,
+  shouldShowBestMoveArrow,
 };
 export type { MoveClassification };
 
@@ -60,8 +64,17 @@ export interface ReviewedMove {
   label: ReviewLabel;
   loss: number; // win-probability points lost by mover (0..100)
   accuracy?: number; // 0..100% CAPS accuracy
+  /**
+   * Langkah terbaik saran engine (HANYA diisi ketika langkah pemain di luar Best / Great / Brilliant / Book,
+   * sehingga panah feedback di papan hanya muncul saat pemain tidak memainkan langkah terbaik).
+   */
   bestUci?: string;
   bestSan?: string;
+  /** Menyimpan bestUci mentah dari engine jika dibutuhkan untuk keperluan internal */
+  engineBestUci?: string;
+  engineBestSan?: string;
+  /** Koordinat panah feedback { from, to } (bernilai null pada langkah Best / Great / Brilliant / Book) */
+  feedbackArrow?: { from: Square; to: Square } | null;
   evalBefore: PositionScore;
   evalAfter: PositionScore;
 }
@@ -660,6 +673,36 @@ export function isGreatMove(ctx: GreatMoveContext): boolean {
   return false;
 }
 
+/**
+ * Membungkus hasil ReviewedMove agar properti `bestUci`, `bestSan`, dan `feedbackArrow`
+ * HANYA aktif ketika langkah yang dimainkan BUKAN `best`, `great`, `brilliant`, atau `book`.
+ * Dengan demikian, UI papan catur tidak akan menampilkan panah hijau saran langkah terbaik
+ * saat pemain sudah memainkan langkah Best / Great / Brilliant / Book, tetapi otomatis
+ * menampilkan panah saran terbaik ketika pemain memainkan langkah di luar itu (Excellent, Good, Inaccuracy, Mistake, Miss, Blunder).
+ */
+function finalizeReviewedMove(
+  result: ReviewedMove,
+  playedUci: string,
+  rawBestUci?: string,
+  rawBestSan?: string
+): ReviewedMove {
+  const showArrow = shouldShowBestMoveArrow(result.label, playedUci, rawBestUci);
+  return {
+    ...result,
+    bestUci: showArrow ? rawBestUci : undefined,
+    bestSan: showArrow ? rawBestSan : undefined,
+    engineBestUci: rawBestUci,
+    engineBestSan: rawBestSan,
+    feedbackArrow:
+      showArrow && rawBestUci && rawBestUci.length >= 4
+        ? {
+          from: rawBestUci.slice(0, 2) as Square,
+          to: rawBestUci.slice(2, 4) as Square,
+        }
+        : null,
+  };
+}
+
 export function classifyByEngine(
   m: { ply: number; color: 'w' | 'b'; san: string; from: string; to: string; piece: string; captured?: string; promotion?: string; fen: string },
   before: PositionScore,
@@ -667,7 +710,11 @@ export function classifyByEngine(
   prevLoss: number, // loss of opponent's previous move (0..100)
   prevMove?: { to: string; captured?: string; classification?: ReviewLabel; loss?: number }
 ): ReviewedMove {
-  return classifyCore(m, before, after, prevLoss, prevMove);
+  const playedUci = `${m.from}${m.to}${m.promotion || ''}`;
+  const rawBestUci = before.bestUci || before.lines?.[0]?.uci || undefined;
+  const rawBestSan = before.bestSan || before.lines?.[0]?.san || undefined;
+  const rawResult = classifyCore(m, before, after, prevLoss, prevMove);
+  return finalizeReviewedMove(rawResult, playedUci, rawBestUci, rawBestSan);
 }
 
 function classifyCore(
@@ -691,6 +738,7 @@ function classifyCore(
   const winProbBefore = getWinProbability(cpBefore, mateBefore);
   const winProbAfter = getWinProbability(cpAfter, mateAfter);
   const winProbLost = Math.max(0, winProbBefore - winProbAfter);
+  const cpLoss = Math.max(0, cpBefore - cpAfter);
   const loss = Math.round(winProbLost * 1000) / 10;
   const accuracy = calculateMoveAccuracy(winProbLost);
 
@@ -742,6 +790,10 @@ function classifyCore(
     uniquenessGap = Math.max(0, winProbBefore - winProbSecondBest);
   }
 
+  const directMaterialBlunderLoss = getDirectMaterialBlunderLoss(before.fen, playedUci);
+  const isUnsoundPieceHangInLostPos =
+    !isEngineTopMove && directMaterialBlunderLoss >= 300 && winProbAfter < 0.25 && cpLoss >= 250;
+
   // 3. BRILLIANT MOVE (!!)
   // Sesuai Section 4 & 5 Chess Analysis Architecture:
   // - Langkah adalah Top Move (#1 engine atau hampir terbaik winProbLost <= 0.015, atau menghasilkan skakmat paksa)
@@ -761,6 +813,7 @@ function classifyCore(
     (secondLine !== undefined && winProbSecondBest < 0.85 && !secondBestHasForcedMate);
 
   if (
+    !isUnsoundPieceHangInLostPos &&
     (isEngineTopMove || winProbLost <= 0.015 || hasForcedMateAfter) &&
     isSacrifice &&
     !isRecapture &&
@@ -772,7 +825,6 @@ function classifyCore(
 
   // 4. GREAT MOVE (!)
   // Skenario A: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice seperti Qd7-h3! di mana pion g2 ter-pin mutlak ke Kg1 oleh Rg8)
-  // Tetap dievaluasi meskipun bestMoveUci adalah Rxg2+ (selama Qxh3 masih menang mutlak winProbAfter >= 0.85 dan winProbLost <= 0.05)
   const isPinExploit = isTacticalPinExploit(before.fen, playedUci);
   if (
     legalMoves > 1 &&
@@ -814,12 +866,35 @@ function classifyCore(
 
   // 5. BEST MOVE (★)
   // HANYA diberikan jika pemain benar-benar menemukan langkah pilihan pertama engine (#1 Best Move)
-  // Langkah alternatif yang bagus namun bukan #1 akan masuk ke kategori Excellent (👍)
   if (isEngineTopMove) {
     return { ...base, label: 'best' };
   }
 
-  // 6. BLUNDER (MATE) & MISSED MATE (?? / ❌)
+  // 6. PENANGANAN KHUSUS MENARUH PERWIRA GRATIS DI POSISI KALAH (Sigmoid Flat-Tail Guard)
+  // Contoh: Gambar Qe4 (image_6df7a2.png) di mana Putih sudah kalah telak (-18.0 / winProbBefore ~ 0.025)
+  // lalu melangkahkan Menteri ke e4 yang langsung dapat dimakan gratis oleh Kuda f6 (...Nxe4, eval menjadi -29.7).
+  // Karena kedua nilai cp sudah terkena clamp -1000 di fungsi sigmoid, winProbLost menjadi 0.000.
+  // Tanpa guard ini, membuang Menteri gratis di posisi kalah akan salah diberi label "Excellent 👍"!
+  if (directMaterialBlunderLoss >= 300 && cpLoss >= 250 && winProbAfter < 0.30) {
+    if (directMaterialBlunderLoss >= 700 && cpBefore > -1500) {
+      const effLoss = Math.max(loss, 12);
+      return {
+        ...base,
+        loss: effLoss,
+        accuracy: calculateMoveAccuracy(effLoss / 100),
+        label: 'mistake',
+      };
+    }
+    const effLoss = Math.max(loss, 6);
+    return {
+      ...base,
+      loss: effLoss,
+      accuracy: calculateMoveAccuracy(effLoss / 100),
+      label: 'inaccuracy',
+    };
+  }
+
+  // 7. BLUNDER (MATE) & MISSED MATE (?? / ❌)
   // Memeriksa kasus khusus skakmat paksa (Missed Forced Mate)
   if (hadForcedMate && !isEngineTopMove) {
     // Jika membuang forced mate dan posisi berbalik imbang/kalah (winProbAfter < 0.50) -> Blunder
@@ -831,15 +906,10 @@ function classifyCore(
     if (!hasForcedMateAfter && winProbAfter < 0.85) {
       return { ...base, loss: Math.max(loss, 15), label: 'miss' };
     }
-
-    // Jika winProbAfter >= 0.85 (posisi masih menang mutlak, misal dari Mate in 3 ke -21.1),
-    // JANGAN dihukum sebagai Miss atau Blunder; biarkan masuk ke Excellent / Good di bawah.
   }
 
   // Melangkah masuk ke skakmat paksa lawan:
   // Hanya dihitung Blunder jika posisi sebelumnya belum kalah telak (winProbBefore >= 0.30).
-  // Jika posisi sudah kalah telak sejak awal (misal -15.0 / winProbBefore 0.02 lalu kena -M3),
-  // itu bukan Blunder baru di Chess.com melainkan Inaccuracy/Good.
   const steppedIntoForcedMate =
     !hadForcedMate &&
     (mateBefore === null || mateBefore === undefined || mateBefore >= 0) &&
@@ -852,7 +922,7 @@ function classifyCore(
     return { ...base, loss: Math.max(loss, 25), label: 'blunder' };
   }
 
-  // 7. MISS (❌)
+  // 8. MISS (❌)
   // Lawan baru saja Blunder atau Mistake pada langkah sebelumnya (delta W prev >= 15%),
   // namun pemain gagal mengeksekusi keunggulan tersebut (winProbLost >= 0.15 dan posisi belum menang mutlak winProbBefore <= 0.90)
   const opponentBlunderedLastTurn =
@@ -864,13 +934,7 @@ function classifyCore(
     return { ...base, label: 'miss' };
   }
 
-  // 8 - 12. STANDARD WIN-PROBABILITY THRESHOLDS (Murni Berbasis Win Probability / Expected Points seperti Chess.com)
-  // Di Chess.com, klasifikasi langkah ditentukan oleh berapa persen peluang menang (Expected Points) yang hilang (winProbLost):
-  // - Blunder (??)    : kehilangan >= 20% peluang menang (winProbLost >= 0.20)
-  // - Mistake (?)     : kehilangan 10% - 20% peluang menang (winProbLost >= 0.10)
-  // - Inaccuracy (?!) : kehilangan 5% - 10% peluang menang (winProbLost >= 0.05)
-  // - Good (✔)        : kehilangan 2% - 5% peluang menang
-  // - Excellent (👍)  : kehilangan <= 2% peluang menang
+  // 9 - 13. STANDARD WIN-PROBABILITY THRESHOLDS
   if (winProbLost >= 0.20) {
     return { ...base, label: 'blunder' };
   }
@@ -880,10 +944,19 @@ function classifyCore(
   if (winProbLost >= 0.05) {
     return { ...base, label: 'inaccuracy' };
   }
-  if (winProbLost <= 0.02) {
+  if (winProbLost <= 0.02 && cpLoss < 150) {
     return { ...base, label: 'excellent' };
   }
-  return { ...base, label: 'good' };
+  if (cpLoss < 300) {
+    return { ...base, label: 'good' };
+  }
+  const effLoss = Math.max(loss, 6);
+  return {
+    ...base,
+    loss: effLoss,
+    accuracy: calculateMoveAccuracy(effLoss / 100),
+    label: 'inaccuracy',
+  };
 }
 
 /**
