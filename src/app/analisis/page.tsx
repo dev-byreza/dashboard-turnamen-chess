@@ -42,6 +42,7 @@ export default function StandaloneAnalysisPage() {
 
   // Selected game for ChessBoardPreviewModal
   const [selectedGame, setSelectedGame] = useState<ChessComRecentGame | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
 
   // Recent searches saved in localStorage
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -155,6 +156,7 @@ export default function StandaloneAnalysisPage() {
   // Handle selecting a game to analyze
   const handleSelectGame = (game: ChessComRecentGame) => {
     setSelectedGame(game);
+    setIsPreviewModalOpen(true);
     setIsPickerModalOpen(false);
   };
 
@@ -188,6 +190,7 @@ export default function StandaloneAnalysisPage() {
     };
 
     setSelectedGame(mockGame);
+    setIsPreviewModalOpen(true);
     setIsPickerModalOpen(false);
   };
 
@@ -362,12 +365,7 @@ export default function StandaloneAnalysisPage() {
               <button
                 type="button"
                 className="standalone-btn-analyze"
-                onClick={() => {
-                  // Re-trigger board preview
-                  const current = selectedGame;
-                  setSelectedGame(null);
-                  setTimeout(() => setSelectedGame(current), 50);
-                }}
+                onClick={() => setIsPreviewModalOpen(true)}
                 style={{ padding: '0.75rem 1.25rem', fontSize: '0.9rem' }}
               >
                 <Sparkles size={16} />
@@ -401,7 +399,7 @@ export default function StandaloneAnalysisPage() {
 
       {/* Jendela Baru: Modal Pemilihan Username & History Permainan */}
       {isPickerModalOpen && (
-        <div className="standalone-modal-overlay" onClick={() => selectedGame && setIsPickerModalOpen(false)}>
+        <div className="standalone-modal-overlay" onClick={() => setIsPickerModalOpen(false)}>
           <div
             className="standalone-modal-card"
             onClick={(e) => e.stopPropagation()}
@@ -422,16 +420,14 @@ export default function StandaloneAnalysisPage() {
                 </div>
               </div>
 
-              {selectedGame && (
-                <button
-                  type="button"
-                  className="standalone-modal-close-btn"
-                  onClick={() => setIsPickerModalOpen(false)}
-                  title="Tutup jendela dan kembali ke papan"
-                >
-                  <X size={18} />
-                </button>
-              )}
+              <button
+                type="button"
+                className="standalone-modal-close-btn"
+                onClick={() => setIsPickerModalOpen(false)}
+                title="Tutup jendela"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             {/* Modal Body */}
@@ -779,7 +775,7 @@ export default function StandaloneAnalysisPage() {
 
         return (
           <ChessBoardPreviewModal
-            isOpen={Boolean(selectedGame)}
+            isOpen={isPreviewModalOpen && Boolean(selectedGame)}
             match={matchedMatch}
             recentGame={selectedGame}
             whitePlayer={{
@@ -797,8 +793,7 @@ export default function StandaloneAnalysisPage() {
               chessComUsername: selectedGame.black.username,
             }}
             onClose={() => {
-              // When user closes board modal, return to the picker window so they can pick another game!
-              setIsPickerModalOpen(true);
+              setIsPreviewModalOpen(false);
             }}
           />
         );
