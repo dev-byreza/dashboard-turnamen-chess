@@ -2135,6 +2135,35 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         }
       }
 
+      // JIKA LANGKAH ADALAH BEST, BRILLIANT, GREAT, ATAU BOOK:
+      // Langkah yang dimainkan ADALAH langkah yang harus di-highlight di papan.
+      // Arrow WAJIB merepresentasikan langkah pemain tersebut (tidak boleh menggambar panah ke langkah lain).
+      if (
+        currentMove.classification === 'best' ||
+        currentMove.classification === 'brilliant' ||
+        currentMove.classification === 'great' ||
+        currentMove.classification === 'book'
+      ) {
+        return {
+          from: currentMove.from as Square,
+          to: currentMove.to as Square,
+          san: currentMove.san,
+          isCurrentMoveBest: true,
+          classification: currentMove.classification,
+        };
+      }
+
+      // Jika langkah Excellent atau Good, secara default tampilkan langkah pemain KECUALI jika user menekan tombol "Best"
+      if (!showBestMove && (currentMove.classification === 'excellent' || currentMove.classification === 'good')) {
+        return {
+          from: currentMove.from as Square,
+          to: currentMove.to as Square,
+          san: currentMove.san,
+          isCurrentMoveBest: true,
+          classification: currentMove.classification,
+        };
+      }
+
       // 1. Check Stockfish 19 Lite evaluation on the decision position (prevFen)
       if (decisionEval?.bestMoveUci && decisionEval.bestMoveUci.length >= 4) {
         const v = validateMove(
@@ -2152,7 +2181,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             to: v.to,
             san: v.san,
             isCurrentMoveBest,
-            classification: currentMove.classification,
+            classification: isCurrentMoveBest ? currentMove.classification : ('best' as ChessComBadgeType),
           };
         }
       }
@@ -2192,24 +2221,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         }
       }
 
-      // 4. Positive move or move played fallback (best, brilliant, great, book, excellent, good)
-      const isPositiveMove =
-        currentMove.classification === 'best' ||
-        currentMove.classification === 'brilliant' ||
-        currentMove.classification === 'great' ||
-        currentMove.classification === 'book' ||
-        currentMove.classification === 'excellent' ||
-        currentMove.classification === 'good';
-
-      if (isPositiveMove) {
-        return {
-          from: currentMove.from as Square,
-          to: currentMove.to as Square,
-          san: currentMove.san,
-          isCurrentMoveBest: true,
-          classification: currentMove.classification,
-        };
-      }
+      // 4. Positive move or move played fallback
+      return {
+        from: currentMove.from as Square,
+        to: currentMove.to as Square,
+        san: currentMove.san,
+        isCurrentMoveBest: true,
+        classification: currentMove.classification,
+      };
     }
 
     // In analysis mode or start position, use Stockfish 19 Lite evaluation
@@ -2226,7 +2245,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     }
 
     return null;
-  }, [currentPlyIndex, moveHistory, rawMoveHistory, decisionEval, currentEval, scoreMap]);
+  }, [currentPlyIndex, moveHistory, rawMoveHistory, decisionEval, currentEval, scoreMap, showBestMove]);
 
   // Clean SAN display for best move (converting UCI like "d8f6" to clean SAN "Qf6")
   const bestMoveSanDisplay = useMemo(() => {
@@ -2264,8 +2283,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         (isSuboptimalMove ||
           currentClassification === 'brilliant' ||
           currentClassification === 'great' ||
-          currentClassification === 'best' ||
-          currentClassification === 'excellent')) ||
+          currentClassification === 'best')) ||
       (!isReviewActive && isEngineActive)) &&
     !!bestMoveInfo;
 

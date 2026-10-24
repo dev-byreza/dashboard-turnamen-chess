@@ -361,11 +361,20 @@ export function classifyChessMove(params: ClassifyMoveParams): {
       };
     }
 
-    // Syarat Great Move (!):
-    // A. Eksploitasi Pin Taktis / Pseudo-Sacrifice (contoh: Qh3 di mana pion g2 ter-pin ke Raja g1)
-    if (isEngineTopMove || winProbLost <= 0.015) {
-      const isPinExploit = isTacticalPinExploit(fenBefore, playedUci);
-      if (isPinExploit && winProbAfter >= 0.40) {
+    // Syarat Great Move (!) Standar Chess.com:
+    // - WAJIB merupakan langkah #1 terbaik engine (isEngineTopMove === true)
+    // - Bukan langkah paksa (legalMovesCount > 1)
+    // - Posisi belum menang mutlak (winProbBefore <= 0.92)
+    // - Posisi setelah melangkah tetap terjaga (winProbAfter >= 0.30)
+    if (isEngineTopMove && legalMovesCount > 1 && winProbBefore <= 0.92 && winProbAfter >= 0.30) {
+      let uniquenessGap = 0;
+      if (evalSecondBest) {
+        const winProbSecondBest = getWinProbability(evalSecondBest.cp, evalSecondBest.mate);
+        uniquenessGap = winProbBefore - winProbSecondBest;
+      }
+
+      // Skenario A: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding pilihan #2)
+      if (uniquenessGap >= 0.15) {
         return {
           classification: 'Great',
           isSacrifice,
@@ -376,12 +385,24 @@ export function classifyChessMove(params: ClassifyMoveParams): {
         };
       }
 
-      // B. Menemukan skakmat paksa dari posisi non-mate
+      // Skenario B: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice) yang terverifikasi ray-casting + gap >= 10%
+      if (uniquenessGap >= 0.10 && isTacticalPinExploit(fenBefore, playedUci)) {
+        return {
+          classification: 'Great',
+          isSacrifice,
+          winProbBefore,
+          winProbAfter,
+          winProbLost,
+          accuracy: 100,
+        };
+      }
+
+      // Skenario C: Menemukan skakmat paksa dari posisi non-mate + gap >= 10%
       const foundForcedMate =
         (evalBefore.mate === null || evalBefore.mate <= 0) &&
         evalAfter.mate !== null &&
         evalAfter.mate > 0;
-      if (foundForcedMate) {
+      if (foundForcedMate && uniquenessGap >= 0.10) {
         return {
           classification: 'Great',
           isSacrifice,
@@ -392,21 +413,18 @@ export function classifyChessMove(params: ClassifyMoveParams): {
         };
       }
 
-      // C. Selisih WinProb antara kandidat #1 dan kandidat #2 >= 15%
-      if (evalSecondBest) {
-        const winProbSecondBest = getWinProbability(evalSecondBest.cp, evalSecondBest.mate);
-        const uniquenessGap = winProbBefore - winProbSecondBest;
-
-        if (uniquenessGap >= 0.15 && winProbAfter >= 0.25 && winProbBefore <= 0.95) {
-          return {
-            classification: 'Great',
-            isSacrifice,
-            winProbBefore,
-            winProbAfter,
-            winProbLost,
-            accuracy: 100,
-          };
-        }
+      // Skenario D: Game Changer (Menyelamatkan game kalah / melonjak dari seimbang menjadi menang dengan gap >= 10%)
+      const savedLostGame = winProbBefore <= 0.35 && winProbAfter >= 0.50 && uniquenessGap >= 0.10;
+      const seizedWin = winProbBefore <= 0.55 && winProbAfter >= 0.72 && uniquenessGap >= 0.10;
+      if (savedLostGame || seizedWin) {
+        return {
+          classification: 'Great',
+          isSacrifice,
+          winProbBefore,
+          winProbAfter,
+          winProbLost,
+          accuracy: 100,
+        };
       }
     }
 

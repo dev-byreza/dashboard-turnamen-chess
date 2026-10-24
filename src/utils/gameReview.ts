@@ -415,6 +415,13 @@ function legalMoveCount(fen: string): number {
  * namun perwira penjaga lawan tersebut terkena PIN mutlak (absolute pin) ke Raja lawan
  * sehingga tidak dapat memukul secara sah (contoh: Qd7-h3 di mana pion g2 terkena pin mutlak ke Kg1 oleh Rg8).
  */
+/**
+ * Memeriksa apakah sebuah langkah memanfaatkan pin mutlak (absolute pin) ke Raja lawan:
+ * Pemain melangkahkan perwira bernilai (Q, R, B, N) ke petak `to`.
+ * Petak `to` tersebut berada dalam jangkauan pukul perwira lawan `P`,
+ * TETAPI perwira lawan `P` tidak dapat memukul karena ter-PIN MUTLAK ke Raja lawan
+ * oleh perwira penyerang kita yang berada di garis yang sama.
+ */
 export function isTacticalPinExploit(fenBefore: string, playedMoveUci: string): boolean {
   if (!fenBefore || !playedMoveUci || playedMoveUci.length < 4) return false;
   try {
@@ -422,69 +429,152 @@ export function isTacticalPinExploit(fenBefore: string, playedMoveUci: string): 
     const from = playedMoveUci.slice(0, 2) as Square;
     const to = playedMoveUci.slice(2, 4) as Square;
     const movingPiece = board.get(from);
+    // Hanya perwira (Queen, Rook, Bishop, Knight), bukan pion biasa atau raja
     if (!movingPiece || movingPiece.type === 'p' || movingPiece.type === 'k') return false;
 
     const moverColor = board.turn();
     const enemyColor: Color = moverColor === 'w' ? 'b' : 'w';
 
-    // Eksekusi langkah untuk melihat status setelah melangkah
+    // Eksekusi langkah pada board simulasi
     const moveRes = board.move({ from, to, promotion: (playedMoveUci[4] as any) || 'q' });
     if (!moveRes) return false;
 
-    const fileToIdx = to.charCodeAt(0) - 97;
-    const rankToIdx = parseInt(to[1], 10);
-
+    // Temukan posisi Raja lawan
+    let enemyKingSq: Square | null = null;
     const b = board.board();
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
-        const piece = b[r][c];
-        if (piece && piece.color === enemyColor && piece.type !== 'k') {
-          const sq = (String.fromCharCode(97 + c) + (8 - r)) as Square;
-
-          let attacksGeometrically = false;
-          if (piece.type === 'p') {
-            const pawnDir = enemyColor === 'w' ? 1 : -1;
-            const enemyRank = 8 - r;
-            if (enemyRank + pawnDir === rankToIdx && Math.abs(c - fileToIdx) === 1) {
-              attacksGeometrically = true;
-            }
-          } else if (piece.type === 'n') {
-            const df = Math.abs(c - fileToIdx);
-            const dr = Math.abs(8 - r - rankToIdx);
-            if ((df === 1 && dr === 2) || (df === 2 && dr === 1)) {
-              attacksGeometrically = true;
-            }
-          } else if (piece.type === 'b' || piece.type === 'r' || piece.type === 'q') {
-            const df = Math.abs(c - fileToIdx);
-            const dr = Math.abs(8 - r - rankToIdx);
-            const isDiag = df === dr && df > 0;
-            const isStraight = (df === 0 && dr > 0) || (dr === 0 && df > 0);
-            if (
-              (piece.type === 'b' && isDiag) ||
-              (piece.type === 'r' && isStraight) ||
-              (piece.type === 'q' && (isDiag || isStraight))
-            ) {
-              attacksGeometrically = true;
-            }
-          }
-
-          if (attacksGeometrically) {
-            // Cek apakah lawan BISA memakan petak `to` secara sah
-            const legalMoves = board.moves({ square: sq, verbose: true });
-            const canCapture = legalMoves.some((m) => m.to === to);
-            if (!canCapture) {
-              // Bidak lawan mengancam petak `to` secara geometris,
-              // namun TIDAK BISA memakannya secara legal karena terkena PIN mutlak ke Raja!
-              return true;
-            }
-          }
+        const p = b[r][c];
+        if (p && p.color === enemyColor && p.type === 'k') {
+          enemyKingSq = (String.fromCharCode(97 + c) + (8 - r)) as Square;
+          break;
         }
       }
+      if (enemyKingSq) break;
     }
+    if (!enemyKingSq) return false;
+
+    const kFile = enemyKingSq.charCodeAt(0) - 97;
+    const kRank = parseInt(enemyKingSq[1], 10) - 1;
+    const toFile = to.charCodeAt(0) - 97;
+    const toRank = parseInt(to[1], 10) - 1;
+
+    // 8 arah sinar (ray directions) dari Raja lawan
+    const directions = [
+      [1, 0], [-1, 0], [0, 1], [0, -1], // Lurus (Rook, Queen)
+      [1, 1], [1, -1], [-1, 1], [-1, -1], // Diagonal (Bishop, Queen)
+    ];
+
+    for (const [df, dr] of directions) {
+      let f = kFile + df;
+      let r = kRank + dr;
+
+      let pinnedPieceSq: Square | null = null;
+      let pinnedPiece: { type: PieceSymbol; color: Color } | null = null;
+
+      // Telusuri sepanjang garis dari Raja
+      while (f >= 0 && f < 8 && r >= 0 && r < 8) {
+        const sq = (String.fromCharCode(97 + f) + (r + 1)) as Square;
+        const piece = board.get(sq);
+
+        if (piece) {
+          if (!pinnedPieceSq) {
+            // Perwira pertama yang ditemui harus perwira lawan (kandidat perwira yang ter-pin)
+            if (piece.color === enemyColor) {
+              pinnedPieceSq = sq;
+              pinnedPiece = piece;
+            } else {
+              // Jika perwira pertama adalah perwira kita, bukan pin
+              break;
+            }
+          } else {
+            // Perwira kedua yang ditemui sepanjang garis:
+            // Harus perwira kita yang melakukan pin (Rook/Queen untuk lurus, Bishop/Queen untuk diagonal)
+            const isStraight = df === 0 || dr === 0;
+            const isDiag = Math.abs(df) === Math.abs(dr);
+            const isPinningSlider =
+              piece.color === moverColor &&
+              ((isStraight && (piece.type === 'r' || piece.type === 'q')) ||
+               (isDiag && (piece.type === 'b' || piece.type === 'q')));
+
+            if (isPinningSlider && pinnedPieceSq && pinnedPiece) {
+              // DITEMUKAN PIN MUTLAK ASLI!
+              // Pinned piece berada di pinnedPieceSq.
+              // Sekarang periksa: Apakah pinned piece ini secara geometris bisa memukul `to`?
+              const pFile = pinnedPieceSq.charCodeAt(0) - 97;
+              const pRank = parseInt(pinnedPieceSq[1], 10) - 1;
+
+              let canReachTo = false;
+
+              if (pinnedPiece.type === 'p') {
+                // Pion lawan memukul diagonal 1 petak ke arah moverColor
+                const pawnCaptureRank = enemyColor === 'w' ? pRank + 1 : pRank - 1;
+                if (toRank === pawnCaptureRank && Math.abs(toFile - pFile) === 1) {
+                  canReachTo = true;
+                }
+              } else if (pinnedPiece.type === 'n') {
+                // Kuda
+                const dff = Math.abs(toFile - pFile);
+                const drr = Math.abs(toRank - pRank);
+                if ((dff === 1 && drr === 2) || (dff === 2 && drr === 1)) {
+                  canReachTo = true;
+                }
+              } else if (pinnedPiece.type === 'b' || pinnedPiece.type === 'r' || pinnedPiece.type === 'q') {
+                // Cek apakah jalur antara pinnedPieceSq dan `to` kosong
+                const dff = toFile - pFile;
+                const drr = toRank - pRank;
+                const stepF = dff === 0 ? 0 : dff > 0 ? 1 : -1;
+                const stepR = drr === 0 ? 0 : drr > 0 ? 1 : -1;
+                const isStraightMove = (dff === 0 && drr !== 0) || (drr === 0 && dff !== 0);
+                const isDiagMove = Math.abs(dff) === Math.abs(drr) && dff !== 0;
+
+                const pieceCanMove =
+                  (pinnedPiece.type === 'b' && isDiagMove) ||
+                  (pinnedPiece.type === 'r' && isStraightMove) ||
+                  (pinnedPiece.type === 'q' && (isDiagMove || isStraightMove));
+
+                if (pieceCanMove) {
+                  let pathClear = true;
+                  let curF = pFile + stepF;
+                  let curR = pRank + stepR;
+                  while (curF !== toFile || curR !== toRank) {
+                    const checkSq = (String.fromCharCode(97 + curF) + (curR + 1)) as Square;
+                    if (board.get(checkSq)) {
+                      pathClear = false;
+                      break;
+                    }
+                    curF += stepF;
+                    curR += stepR;
+                  }
+                  if (pathClear) {
+                    canReachTo = true;
+                  }
+                }
+              }
+
+              if (canReachTo) {
+                // Periksa apakah `to` TIDAK berada di garis pin yang sama!
+                // Jika `to` berada di luar garis pin, pinned piece TIDAK BISA memukulnya karena ter-pin ke Raja!
+                const legalMoves = board.moves({ square: pinnedPieceSq, verbose: true });
+                const isLegallyAbleToCapture = legalMoves.some((m) => m.to === to);
+                if (!isLegallyAbleToCapture) {
+                  // INILAH EKSPLOITASI PIN ASLI!
+                  return true;
+                }
+              }
+            }
+            // Sinar terhalang setelah perwira kedua
+            break;
+          }
+        }
+        f += df;
+        r += dr;
+      }
+    }
+    return false;
   } catch {
     return false;
   }
-  return false;
 }
 
 export interface GreatMoveContext {
@@ -652,35 +742,46 @@ function classifyCore(
   }
 
   // 4. GREAT MOVE (!)
-  // Diberikan jika langkah adalah #1 bestMove (atau evaluasinya nyaris sempurna winProbLost <= 0.015):
-  if (isEngineTopMove || winProbLost <= 0.015) {
-    // Skenario A: Eksploitasi Pin Taktis / Pseudo-Sacrifice (contoh: Qh3 yang mengeksploitasi pin pion g2 ke Raja g1)
-    const isPinExploit = isTacticalPinExploit(before.fen, playedUci);
-    if (isPinExploit && winProbAfter >= 0.40) {
+  // Syarat Standar Chess.com:
+  // - WAJIB merupakan langkah #1 terbaik engine (isEngineTopMove === true)
+  // - Bukan langkah paksa (legalMoves > 1)
+  // - Posisi sebelum melangkah belum menang mutlak (winProbBefore <= 0.92)
+  // - Posisi setelah melangkah tetap prima / terjaga (winProbAfter >= 0.30)
+  if (isEngineTopMove && legalMoves > 1 && winProbBefore <= 0.92 && winProbAfter >= 0.30) {
+    const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
+    let uniquenessGap = 0;
+    if (secondLine) {
+      const secondCp = moverCp({ cp: secondLine.cp } as any);
+      const secondMate = moverMate({ mate: secondLine.mate } as any);
+      const winProbSecondBest = getWinProbability(secondCp, secondMate);
+      uniquenessGap = winProbBefore - winProbSecondBest;
+    }
+
+    // Skenario A: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding langkah terbaik #2)
+    if (uniquenessGap >= 0.15) {
       return { ...base, accuracy: 100, label: 'great' };
     }
 
-    // Skenario B: Menemukan Skakmat Paksa (Mate in 2+) dari posisi yang sebelumnya belum ada mate
+    // Skenario B: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice) yang terverifikasi ray-casting + gap >= 10%
+    if (uniquenessGap >= 0.10 && isTacticalPinExploit(before.fen, playedUci)) {
+      return { ...base, accuracy: 100, label: 'great' };
+    }
+
+    // Skenario C: Menemukan Skakmat Paksa (Mate in 2+) dari posisi yang sebelumnya belum mate + gap >= 10%
     const foundNewForcedMate =
       (mateBefore === null || mateBefore === undefined || mateBefore <= 0) &&
       mateAfter !== null &&
       mateAfter !== undefined &&
       mateAfter > 0;
-    if (foundNewForcedMate) {
+    if (foundNewForcedMate && uniquenessGap >= 0.10) {
       return { ...base, accuracy: 100, label: 'great' };
     }
 
-    // Skenario C: MultiPV Uniqueness Gap (Langkah #1 unggul >= 15% peluang menang dibanding pilihan #2)
-    const secondLine = before.lines && before.lines.length >= 2 ? before.lines[1] : undefined;
-    if (secondLine) {
-      const secondCp = moverCp({ cp: secondLine.cp } as any);
-      const secondMate = moverMate({ mate: secondLine.mate } as any);
-      const winProbSecondBest = getWinProbability(secondCp, secondMate);
-      const uniquenessGap = winProbBefore - winProbSecondBest;
-
-      if (uniquenessGap >= 0.15 && winProbAfter >= 0.25 && winProbBefore <= 0.95) {
-        return { ...base, accuracy: 100, label: 'great' };
-      }
+    // Skenario D: Game Changer (Menyelamatkan game kalah / melonjak dari seimbang menjadi menang dengan gap >= 10%)
+    const savedLostGame = winProbBefore <= 0.35 && winProbAfter >= 0.50 && uniquenessGap >= 0.10;
+    const seizedWin = winProbBefore <= 0.55 && winProbAfter >= 0.72 && uniquenessGap >= 0.10;
+    if (savedLostGame || seizedWin) {
+      return { ...base, accuracy: 100, label: 'great' };
     }
   }
 
