@@ -81,11 +81,11 @@ Urutan pengecekan harus dieksekusi dari atas ke bawah:
 | **5** | **Best** | ⭐ | `playedUci === bestUci` (HANYA langkah pilihan nomor 1 Stockfish; langkah alternatif yang bagus masuk ke Excellent). |
 | **6** | **Miss** | ❌ | Langkah lawan sebelumnya adalah `Blunder` atau `Mistake` ($\Delta W_{\text{prev}} \ge 0.12$), namun pemain gagal memanfaatkannya ($\Delta W > 0.12$ dan bukan karena masuk ke mate lawan). |
 | **7** | **Blunder (Mate)** | `??` | Membuang *Forced Mate* ($\text{mate}_{\text{before}} > 0 \rightarrow \text{mate}_{\text{after}} == \text{null}$ dan $W_{\text{after}} < 0.75$) ATAU melangkah masuk ke *Forced Mate* lawan ($\text{mate}_{\text{before}} == \text{null} \rightarrow \text{mate}_{\text{after}} < 0$). |
-| **8** | **Excellent** | 👍 | Bukan pilihan #1 engine (`playedUci !== bestUci`), namun langkah alternatif yang sangat kuat ($\Delta W \le 0.025$). |
-| **9** | **Good** | ✔️ | $0.025 < \Delta W \le 0.055$ |
-| **10** | **Inaccuracy** | `?!` | $0.055 < \Delta W \le 0.105$ |
-| **11** | **Mistake** | `?` | $0.105 < \Delta W \le 0.20$ |
-| **12** | **Blunder** | `??` | $\Delta W > 0.20$ |
+| **8** | **Blunder** | `??` | $\Delta W \ge 0.20$ ATAU kehilangan materi $\text{cpLoss} \ge 300$ (3+ pion / perwira). |
+| **9** | **Mistake** | `?` | $\Delta W \ge 0.105$ ATAU kehilangan materi $\text{cpLoss} \ge 180$ (~2 pion). |
+| **10** | **Inaccuracy** | `?!` | $\Delta W \ge 0.055$ ATAU kehilangan materi $\text{cpLoss} \ge 90$ (~1 pion). |
+| **11** | **Excellent** | 👍 | Bukan pilihan #1 engine (`playedUci !== bestUci`), langkah alternatif sangat kuat ($\Delta W \le 0.025$ dan $\text{cpLoss} < 40$). |
+| **12** | **Good** | ✔️ | Langkah wajar / bagus ($\Delta W \le 0.055$ dan $\text{cpLoss} < 80$). |
 
 ---
 

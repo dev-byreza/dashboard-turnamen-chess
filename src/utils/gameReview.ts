@@ -691,6 +691,7 @@ function classifyCore(
   const winProbBefore = getWinProbability(cpBefore, mateBefore);
   const winProbAfter = getWinProbability(cpAfter, mateAfter);
   const winProbLost = Math.max(0, winProbBefore - winProbAfter);
+  const cpLoss = Math.max(0, cpBefore - cpAfter);
   const loss = Math.round(winProbLost * 1000) / 10;
   const accuracy = calculateMoveAccuracy(winProbLost);
 
@@ -841,11 +842,28 @@ function classifyCore(
   }
 
   // 8 - 12. STANDARD WIN-LOSS THRESHOLDS (Sesuai Matriks Tabel Section 4 Architecture.md)
-  if (winProbLost <= 0.025) return { ...base, label: 'excellent' };
-  if (winProbLost <= 0.055) return { ...base, label: 'good' };
-  if (winProbLost <= 0.105) return { ...base, label: 'inaccuracy' };
-  if (winProbLost <= 0.20) return { ...base, label: 'mistake' };
-  return { ...base, label: 'blunder' };
+  // Menangani Sigmoid Flat-Tail Anomaly: Jika posisi sudah kalah/menang jauh, kehilangan materi perwira/pion
+  // tetap harus dideteksi sebagai Blunder / Mistake / Inaccuracy berdasarkan centipawn loss (cpLoss).
+  if (winProbLost >= 0.20 || cpLoss >= 300) {
+    const effLoss = Math.max(loss, 25);
+    return { ...base, loss: effLoss, accuracy: calculateMoveAccuracy(effLoss / 100), label: 'blunder' };
+  }
+  if (winProbLost >= 0.105 || cpLoss >= 180) {
+    const effLoss = Math.max(loss, 15);
+    return { ...base, loss: effLoss, accuracy: calculateMoveAccuracy(effLoss / 100), label: 'mistake' };
+  }
+  if (winProbLost >= 0.055 || cpLoss >= 90) {
+    const effLoss = Math.max(loss, 8);
+    return { ...base, loss: effLoss, accuracy: calculateMoveAccuracy(effLoss / 100), label: 'inaccuracy' };
+  }
+  if (winProbLost <= 0.025 && cpLoss < 40) {
+    return { ...base, label: 'excellent' };
+  }
+  if (winProbLost <= 0.055 && cpLoss < 80) {
+    return { ...base, label: 'good' };
+  }
+  const effLoss = Math.max(loss, 8);
+  return { ...base, loss: effLoss, accuracy: calculateMoveAccuracy(effLoss / 100), label: 'inaccuracy' };
 }
 
 /**

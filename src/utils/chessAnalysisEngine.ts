@@ -314,6 +314,10 @@ export function classifyChessMove(params: ClassifyMoveParams): {
   const winProbBefore = getWinProbability(evalBefore.cp, evalBefore.mate);
   const winProbAfter = getWinProbability(evalAfter.cp, evalAfter.mate);
   const winProbLost = Math.max(0, winProbBefore - winProbAfter);
+  const cpLoss =
+    evalBefore.cp !== null && evalBefore.cp !== undefined && evalAfter.cp !== null && evalAfter.cp !== undefined
+      ? Math.max(0, evalBefore.cp - evalAfter.cp)
+      : 0;
 
   const isSacrifice = detectPieceSacrifice(fenBefore, playedUci);
 
@@ -528,17 +532,27 @@ export function classifyChessMove(params: ClassifyMoveParams): {
   }
 
   // 6. STANDARD WIN-LOSS THRESHOLDS (Sesuai Chess Analysis Architecture.md)
+  // Menangani Sigmoid Flat-Tail Anomaly: Jika posisi sudah kalah/menang jauh, kehilangan materi perwira/pion
+  // tetap harus dideteksi sebagai Blunder / Mistake / Inaccuracy berdasarkan centipawn loss (cpLoss).
   let classification: MoveClassification;
-  if (winProbLost <= 0.025) {
-    classification = 'Excellent';
-  } else if (winProbLost <= 0.055) {
-    classification = 'Good';
-  } else if (winProbLost <= 0.105) {
-    classification = 'Inaccuracy';
-  } else if (winProbLost <= 0.20) {
-    classification = 'Mistake';
-  } else {
+  let effectiveWinLoss = winProbLost;
+
+  if (winProbLost >= 0.20 || cpLoss >= 300) {
     classification = 'Blunder';
+    effectiveWinLoss = Math.max(winProbLost, 0.25);
+  } else if (winProbLost >= 0.105 || cpLoss >= 180) {
+    classification = 'Mistake';
+    effectiveWinLoss = Math.max(winProbLost, 0.15);
+  } else if (winProbLost >= 0.055 || cpLoss >= 90) {
+    classification = 'Inaccuracy';
+    effectiveWinLoss = Math.max(winProbLost, 0.08);
+  } else if (winProbLost <= 0.025 && cpLoss < 40) {
+    classification = 'Excellent';
+  } else if (winProbLost <= 0.055 && cpLoss < 80) {
+    classification = 'Good';
+  } else {
+    classification = 'Inaccuracy';
+    effectiveWinLoss = Math.max(winProbLost, 0.08);
   }
 
   return {
@@ -546,8 +560,8 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     isSacrifice,
     winProbBefore,
     winProbAfter,
-    winProbLost,
-    accuracy: calculateMoveAccuracy(winProbLost),
+    winProbLost: effectiveWinLoss,
+    accuracy: calculateMoveAccuracy(effectiveWinLoss),
   };
 }
 
