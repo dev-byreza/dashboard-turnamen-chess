@@ -1517,7 +1517,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       }
 
       // Fallback to safe tactical/developing move from beforeFen if engine alt is missing/invalid
-      if (!validAltMove && ['inaccuracy', 'mistake', 'miss', 'blunder', 'missed_win'].includes(r.label) && beforeFen) {
+      if (!validAltMove && ['inaccuracy', 'mistake', 'miss', 'blunder', 'missed_win', 'excellent', 'good', 'best', 'great'].includes(r.label) && beforeFen) {
         const fallbackAlt = findSafeAlternativeMove(beforeFen, m.san);
         if (fallbackAlt) {
           validAltMove = fallbackAlt;
