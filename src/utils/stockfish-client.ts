@@ -238,7 +238,7 @@ class EngineWorker {
       await this.ready;
     } catch (e) {
       this.destroy();
-      throw e;
+      throw Object.assign(e instanceof Error ? e : new Error(String(e)), { fatal: true });
     }
   }
 
@@ -417,12 +417,12 @@ let liveEngine: EngineWorker | null = null;
 
 /**
  * Analisis satu posisi (mis. posisi yang sedang dilihat). Engine dipakai ulang antar panggilan.
- * Panggilan baru otomatis menghentikan pencarian sebelumnya; hasil lama kembali lebih cepat
- * (kemungkinan dangkal), jadi abaikan hasil yang sudah usang di sisi UI.
+ * Panggilan diantre berurutan. Isi `interrupt: true` untuk menghentikan pencarian sebelumnya
+ * (hasil lama lalu kembali dangkal, jadi abaikan hasil usang di sisi UI).
  */
 export async function analyzeCurrent(
   fen: string,
-  o: SearchOptions & { minDepth?: number; useServerCache?: boolean } = {}
+  o: SearchOptions & { minDepth?: number; useServerCache?: boolean; fresh?: boolean; interrupt?: boolean } = {}
 ): Promise<EvalResult> {
   const term = terminalResult(fen);
   if (term) return term;
@@ -431,9 +431,9 @@ export async function analyzeCurrent(
   const key = fenKey(fen);
 
   const hit = memCache.get(key);
-  if (isSufficient(hit, need)) return buildResult(fen, hit!, 'memory');
+  if (!o.fresh && isSufficient(hit, need)) return buildResult(fen, hit!, 'memory');
 
-  if (o.useServerCache !== false) {
+  if (o.useServerCache !== false && !o.fresh) {
     const [remote] = await fetchServerCache([key]);
     if (isSufficient(remote, need)) {
       rememberLocal(key, remote!);
@@ -442,7 +442,7 @@ export async function analyzeCurrent(
   }
 
   if (!liveEngine) liveEngine = new EngineWorker();
-  liveEngine.stop();
+  if (o.interrupt) liveEngine.stop(); // default: antre berurutan, hasil tidak pernah terpotong
   const raw = await liveEngine.search(fen, {
     movetime: o.movetime ?? PRESET_CURRENT.movetime,
     multipv: need.multipv,
@@ -458,6 +458,7 @@ export interface AnalyzeOptions extends SearchOptions {
   minDepth?: number;          // hasil cache lebih dangkal dari ini dihitung ulang (default 12)
   poolSize?: number;          // jumlah worker paralel (default: setengah jumlah core, 1-3)
   useServerCache?: boolean;   // default true
+  fresh?: boolean;            // true = abaikan semua cache (analisis ulang murni)
   signal?: AbortSignal;
   onProgress?: (done: number, total: number, fen: string, result: EvalResult | null) => void;
   onError?: (fen: string, err: Error) => void;
@@ -503,7 +504,7 @@ export async function analyzePositions(
     const term = terminalResult(fen);
     if (term) { report(fen, term); continue; }
     const hit = memCache.get(k);
-    if (isSufficient(hit, need)) {
+    if (!options.fresh && isSufficient(hit, need)) {
       rawByKey.set(k, hit!);
       sources.set(k, 'memory');
       report(fen, buildResult(fen, hit!, 'memory'));
@@ -513,7 +514,7 @@ export async function analyzePositions(
   }
 
   // 2) cache server (Redis), satu batch
-  if (options.useServerCache !== false && todo.length && !options.signal?.aborted) {
+  if (options.useServerCache !== false && !options.fresh && todo.length && !options.signal?.aborted) {
     const remote = await fetchServerCache(todo);
     const rest: string[] = [];
     todo.forEach((k, i) => {
@@ -534,13 +535,14 @@ export async function analyzePositions(
   if (todo.length && !options.signal?.aborted) {
     const engines = Array.from({ length: Math.min(poolSize, todo.length) }, () => new EngineWorker());
     let next = 0;
+    let fatal: Error | null = null;
     let pendingUpload: { key: string; raw: RawEval }[] = [];
 
     const onAbort = () => engines.forEach((e) => e.stop());
     options.signal?.addEventListener('abort', onAbort);
 
     const loop = async (eng: EngineWorker) => {
-      while (!options.signal?.aborted) {
+      while (!options.signal?.aborted && !fatal) {
         const idx = next++;
         if (idx >= todo.length) break;
         const k = todo[idx];
@@ -553,10 +555,15 @@ export async function analyzePositions(
             raw = await eng.search(fen, { movetime, multipv, maxDepth: options.maxDepth });
           } catch (e: any) {
             lastErr = e instanceof Error ? e : new Error(String(e));
+            if (e?.fatal) {
+              fatal = lastErr;
+              break;
+            }
           }
         }
 
         if (!raw) {
+          if (fatal) break;
           options.onError?.(fen, lastErr ?? new Error('Analisis gagal'));
           report(fen, null);
           continue;
@@ -582,6 +589,7 @@ export async function analyzePositions(
       engines.forEach((e) => e.destroy());
     }
     if (pendingUpload.length) await uploadServerCache(pendingUpload);
+    if (fatal) throw fatal;
   }
 
   // 4) susun hasil per FEN yang diminta

@@ -4,6 +4,8 @@
  * (the same idea Chess.com uses), instead of any heuristic / pseudo-random labelling.
  */
 import { Chess, Square, PieceSymbol, Color } from 'chess.js';
+import { analyzeCurrent, analyzePositions } from './stockfishClient';
+import type { EvalResult } from './stockfishClient';
 import { centipawnsToWinChance } from './stockfishEngine';
 import { isBookPosition } from './openingBook';
 import {
@@ -144,71 +146,115 @@ export const COMMON_BOOK_LINES: Record<
 
 import { getStockfishEngine } from './stockfishEngine';
 
+/** Jumlah kandidat langkah untuk review seluruh partai (classifyByEngine hanya butuh PV1 dan PV2). */
+export const REVIEW_MULTIPV = 2;
+
+/** Batas waktu per posisi: engine berhenti saat depth tercapai ATAU batas ini habis. */
+function reviewMovetimeCap(depth: number): number {
+  return Math.min(6000, Math.max(1500, depth * 250));
+}
+
+function evalResultToScore(r: EvalResult): PositionScore {
+  return {
+    fen: r.fen,
+    cp: r.scoreCp,
+    mate: r.mateIn,
+    winWhite: r.winChanceWhite,
+    scoreDisplay: r.scoreDisplay,
+    bestUci: r.bestMoveUci || undefined,
+    bestSan: r.bestMoveSan || undefined,
+    lines: r.lines.map((l) => ({
+      uci: l.uci,
+      san: l.san,
+      continuation: l.continuation,
+      cp: l.scoreCp,
+      mate: l.mateIn,
+      winWhite: l.winChanceWhite,
+      scoreDisplay: l.scoreDisplay,
+    })),
+  };
+}
+
+/**
+ * Review seluruh partai: Stockfish Lite berjalan di Web Worker browser (beberapa worker paralel).
+ * onScore dipanggil setiap satu posisi selesai; hasil akhir mencakup semua FEN yang diminta.
+ * Cache hasil partai tetap ditangani modal (match.chessComAnalysis, /api/analysis, localStorage).
+ */
+export async function analyzeGameScores(
+  fens: string[],
+  depth: number,
+  opts: {
+    signal?: AbortSignal;
+    fresh?: boolean;
+    onScore?: (fen: string, score: PositionScore) => void;
+    onProgress?: (done: number, total: number) => void;
+  } = {}
+): Promise<Record<string, PositionScore>> {
+  const out: Record<string, PositionScore> = {};
+  if (!fens.length || typeof window === 'undefined') return out;
+
+  try {
+    const results = await analyzePositions(fens, {
+      movetime: reviewMovetimeCap(depth),
+      maxDepth: depth,
+      multipv: REVIEW_MULTIPV,
+      minDepth: Math.min(depth, 10),
+      useServerCache: false, // cache server sudah ditangani /api/analysis (PostgreSQL)
+      fresh: opts.fresh,
+      signal: opts.signal,
+      onProgress: (done, total, fen, r) => {
+        if (r) opts.onScore?.(fen, evalResultToScore(r));
+        opts.onProgress?.(done, total);
+      },
+    });
+    for (const [fen, r] of results) out[fen] = evalResultToScore(r);
+  } catch (err) {
+    // Engine gagal dimuat (mis. file .js/.wasm tidak ditemukan di /engines/stockfish)
+    console.error('[Review] Stockfish Web Worker gagal:', err);
+  }
+  return out;
+}
+
+/** Satu posisi (posisi yang sedang dilihat / langkah manual): Web Worker dengan MultiPV 3. */
 export async function fetchPositionScore(
   fen: string,
   depth: number,
   signal?: AbortSignal,
   fresh = false
 ): Promise<PositionScore | null> {
-  // Pure Stockfish 19 Lite engine evaluation via API route
+  if (typeof window === 'undefined' || signal?.aborted) return null;
+
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    const res = await fetch(
-      `/api/stockfish?fen=${encodeURIComponent(fen)}&depth=${depth}&multipv=3${fresh ? '&fresh=1' : ''}`,
-      { signal: signal || controller.signal }
-    );
-    clearTimeout(timeout);
-    if (res.ok) {
-      const d = await res.json();
-      if (d && d.success) {
-        const cp = typeof d.scoreCp === 'number' ? d.scoreCp : 0;
-        return {
-          fen,
-          cp,
-          mate: d.mateIn,
-          winWhite: d.winChanceWhite ?? centipawnsToWinChance(cp, d.mateIn),
-          scoreDisplay: d.scoreDisplay ?? '0.0',
-          bestUci: d.bestMoveUci || undefined,
-          bestSan: d.bestMoveSan || undefined,
-          lines: Array.isArray(d.lines)
-            ? d.lines.map((l: any) => ({
-              uci: l.uci,
-              san: l.san,
-              continuation: l.continuation,
-              cp: l.scoreCp,
-              mate: l.mateIn ?? l.mate,
-              winWhite: l.winChanceWhite,
-              scoreDisplay: l.scoreDisplay,
-            }))
-            : undefined,
-        };
-      }
-    }
+    const r = await analyzeCurrent(fen, {
+      movetime: reviewMovetimeCap(depth),
+      maxDepth: depth,
+      multipv: 3,
+      minDepth: Math.min(depth, 10),
+      useServerCache: false,
+      fresh,
+    });
+    return evalResultToScore(r);
   } catch {
-    // API route failed or timed out, fallback to client-side Web Worker
+    // Worker utama gagal: coba engine client lama sebagai cadangan
   }
 
-  // 3. Fallback: Client-side Stockfish Web Worker
   try {
-    if (typeof window !== 'undefined') {
-      const engine = getStockfishEngine();
-      const evalRes = await engine.evaluatePosition(fen, Math.min(depth, 12));
-      if (evalRes) {
-        return {
-          fen,
-          cp: evalRes.scoreCp,
-          mate: evalRes.mateIn,
-          winWhite: evalRes.winChanceWhite,
-          scoreDisplay: evalRes.scoreDisplay,
-          bestUci: evalRes.bestMoveUci,
-          bestSan: evalRes.bestMoveSan,
-          lines: Array.isArray((evalRes as any).lines) ? (evalRes as any).lines : undefined,
-        };
-      }
+    const engine = getStockfishEngine();
+    const evalRes = await engine.evaluatePosition(fen, Math.min(depth, 12));
+    if (evalRes) {
+      return {
+        fen,
+        cp: evalRes.scoreCp,
+        mate: evalRes.mateIn,
+        winWhite: evalRes.winChanceWhite,
+        scoreDisplay: evalRes.scoreDisplay,
+        bestUci: evalRes.bestMoveUci,
+        bestSan: evalRes.bestMoveSan,
+        lines: Array.isArray((evalRes as any).lines) ? (evalRes as any).lines : undefined,
+      };
     }
   } catch {
-    // Both failed
+    // keduanya gagal
   }
 
   return null;

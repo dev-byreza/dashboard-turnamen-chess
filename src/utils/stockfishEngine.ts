@@ -179,9 +179,8 @@ class StockfishEngineService {
   }
 
   /**
-   * Evaluate a single FEN position up to given depth
-   * Prioritizes /api/stockfish backend (Lichess Cloud Eval & Stockfish 16 Engine)
-   * Falls back to local Web Worker if network is unavailable
+   * Evaluate a single FEN position up to given depth.
+   * Berjalan 100% di Web Worker lokal; dibatasi waktu agar tidak pernah menggantung.
    */
   public async evaluatePosition(
     fen: string,
@@ -189,41 +188,9 @@ class StockfishEngineService {
     onProgress?: (progress: PositionEvaluation) => void
   ): Promise<PositionEvaluation> {
     const cleanFen = fen.trim();
+    const movetimeCap = Math.min(8000, Math.max(2000, depth * 300));
 
-    // 1. Try Next.js Backend Stockfish Route first (super fast, depth 40-62)
-    try {
-      const res = await fetch(`/api/stockfish?fen=${encodeURIComponent(cleanFen)}&depth=${depth}&multipv=3`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.success) {
-          const evalResult: PositionEvaluation = {
-            fen: cleanFen,
-            depth: data.depth || depth,
-            scoreCp: data.scoreCp || 0,
-            scoreDisplay: data.scoreDisplay || '0.0',
-            mateIn: data.mateIn,
-            winChanceWhite: data.winChanceWhite ?? centipawnsToWinChance(data.scoreCp || 0, data.mateIn),
-            bestMoveUci: data.bestMoveUci,
-            bestMoveSan: data.bestMoveSan,
-            lines: Array.isArray(data.lines)
-              ? data.lines.map((l: any) => ({
-                  uci: l.uci,
-                  san: l.san,
-                  continuation: l.continuation,
-                  cp: l.scoreCp ?? l.cp ?? 0,
-                  winWhite: l.winChanceWhite ?? l.winWhite ?? 50,
-                  scoreDisplay: l.scoreDisplay ?? '0.0',
-                }))
-              : undefined,
-            isThinking: false,
-          };
-          if (onProgress) onProgress(evalResult);
-          return evalResult;
-        }
-      }
-    } catch {
-      // Backend unavailable or offline, continue to local Web Worker
-    }
+    // Semua evaluasi dijalankan di Web Worker lokal (tanpa server).
 
     // 2. Local Web Worker fallback (serialized via queue to prevent engine races)
     return this.enqueue(async () => {
@@ -247,7 +214,14 @@ class StockfishEngineService {
       });
 
       return new Promise<PositionEvaluation>((resolve, reject) => {
-        this.currentEvalReject = reject;
+        let settled = false;
+        let hardTimer: ReturnType<typeof setTimeout> | undefined;
+        this.currentEvalReject = (reason?: unknown) => {
+          settled = true;
+          if (hardTimer) clearTimeout(hardTimer);
+          this.removeMessageListener(lineHandler);
+          reject(reason);
+        };
 
         let latestEval: PositionEvaluation = {
           fen: cleanFen,
@@ -319,6 +293,8 @@ class StockfishEngineService {
               isThinking: false,
             };
 
+            settled = true;
+            if (hardTimer) clearTimeout(hardTimer);
             this.removeMessageListener(lineHandler);
             this.currentEvalReject = null;
             resolve(latestEval);
@@ -327,8 +303,22 @@ class StockfishEngineService {
 
         this.addMessageListener(lineHandler);
 
+        // Batas keras: jika bestmove tidak datang, buang worker (dibuat ulang otomatis) dan
+        // kembalikan hasil terakhir agar antrean tidak macet.
+        hardTimer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          this.removeMessageListener(lineHandler);
+          this.currentEvalReject = null;
+          try { this.worker?.terminate(); } catch { /* abaikan */ }
+          this.worker = null;
+          this.isReady = false;
+          this.initPromise = null;
+          resolve({ ...latestEval, isThinking: false });
+        }, movetimeCap + 3000);
+
         this.sendCommand(`position fen ${cleanFen}`);
-        this.sendCommand(`go depth ${depth}`);
+        this.sendCommand(`go depth ${depth} movetime ${movetimeCap}`);
       });
     });
   }

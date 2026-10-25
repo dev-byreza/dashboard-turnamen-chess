@@ -49,6 +49,8 @@ import {
   PositionScore,
   COMMON_BOOK_LINES,
   fetchPositionScore,
+  analyzeGameScores,
+  REVIEW_MULTIPV,
   classifyByEngine,
   describeReview,
   describeMoveTactics,
@@ -1379,26 +1381,31 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       setAnalysisProgress({ done: Object.keys(initial).length, total: uniqueFens.length });
 
       const accumulated: Record<string, PositionScore> = { ...initial };
-      let done = Object.keys(initial).length;
-      for (const f of uniqueFens) {
-        if (cancelled) return;
-        if (accumulated[f]) continue;
-        let s = await fetchPositionScore(f, reviewDepth, ctrl.signal, fresh);
-        if (!s && !cancelled) {
-          await new Promise((r) => setTimeout(r, 600));
-          if (!cancelled) {
-            s = await fetchPositionScore(f, reviewDepth, ctrl.signal, fresh);
-          }
-        }
-        if (cancelled) return;
-        done++;
-        if (s) {
+      const pending = uniqueFens.filter((f) => !accumulated[f]);
+      const baseDone = uniqueFens.length - pending.length;
+
+      // Stockfish Lite di Web Worker browser, beberapa worker paralel, progress per posisi
+      const computed = await analyzeGameScores(pending, reviewDepth, {
+        signal: ctrl.signal,
+        fresh,
+        onScore: (f, s) => {
+          if (cancelled) return;
           scoreCacheRef.current.set(`${reviewDepth}|${f}`, s);
           accumulated[f] = s;
           setScoreMap((prev) => ({ ...prev, [f]: s }));
-        }
-        setAnalysisProgress({ done, total: uniqueFens.length });
+        },
+        onProgress: (d, t) => {
+          if (cancelled) return;
+          const scaled = Math.round((d / Math.max(1, t)) * pending.length);
+          setAnalysisProgress({ done: Math.min(uniqueFens.length, baseDone + scaled), total: uniqueFens.length });
+        },
+      });
+      if (cancelled) return;
+      for (const [f, s] of Object.entries(computed)) {
+        accumulated[f] = s;
+        scoreCacheRef.current.set(`${reviewDepth}|${f}`, s);
       }
+      setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
 
       if (!cancelled) {
         setScoreMap(accumulated);
@@ -1745,23 +1752,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
       // Also fetch MultiPV candidate continuation lines from server route if not yet in scoreMap
       if (!scoreMap[currentBoardFen]?.lines?.length && !COMMON_BOOK_LINES[currentBoardFen]) {
-        fetch(`/api/stockfish?fen=${encodeURIComponent(currentBoardFen)}&depth=12&multipv=3`)
-          .then((res) => (res.ok ? res.json() : null))
-          .then((d) => {
-            if (!d || !d.success) return;
-            const cp = typeof d.scoreCp === 'number' ? d.scoreCp : 0;
+        fetchPositionScore(currentBoardFen, 12)
+          .then((s) => {
+            if (!s) return;
             setScoreMap((prev) => {
-              const updated = {
-                ...(prev[currentBoardFen] || {}),
-                fen: currentBoardFen,
-                cp,
-                mate: d.mateIn,
-                winWhite: d.winChanceWhite ?? 50,
-                scoreDisplay: d.scoreDisplay ?? '0.0',
-                bestUci: d.bestMoveUci,
-                bestSan: d.bestMoveSan,
-                lines: d.lines || [],
-              };
+              const updated = { ...(prev[currentBoardFen] || {}), ...s, fen: currentBoardFen };
               scoreCacheRef.current.set(`${reviewDepth}|${currentBoardFen}`, updated);
               return {
                 ...prev,
@@ -3748,7 +3743,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                   Stockfish menganalisis langkah {analysisProgress.done} dari {analysisProgress.total}...
                 </div>
                 <div className="mobile-analysis-depth-badge">
-                  Stockfish 19 • Depth {reviewDepth} • MultiPV 3
+                  Stockfish 19 • Depth {reviewDepth} • MultiPV {REVIEW_MULTIPV}
                 </div>
                 <div className="analysis-running-track">
                   <div
