@@ -805,6 +805,13 @@ function classifyCore(
     evalAfter: after,
   };
 
+  // Hasil dengan loss minimum yang dipaksa (mat hilang / masuk mat). WAJIB ikut menurunkan accuracy,
+  // karena winProbLost untuk skor mat hampir 0 sehingga accuracy bawaan ~100% dan menggelembungkan rating.
+  const forcedLoss = (label: ReviewLabel, minLoss: number): ReviewedMove => {
+    const effLoss = Math.max(loss, minLoss);
+    return { ...base, loss: effLoss, accuracy: calculateMoveAccuracy(effLoss / 100), label };
+  };
+
   const legalMoves = legalMoveCount(before.fen);
 
   if (m.san.includes('#')) return { ...base, label: 'best' };
@@ -953,13 +960,13 @@ function classifyCore(
   if (hadForcedMate && !isEngineTopMove) {
     // Jika membuang forced mate dan posisi berbalik imbang/kalah (winProbAfter < 0.50) -> Blunder
     if (!hasForcedMateAfter && winProbAfter < 0.50) {
-      return { ...base, loss: Math.max(loss, 30), label: 'blunder' };
+      return forcedLoss('blunder', 30);
     }
 
     // Membuang forced mate sama sekali -> Miss, MESKIPUN posisi masih menang besar
     // (mis. 22...Qh1+ dan 25...Rxf1+ pada partai contoh, di mana Qxg2# tersedia).
     if (!hasForcedMateAfter) {
-      return { ...base, loss: Math.max(loss, 15), label: 'miss' };
+      return forcedLoss('miss', 15);
     }
 
     // Mat masih ada tetapi LEBIH LAMBAT dari mat terbaik (mis. 21...e3 padahal ada Qxg2#).
@@ -967,7 +974,7 @@ function classifyCore(
     // berarti satu langkah lebih lambat atau lebih. Dibatasi mat pendek (<= 2) agar
     // "M6 -> M7" tidak ikut dihukum.
     if (mateBefore !== null && mateBefore <= 2 && (mateAfter as number) >= mateBefore) {
-      return { ...base, loss: Math.max(loss, 15), label: 'miss' };
+      return forcedLoss('miss', 15);
     }
   }
 
@@ -982,7 +989,7 @@ function classifyCore(
     winProbBefore >= 0.30;
 
   if (steppedIntoForcedMate) {
-    return { ...base, loss: Math.max(loss, 25), label: 'blunder' };
+    return forcedLoss('blunder', 25);
   }
 
   // 8. MISS (❌)
