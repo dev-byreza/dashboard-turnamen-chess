@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Chess } from 'chess.js';
 import path from 'path';
-import { createRequire } from 'module';
 
-// JANGAN pakai createRequire(import.meta.url): webpack mengenali pola itu dan mengganti
-// nodeRequire(...) dengan require miliknya, sehingga file engine di /public tidak ditemukan
-// ("Cannot find module"). Dengan path yang dihitung saat runtime, ini jadi require asli Node.
-const nodeRequire = createRequire(path.join(process.cwd(), 'package.json'));
+// File engine di /public harus dimuat dengan require ASLI Node, bukan require milik webpack.
+// - createRequire(import.meta.url) diubah webpack menjadi require dinamis -> "Cannot find module".
+// - createRequire(path...) pada build ini menghasilkan nilai yang bukan fungsi -> "nodeRequire is not a function".
+// __non_webpack_require__ diganti webpack menjadi require asli Node saat build; eval('require')
+// sebagai cadangan jika simbol itu tidak diganti.
+declare const __non_webpack_require__: NodeRequire | undefined;
+const nodeRequire: NodeRequire =
+  typeof __non_webpack_require__ === 'function' ? __non_webpack_require__ : eval('require');
 
 // In-memory cache for Stockfish 19 evaluations
 const evalCache = new Map<string, any>();
@@ -69,7 +72,7 @@ function getEngine() {
     print: (line: string) => {
       if (typeof line === 'string' && activeLineListener) activeLineListener(line);
     },
-    printErr: () => {},
+    printErr: () => { },
   });
   sharedEngine.processCommand('uci');
   sharedEngine.processCommand('setoption name MultiPV value 1');
@@ -262,7 +265,7 @@ async function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv
                   legal: true,
                 };
               }
-            } catch {}
+            } catch { }
           }
 
           resolve({
