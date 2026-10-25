@@ -33,8 +33,10 @@ import {
   setCachedTournamentStore,
   getCachedDbStatus,
 } from '../utils/tournamentStoreCache';
-import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles, Volume2 } from 'lucide-react';
+import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles, Volume2, Newspaper } from 'lucide-react';
 import { ChessSoundSettingsModal } from '../components/ChessSoundSettingsModal';
+import { HomeHighlights } from '../components/HomeHighlights';
+import { latestPosts } from '../data/posts';
 
 
 export default function SwissTournamentPage() {
@@ -606,6 +608,15 @@ export default function SwissTournamentPage() {
                   <span>Analisis</span>
                 </Link>
 
+                <Link
+                  href="/blog"
+                  className="btn-glass-secondary"
+                  title="Baca tulisan dan catatan dari klub"
+                >
+                  <Newspaper size={15} style={{ color: '#34d399' }} />
+                  <span>Blog</span>
+                </Link>
+
                 <button
                   onClick={() => setIsTimerOpen(true)}
                   className="btn-glass-secondary"
@@ -654,6 +665,15 @@ export default function SwissTournamentPage() {
                 >
                   <Sparkles size={15} style={{ color: '#81b64c' }} />
                   <span>Analisis</span>
+                </Link>
+
+                <Link
+                  href="/blog"
+                  className="btn-glass-secondary"
+                  title="Baca tulisan dan catatan dari klub"
+                >
+                  <Newspaper size={15} style={{ color: '#34d399' }} />
+                  <span>Blog</span>
                 </Link>
 
                 <button
@@ -721,11 +741,16 @@ export default function SwissTournamentPage() {
             />
           </>
         ) : dbStatus === 'connected' ? (
-          <TournamentDirectory
-            tournaments={store.tournaments}
-            activeId={store.activeId}
-            isAdmin={isAdminConnected}
-            onAdminOpen={handleSetActive}
+          <HomeHighlights
+            posts={latestPosts}
+            tournamentSlot={
+              <TournamentDirectory
+                tournaments={store.tournaments}
+                activeId={store.activeId}
+                isAdmin={isAdminConnected}
+                onAdminOpen={handleSetActive}
+              />
+            }
           />
         ) : (
           <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">

@@ -7480,3 +7480,74 @@ button, input, select, textarea {
 
 
 
+
+/* ===== Home highlights: Turnamen (panjang), Analisis, lalu Blog (blok-blok) =====
+   Tempel di akhir globals.css. Memakai token tema yang sudah ada. */
+.hh { display: grid; gap: 1.25rem; margin-bottom: 1.25rem; }
+
+.hh-slot > .tournament-directory { margin-bottom: 0; }
+
+.hh-card, .hh-panel {
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: 18px; box-shadow: var(--shadow-md);
+}
+.hh-panel { padding: 1.4rem; }
+.hh-card {
+  --hh-accent: #81b64c;
+  display: flex; flex-direction: column; gap: 0.75rem;
+  border-top: 4px solid var(--hh-accent); padding: 1.1rem;
+}
+
+.hh-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.hh-title { display: flex; align-items: center; gap: 0.45rem; margin: 0; font-family: var(--font-heading); font-size: 1.05rem; color: var(--text-main); }
+.hh-title svg { color: var(--hh-accent); }
+.hh-more { font-size: 0.75rem; font-weight: 600; color: var(--hh-accent); text-decoration: none; white-space: nowrap; }
+.hh-more--sky { color: var(--sky); }
+.hh-more:hover { text-decoration: underline; }
+.hh-sub { margin: -0.35rem 0 0; font-size: 0.78rem; color: var(--text-secondary); }
+.hh-sub--flush { margin: 0.2rem 0 0; }
+.hh-empty { font-size: 0.85rem; color: var(--text-muted); }
+.hh-btn { align-self: flex-start; text-decoration: none; }
+
+/* analisis: lebar penuh (gelap di kiri, penjelasan di kanan) */
+.hh-wide-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.25rem; align-items: center; }
+.hh-wide-side { display: flex; flex-direction: column; gap: 0.7rem; }
+.hh-review { background: #1f1e1b; color: #e8e6e1; border-radius: 14px; padding: 0.9rem; display: grid; gap: 0.5rem; }
+.hh-spark { width: 100%; height: auto; display: block; border-radius: 8px; }
+.hh-review-cap { font-size: 0.72rem; color: #a9a69e; }
+.hh-feature-list { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; line-height: 1.7; color: var(--text-main); }
+.hh-note { margin: 0; font-size: 0.75rem; color: var(--text-secondary); }
+
+/* blog: blok-blok */
+.hh-blog-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.hh-post-card {
+  display: flex; flex-direction: column; overflow: hidden; text-decoration: none; color: inherit;
+  background: var(--bg-soft); border: 1px solid var(--border-subtle); border-radius: 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hh-post-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.hh-post-cover { height: 96px; display: flex; align-items: flex-end; padding: 0.65rem 0.8rem; position: relative; }
+.hh-post-cover::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.1) 0% 25%, transparent 0% 50%) 0 0 / 32px 32px;
+}
+.hh-post-cover.is-gold { background: linear-gradient(135deg, #f1c24b, #a87510); }
+.hh-post-cover.is-green { background: linear-gradient(135deg, #6a9a4f, #3a5f2a); }
+.hh-post-cover.is-blue { background: linear-gradient(135deg, #2f86bd, #14213d); }
+.hh-post-tag {
+  position: relative; z-index: 1; font-size: 0.68rem; font-weight: 700; color: #fff;
+  background: rgba(0, 0, 0, 0.35); padding: 0.18rem 0.6rem; border-radius: 999px;
+}
+.hh-post-body { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.9rem 1rem 1rem; flex: 1; }
+.hh-post-title { margin: 0; font-size: 0.95rem; font-weight: 700; line-height: 1.35; color: var(--text-main); }
+.hh-post-card:hover .hh-post-title { color: var(--sky); }
+.hh-post-excerpt { margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary); }
+.hh-post-foot { margin-top: auto; padding-top: 0.4rem; display: flex; justify-content: space-between; align-items: center; }
+.hh-post-date { font-size: 0.7rem; color: var(--text-muted); }
+.hh-post-read { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 700; color: var(--sky); }
+
+.hh-btn:focus-visible, .hh-more:focus-visible, .hh-post-card:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
+@media (max-width: 1100px) { .hh-blog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .hh-wide-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .hh-blog-grid { grid-template-columns: 1fr; } .hh-panel { padding: 1rem; } }
