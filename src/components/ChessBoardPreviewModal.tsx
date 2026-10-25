@@ -103,67 +103,67 @@ export const REVIEW_CLASSIFICATIONS: {
   color: string;
   details: string;
 }[] = [
-  {
-    type: 'brilliant',
-    label: 'Brilliant',
-    color: '#31c4b9',
-    details: 'Pengorbanan perwira (sacrifice) yang secara taktis dinilai akurat dan mengarah pada keuntungan posisi mutlak.',
-  },
-  {
-    type: 'great',
-    label: 'Great',
-    color: '#5091c5',
-    details: 'Langkah krusial dan satu-satunya langkah terbaik yang mempertahankan atau memenangkan posisi Anda.',
-  },
-  {
-    type: 'book',
-    label: 'Book',
-    color: '#c3996b',
-    details: 'Langkah pembukaan (opening) standar yang terekam dalam teori catur dan database master.',
-  },
-  {
-    type: 'best',
-    label: 'Best',
-    color: '#81b64c',
-    details: 'Langkah pilihan pertama (top choice) dari kalkulasi Stockfish pada posisi tersebut.',
-  },
-  {
-    type: 'excellent',
-    label: 'Excellent',
-    color: '#68a846',
-    details: 'Bukan pilihan nomor satu Stockfish, tetapi evaluasinya sangat dekat dengan langkah terbaik.',
-  },
-  {
-    type: 'good',
-    label: 'Good',
-    color: '#7fa650',
-    details: 'Langkah yang aman, masuk akal, dan mempertahankan stabilitas permainan.',
-  },
-  {
-    type: 'inaccuracy',
-    label: 'Inaccuracy',
-    color: '#f1b332',
-    details: 'Kesalahan kecil yang membuat kehilangan sedikit keunggulan (setara ±0.50 centipawn / drop 10%).',
-  },
-  {
-    type: 'mistake',
-    label: 'Mistake',
-    color: '#f07d2e',
-    details: 'Langkah buruk yang jelas-jelas merusak posisi (membuang evaluasi sekitar 1-2 pion / drop ±20%).',
-  },
-  {
-    type: 'miss',
-    label: 'Miss',
-    color: '#df5353',
-    details: 'Langkah yang melewatkan kesempatan taktis atau peluang untuk menghukum kesalahan lawan.',
-  },
-  {
-    type: 'blunder',
-    label: 'Blunder',
-    color: '#ca3431',
-    details: 'Kesalahan fatal yang mengubah jalannya permainan secara drastis (membuang evaluasi di atas 2-3 pion / drop ≥30%).',
-  },
-];
+    {
+      type: 'brilliant',
+      label: 'Brilliant',
+      color: '#31c4b9',
+      details: 'Pengorbanan perwira (sacrifice) yang secara taktis dinilai akurat dan mengarah pada keuntungan posisi mutlak.',
+    },
+    {
+      type: 'great',
+      label: 'Great',
+      color: '#5091c5',
+      details: 'Langkah krusial dan satu-satunya langkah terbaik yang mempertahankan atau memenangkan posisi Anda.',
+    },
+    {
+      type: 'book',
+      label: 'Book',
+      color: '#c3996b',
+      details: 'Langkah pembukaan (opening) standar yang terekam dalam teori catur dan database master.',
+    },
+    {
+      type: 'best',
+      label: 'Best',
+      color: '#81b64c',
+      details: 'Langkah pilihan pertama (top choice) dari kalkulasi Stockfish pada posisi tersebut.',
+    },
+    {
+      type: 'excellent',
+      label: 'Excellent',
+      color: '#68a846',
+      details: 'Bukan pilihan nomor satu Stockfish, tetapi evaluasinya sangat dekat dengan langkah terbaik.',
+    },
+    {
+      type: 'good',
+      label: 'Good',
+      color: '#7fa650',
+      details: 'Langkah yang aman, masuk akal, dan mempertahankan stabilitas permainan.',
+    },
+    {
+      type: 'inaccuracy',
+      label: 'Inaccuracy',
+      color: '#f1b332',
+      details: 'Kesalahan kecil yang membuat kehilangan sedikit keunggulan (setara ±0.50 centipawn / drop 10%).',
+    },
+    {
+      type: 'mistake',
+      label: 'Mistake',
+      color: '#f07d2e',
+      details: 'Langkah buruk yang jelas-jelas merusak posisi (membuang evaluasi sekitar 1-2 pion / drop ±20%).',
+    },
+    {
+      type: 'miss',
+      label: 'Miss',
+      color: '#df5353',
+      details: 'Langkah yang melewatkan kesempatan taktis atau peluang untuk menghukum kesalahan lawan.',
+    },
+    {
+      type: 'blunder',
+      label: 'Blunder',
+      color: '#ca3431',
+      details: 'Kesalahan fatal yang mengubah jalannya permainan secara drastis (membuang evaluasi di atas 2-3 pion / drop ≥30%).',
+    },
+  ];
 
 export const CoachAvatarSvg: React.FC<{ size?: number; className?: string }> = ({
   size = 48,
@@ -686,7 +686,7 @@ export function findSafeAlternativeMove(
         uci: `${cand.from}${cand.to}${cand.promotion || ''}`,
       };
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -981,7 +981,7 @@ export function classifyGameMoves(
         feedbackTitle: 'Good ✔ (Bagus)',
         feedbackDescription: `${m.san} - Langkah yang aman, masuk akal, dan mempertahankan stabilitas permainan.`,
         bestAlternative: alt?.san,
-        };
+      };
     }
   });
 }
@@ -1219,7 +1219,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       const storageKey = getGameStorageKey(match, recentGame, fenKey, reviewDepth);
       try {
         localStorage.removeItem(storageKey);
-      } catch {}
+      } catch { }
     }
     setScoreMap({});
     setAnalysisProgress({ done: 0, total: 0 });
@@ -1280,6 +1280,21 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     const ctrl = new AbortController();
     let cancelled = false;
 
+    // Gabungkan update scoreMap selama review berjalan. Tiap setScoreMap menghitung ulang
+    // moveHistory (classifyByEngine untuk semua langkah), grafik, dan statistik di main thread;
+    // jika dilakukan per posisi (100+ kali), main thread sibuk dan worker menunggu pesan 'bestmove'.
+    const SCORE_FLUSH_MS = 800;
+    let pendingScores: Record<string, PositionScore> = {};
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushScores = () => {
+      flushTimer = null;
+      if (cancelled) return;
+      const batch = pendingScores;
+      pendingScores = {};
+      if (Object.keys(batch).length === 0) return;
+      setScoreMap((prev) => ({ ...prev, ...batch }));
+    };
+
     // Single source of truth workflow
     (async () => {
       // Re-analyze: lewati semua sumber tersimpan & cache server, hitung ulang murni dari Stockfish
@@ -1322,7 +1337,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               return;
             }
           }
-        } catch {}
+        } catch { }
       }
 
       // 3. Cek localStorage backup cache
@@ -1343,7 +1358,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               localStorage.removeItem(storageKey);
             }
           }
-        } catch {}
+        } catch { }
       }
 
       // 4. Jika belum ada analisis resmi dari admin:
@@ -1372,7 +1387,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem(storageKey, JSON.stringify(initial));
-          } catch {}
+          } catch { }
         }
         return;
       }
@@ -1392,7 +1407,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           if (cancelled) return;
           scoreCacheRef.current.set(`${reviewDepth}|${f}`, s);
           accumulated[f] = s;
-          setScoreMap((prev) => ({ ...prev, [f]: s }));
+          pendingScores[f] = s;
+          if (!flushTimer) flushTimer = setTimeout(flushScores, SCORE_FLUSH_MS);
         },
         onProgress: (d, t) => {
           if (cancelled) return;
@@ -1408,6 +1424,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       setAnalysisProgress({ done: uniqueFens.length, total: uniqueFens.length });
 
       if (!cancelled) {
+        if (flushTimer) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+        pendingScores = {};
         setScoreMap(accumulated);
         // Reset SEBELUM publish: onSaveAnalysis mengubah match.chessComAnalysis dan memicu efek ini lagi
         forceFreshRef.current = false;
@@ -1427,7 +1448,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: centralKey, data: accumulated, extraKeys }),
-          }).catch(() => {});
+          }).catch(() => { });
         }
         if (match?.id) {
           // Simpan ke database turnamen matches (match.chessComAnalysis)
@@ -1436,13 +1457,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem(storageKey, JSON.stringify(accumulated));
-          } catch {}
+          } catch { }
         }
       }
     })();
 
     return () => {
       cancelled = true;
+      if (flushTimer) clearTimeout(flushTimer);
       ctrl.abort();
     };
   }, [isOpen, fenKey, reviewDepth, analysisNonce, match?.id, match?.chessComAnalysis, recentGame?.url, isAdmin]);
@@ -1482,11 +1504,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         prevLoss,
         i > 0
           ? {
-              to: rawMoveHistory[i - 1].to,
-              captured: rawMoveHistory[i - 1].captured,
-              classification: prevClassification,
-              loss: prevLoss,
-            }
+            to: rawMoveHistory[i - 1].to,
+            captured: rawMoveHistory[i - 1].captured,
+            classification: prevClassification,
+            loss: prevLoss,
+          }
           : undefined
       );
       prevLoss = r.loss;
@@ -1513,7 +1535,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               uci: `${matched.from}${matched.to}${matched.promotion || ''}`,
             };
           }
-        } catch {}
+        } catch { }
       }
 
       // Fallback to safe tactical/developing move from beforeFen if engine alt is missing/invalid
@@ -1658,8 +1680,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             ? recentGame.white.result === 'win'
               ? '1-0'
               : recentGame.black.result === 'win'
-              ? '0-1'
-              : '0.5-0.5'
+                ? '0-1'
+                : '0.5-0.5'
             : null);
         const classifiedHistory = classifyGameMoves(constructedHistory, outcome);
 
@@ -1764,7 +1786,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               };
             });
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }, 300);
 
@@ -1997,6 +2019,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       return;
     }
 
+    // Selama review penuh berjalan, jangan jalankan engine tambahan (rebutan CPU dengan worker review).
+    // Efek ini berjalan lagi otomatis saat review selesai (isAnalyzing masuk dependency).
+    if (isAnalyzing) return;
+
     // Debounce live engine evaluation by 300ms so rapid stepping never blocks CPU or workers
     const timer = setTimeout(() => {
       const engine = getStockfishEngine();
@@ -2006,11 +2032,11 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           decisionEvalCacheRef.current.set(prevFen, evalRes);
           setDecisionEval(evalRes);
         })
-        .catch(() => {});
+        .catch(() => { });
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [isOpen, currentPlyIndex, scoreMap]);
+  }, [isOpen, currentPlyIndex, scoreMap, isAnalyzing]);
 
   // Best Move info computation powered by Stockfish 19 Lite with strict move legality verification
   const bestMoveInfo = useMemo(() => {
@@ -2041,7 +2067,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               san: matched.san,
             };
           }
-        } catch {}
+        } catch { }
         return null;
       };
 
@@ -2252,7 +2278,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         const c = new Chess(prevFen);
         const m = c.move({ from: bestMoveInfo.from, to: bestMoveInfo.to });
         if (m?.san) return m.san;
-      } catch {}
+      } catch { }
     }
     if (bestMoveInfo.san && !/^[a-h][1-8][a-h][1-8]/.test(bestMoveInfo.san)) {
       return bestMoveInfo.san;
@@ -2818,10 +2844,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       (recentGame?.pgn?.includes('1-0')
         ? '1-0'
         : recentGame?.pgn?.includes('0-1')
-        ? '0-1'
-        : recentGame?.pgn?.includes('1/2-1/2')
-        ? '1/2-1/2'
-        : null);
+          ? '0-1'
+          : recentGame?.pgn?.includes('1/2-1/2')
+            ? '1/2-1/2'
+            : null);
 
     const isWhiteWin = matchResult === '1-0';
     const isBlackWin = matchResult === '0-1';
@@ -3635,16 +3661,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               showExplorer
                 ? () => setShowExplorer(false)
                 : isReviewActive
-                ? () => setIsReviewActive(false)
-                : onClose
+                  ? () => setIsReviewActive(false)
+                  : onClose
             }
             className="mobile-header-btn"
             title={
               showExplorer
                 ? 'Tutup Opening Explorer'
                 : isReviewActive
-                ? 'Kembali ke Statistik Ulasan'
-                : 'Kembali (Esc)'
+                  ? 'Kembali ke Statistik Ulasan'
+                  : 'Kembali (Esc)'
             }
           >
             <ChevronLeft size={22} />
@@ -3662,8 +3688,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               showExplorer
                 ? 'Tutup Explorer'
                 : isReviewActive
-                ? 'Beralih Mode Analysis / Game Review'
-                : 'Game Review'
+                  ? 'Beralih Mode Analysis / Game Review'
+                  : 'Game Review'
             }
           >
             {showExplorer ? (
@@ -4190,18 +4216,15 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                             style={
                               showBestMove && isBestMoveSq
                                 ? {
-                                    backgroundColor: `${bestMoveColor}28`,
-                                    boxShadow: `inset 0 0 0 2px ${bestMoveColor}`,
-                                  }
+                                  backgroundColor: `${bestMoveColor}28`,
+                                  boxShadow: `inset 0 0 0 2px ${bestMoveColor}`,
+                                }
                                 : undefined
                             }
-                            className={`chesscom-square ${isLight ? 'light-sq' : 'dark-sq'} ${
-                              isSelected ? 'is-selected' : ''
-                            } ${!showBestMove && (isLastMoveFrom || isLastMoveTo) ? 'is-last-move' : ''} ${
-                              showBestMove && isBestMoveSq ? 'is-best-move' : ''
-                            } ${dragHoverSquare === squareName ? 'is-drag-hover' : ''} ${
-                              activeDrag?.fromSquare === squareName ? 'is-drag-origin' : ''
-                            }`}
+                            className={`chesscom-square ${isLight ? 'light-sq' : 'dark-sq'} ${isSelected ? 'is-selected' : ''
+                              } ${!showBestMove && (isLastMoveFrom || isLastMoveTo) ? 'is-last-move' : ''} ${showBestMove && isBestMoveSq ? 'is-best-move' : ''
+                              } ${dragHoverSquare === squareName ? 'is-drag-hover' : ''} ${activeDrag?.fromSquare === squareName ? 'is-drag-origin' : ''
+                              }`}
                             data-square={squareName}
                           >
                             {/* Inside Coordinate: Rank on leftmost square */}
@@ -4217,9 +4240,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                             {/* Legal Move Marker Dot */}
                             {isLegalTarget && (
                               <span
-                                className={`legal-move-marker ${
-                                  piece ? 'legal-capture-ring' : 'legal-dest-dot'
-                                }`}
+                                className={`legal-move-marker ${piece ? 'legal-capture-ring' : 'legal-dest-dot'
+                                  }`}
                               />
                             )}
 
@@ -4232,9 +4254,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                                   style={
                                     anim
                                       ? ({
-                                          '--slide-x': `${anim.dx}%`,
-                                          '--slide-y': `${anim.dy}%`,
-                                        } as React.CSSProperties)
+                                        '--slide-x': `${anim.dx}%`,
+                                        '--slide-y': `${anim.dy}%`,
+                                      } as React.CSSProperties)
                                       : undefined
                                   }
                                   draggable={false}
@@ -4412,9 +4434,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <button
                         type="button"
                         onClick={() => jumpToPly(row.white!.ply - 1)}
-                        className={`mobile-move-btn ${
-                          currentPlyIndex === row.white.ply - 1 ? 'active' : ''
-                        }`}
+                        className={`mobile-move-btn ${currentPlyIndex === row.white.ply - 1 ? 'active' : ''
+                          }`}
                       >
                         {row.white.classification && row.white.classification !== 'book' && (
                           <span className="mobile-move-badge">
@@ -4441,9 +4462,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <button
                         type="button"
                         onClick={() => jumpToPly(row.black!.ply - 1)}
-                        className={`mobile-move-btn ${
-                          currentPlyIndex === row.black.ply - 1 ? 'active' : ''
-                        }`}
+                        className={`mobile-move-btn ${currentPlyIndex === row.black.ply - 1 ? 'active' : ''
+                          }`}
                       >
                         {row.black.classification && row.black.classification !== 'book' && (
                           <span className="mobile-move-badge">
@@ -4615,26 +4635,651 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             ) : !isReviewActive ? (
               /* REVIEW SUMMARY VIEW (Matching Chess.com Image 1 & 3) */
               <div className="review-panel-container">
-                  <div className="review-header-title">
-                    <div className="title-left">
-                      <span className="review-star-badge">★</span>
-                      <h3>Game Review</h3>
+                <div className="review-header-title">
+                  <div className="title-left">
+                    <span className="review-star-badge">★</span>
+                    <h3>Game Review</h3>
+                  </div>
+                  <span className="engine-verified-pill">Stockfish 19 Verified</span>
+                </div>
+
+                {/* Coach Card with Speech Bubble */}
+                <div className="coach-comment-card">
+                  <div className="coach-avatar">
+                    <CoachAvatarSvg size={48} />
+                  </div>
+                  <div className="coach-speech-bubble">
+                    <p>{reviewStats.coachComment}</p>
+                  </div>
+                </div>
+
+                {/* Advantage / Evaluation Graph (Matching Reference Image - Directly below Coach Figure) */}
+                <div className="chesscom-eval-chart-box" title="Klik grafik untuk melompat ke langkah catur">
+                  <svg
+                    viewBox="0 0 320 64"
+                    preserveAspectRatio="none"
+                    className="chesscom-eval-chart-svg"
+                    onClick={handleChartClick}
+                  >
+                    {/* Center baseline line */}
+                    <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
+                    {/* Solid white fill below curve */}
+                    <path d={evalChartData.svgPath} fill="#ffffff" />
+                    {/* Significant move dots along curve */}
+                    {evalChartData.dots.map((d, i) => (
+                      <circle
+                        key={i}
+                        cx={d.x}
+                        cy={d.y}
+                        r={3.2}
+                        fill={d.color}
+                        stroke="#ffffff"
+                        strokeWidth="0.8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          jumpToPly(d.ply - 1);
+                          setIsReviewActive(true);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    ))}
+                  </svg>
+                </div>
+
+                {isAnalysisPendingAdmin && (
+                  <div
+                    style={{
+                      margin: '0.65rem 0.85rem',
+                      padding: '0.85rem 1rem',
+                      background: 'rgba(234, 179, 8, 0.12)',
+                      border: '1px solid rgba(234, 179, 8, 0.35)',
+                      borderRadius: '8px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <p style={{ margin: 0, fontSize: '0.84rem', fontWeight: 700, color: '#facc15' }}>
+                      ⏳ Menunggu Analisis Resmi dari Admin
+                    </p>
+                    <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                      Hasil evaluasi resmi Stockfish akan otomatis tampil dari satu sumber setelah dianalisis oleh admin turnamen.
+                    </p>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={handleClearCache}
+                        style={{
+                          marginTop: '0.6rem',
+                          padding: '0.45rem 1.1rem',
+                          background: '#81b64c',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ⚡ Jalankan Analisis Resmi Sekarang (Admin)
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleClearCache}
+                        style={{
+                          marginTop: '0.6rem',
+                          padding: '0.45rem 1.1rem',
+                          background: '#81b64c',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ⚡ Mulai Analisis Mandiri Sekarang
+                      </button>
+                    )}
+                  </div>
+                )}
+                {/* Unified Review Card (Matching Chess.com Image 1) */}
+                <div className="chesscom-review-table-card">
+                  {/* Players Row */}
+                  <div className="review-grid-row">
+                    <span className="review-grid-label">Players</span>
+                    <div className="review-player-cell">
+                      <div className="review-player-avatar-box white-player">
+                        {whitePlayer?.avatar ? (
+                          <img src={whitePlayer.avatar} alt={whiteName} />
+                        ) : (
+                          <span className="avatar-placeholder">♙</span>
+                        )}
+                      </div>
+                      <span className="review-player-username" title={whiteUsername || whiteName}>
+                        {whiteUsername || whiteName}
+                      </span>
                     </div>
-                    <span className="engine-verified-pill">Stockfish 19 Verified</span>
+                    <div />
+                    <div className="review-player-cell">
+                      <div className="review-player-avatar-box black-player">
+                        {blackPlayer?.avatar ? (
+                          <img src={blackPlayer.avatar} alt={blackName} />
+                        ) : (
+                          <span className="avatar-placeholder">♟</span>
+                        )}
+                      </div>
+                      <span className="review-player-username" title={blackUsername || blackName}>
+                        {blackUsername || blackName}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Coach Card with Speech Bubble */}
-                  <div className="coach-comment-card">
-                    <div className="coach-avatar">
-                      <CoachAvatarSvg size={48} />
+                  {/* Accuracy Row */}
+                  <div className="review-grid-row">
+                    <span className="review-grid-label">Accuracy</span>
+                    <div className="review-accuracy-box white-box">
+                      {reviewStats.whiteAccuracy}
                     </div>
-                    <div className="coach-speech-bubble">
-                      <p>{reviewStats.coachComment}</p>
+                    <div />
+                    <div className="review-accuracy-box black-box">
+                      {reviewStats.blackAccuracy}
                     </div>
                   </div>
 
-                  {/* Advantage / Evaluation Graph (Matching Reference Image - Directly below Coach Figure) */}
-                  <div className="chesscom-eval-chart-box" title="Klik grafik untuk melompat ke langkah catur">
+                  {/* Game Rating Row (Chess.com Performance Rating) */}
+                  <div className="review-grid-row">
+                    <span className="review-grid-label">Game Rating</span>
+                    <div className="review-rating-box white-box" title="Estimasi Performa Rating Putih (Chess.com CAPS)">
+                      {reviewStats.whiteGameRating}
+                    </div>
+                    <div className="review-rating-vs-badge" title="Performance Rating">
+                      VS
+                    </div>
+                    <div className="review-rating-box black-box" title="Estimasi Performa Rating Hitam (Chess.com CAPS)">
+                      {reviewStats.blackGameRating}
+                    </div>
+                  </div>
+
+                  <div className="review-grid-divider" />
+
+                  {/* Rekap Opening Card (Menggantikan Skills) */}
+                  <div
+                    className="review-opening-recap-box"
+                    onClick={() => jumpToPly(0)}
+                    title="Klik untuk melihat langkah pembukaan di papan catur"
+                  >
+                    <div className="review-recap-header">
+                      <div className="recap-title-left">
+                        <span className="recap-eco-pill">{openingRecap.eco}</span>
+                        <span className="recap-book-icon">📖</span>
+                        <span className="recap-opening-name" title={openingRecap.name}>
+                          {openingRecap.name}
+                        </span>
+                      </div>
+                      <span className="recap-book-badge">
+                        {openingRecap.totalBook} Buku
+                      </span>
+                    </div>
+
+                    <div className="recap-stats-bar">
+                      <span className="recap-stat-pill white">
+                        Putih: {openingRecap.bookCountW} book
+                      </span>
+                      <span className="recap-stat-pill black">
+                        Hitam: {openingRecap.bookCountB} book
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="review-grid-divider" />
+
+                  {/* 10 Classification Rows (Matching Chess.com Image 2) */}
+                  {REVIEW_CLASSIFICATIONS.map((item) => {
+                    const countKey = item.type;
+                    const wCount = calculatedCounts[countKey]?.w ?? 0;
+                    const bCount = calculatedCounts[countKey]?.b ?? 0;
+                    const totalCount = wCount + bCount;
+
+                    return (
+                      <div
+                        key={item.type}
+                        className="review-classification-row"
+                        onClick={() => totalCount > 0 && handleJumpToClassification(item.type)}
+                        title={
+                          totalCount > 0
+                            ? `Lihat langkah ${item.label} (${totalCount} langkah) di papan catur`
+                            : item.details
+                        }
+                      >
+                        <span className="review-class-label">{item.label}</span>
+                        <span
+                          className="review-class-count white-count"
+                          style={{ color: wCount > 0 ? item.color : '#6b7280' }}
+                          onClick={(e) => {
+                            if (wCount > 0) {
+                              e.stopPropagation();
+                              handleJumpToClassification(item.type, 'w');
+                            }
+                          }}
+                        >
+                          {wCount}
+                        </span>
+                        <div className="review-class-icon-cell">
+                          <ChessComBadgeIcon type={item.type} size={22} />
+                        </div>
+                        <span
+                          className="review-class-count black-count"
+                          style={{ color: bCount > 0 ? item.color : '#6b7280' }}
+                          onClick={(e) => {
+                            if (bCount > 0) {
+                              e.stopPropagation();
+                              handleJumpToClassification(item.type, 'b');
+                            }
+                          }}
+                        >
+                          {bCount}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Start Review CTA Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsReviewActive(true);
+                    jumpToPly(0);
+                  }}
+                  className="btn-start-review-cta"
+                >
+                  <Play size={16} fill="currentColor" />
+                  <span>Start Review</span>
+                </button>
+              </div>
+            ) : (
+              /* INTERACTIVE GAME REVIEW MODE (Matching Chess.com Image 4) */
+              <div className="review-active-mode-container">
+                {/* Top Header */}
+                <div className="review-active-header">
+                  <div className="review-active-header-left">
+                    <button
+                      type="button"
+                      onClick={() => setIsReviewActive(false)}
+                      className="review-header-icon-btn"
+                      title="Kembali ke Ringkasan Ulasan"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button
+                      type="button"
+                      className="review-header-icon-btn"
+                      title="Simpan / Tandai Permainan"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="review-active-title">
+                    <span className="review-title-star">★</span>
+                    <span>Game Review</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowExplorer(!showExplorer)}
+                      className={`review-header-icon-btn ${showExplorer ? 'active' : ''}`}
+                      title={showExplorer ? 'Tutup Opening Explorer' : 'Buka Opening Explorer'}
+                      style={showExplorer ? { color: '#81b64c', background: 'rgba(129, 182, 76, 0.2)' } : undefined}
+                    >
+                      <Compass size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEngineModalOpen(true)}
+                      className="review-header-icon-btn"
+                      title="Pengaturan Engine Stockfish (Kedalaman & Evaluasi)"
+                    >
+                      <Sliders size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsSoundModalOpen(true)}
+                      className="review-header-icon-btn"
+                      title="Pengaturan Suara & Tema Catur"
+                    >
+                      <Settings size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Engine meta row: Depth / Re-analyze / Sumber Resmi (baris sendiri agar header tidak sesak) */}
+                <div className="review-meta-row">
+                  <button
+                    type="button"
+                    onClick={() => (isAdmin || !match) && setIsEngineModalOpen(true)}
+                    className="review-meta-pill"
+                    title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth}${isAdmin ? ' (Klik untuk ubah)' : ''}`}
+                    style={{ cursor: (isAdmin || !match) ? 'pointer' : 'default' }}
+                  >
+                    <Cpu size={12} />
+                    <span>Depth {stockfishDepth}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearCache}
+                    className="review-meta-pill"
+                    title="Analisis ulang game ini menggunakan Stockfish dan bersihkan cache lama"
+                  >
+                    <RotateCcw size={11} />
+                    <span>Re-analyze</span>
+                  </button>
+                  {match?.id && !isAnalysisPendingAdmin && isAnalysisComplete && (
+                    <span
+                      className="review-meta-pill official"
+                      title="Analisis resmi terverifikasi dari 1 sumber database admin turnamen"
+                    >
+                      ✓ Sumber Resmi
+                    </span>
+                  )}
+                </div>
+
+                {showExplorer ? (
+                  <div className="desktop-explorer-panel">
+                    {renderOpeningExplorerContent()}
+                  </div>
+                ) : (
+                  <>
+                    {/* Coach Speech Bubble Banner */}
+                    <div className={`review-active-coach-banner ${showExplanation ? 'expanded' : ''}`}>
+                      <div className="coach-avatar">
+                        <CoachAvatarSvg size={showExplanation ? 48 : 44} />
+                      </div>
+                      <div className={`active-coach-bubble ${showExplanation ? 'expanded' : ''}`}>
+                        {showExplanation ? (
+                          <div className="coach-explanation-expanded-view">
+                            <div className="coach-exp-top-row">
+                              <div className="coach-exp-title-group">
+                                <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
+                                <span className="coach-exp-badge-name">
+                                  {currentMoveCoachComment.title}
+                                </span>
+                                {currentMoveCoachComment.badge && (
+                                  <ChessComBadgeIcon type={currentMoveCoachComment.badge} size={17} />
+                                )}
+                              </div>
+                              <span className="bubble-eval-pill">
+                                {currentEvalBarData.scoreDisplay}
+                              </span>
+                            </div>
+
+                            <div className="coach-exp-body-text">
+                              <p className="coach-exp-lead">
+                                {currentMoveCoachComment.detailedExplanation}
+                              </p>
+                              {currentMoveCoachComment.tacticalAdvice && (
+                                <div className="coach-exp-advice-box">
+                                  <span className="advice-star">★</span>
+                                  <span>{currentMoveCoachComment.tacticalAdvice}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : showBestMove ? (
+                          <>
+                            <div className="bubble-text-left">
+                              <ChessComBadgeIcon type="best" size={18} />
+                              <span>
+                                {`Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`}
+                              </span>
+                            </div>
+                            <span className="bubble-eval-pill" style={{ background: '#81b64c', color: '#ffffff' }}>
+                              Best
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="bubble-text-left">
+                              {currentMoveCoachComment.badge && (
+                                <ChessComBadgeIcon
+                                  type={currentMoveCoachComment.badge}
+                                  size={18}
+                                />
+                              )}
+                              <span>{currentMoveCoachComment.summary}</span>
+                            </div>
+                            <span className="bubble-eval-pill">
+                              {currentEvalBarData.scoreDisplay}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Row: Best + Explain + Next (Matching Chess.com Image 2) */}
+                    <div className="review-action-row">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowBestMove(!showBestMove);
+                          setShowExplanation(false);
+                        }}
+                        className={`btn-best-move ${showBestMove ? 'active' : ''}`}
+                        title="Perlihatkan langkah terbaik di papan catur"
+                      >
+                        <Star size={15} fill={showBestMove ? '#ffffff' : 'none'} />
+                        <span>Best</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowExplanation(!showExplanation);
+                          setShowBestMove(false);
+                        }}
+                        className={`btn-explain ${showExplanation ? 'active' : ''}`}
+                        title="Penjelasan Taktis Langkah"
+                      >
+                        <Lightbulb size={15} />
+                        <span>Explain</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowBestMove(false);
+                          setShowExplanation(false);
+                          handleNextMove();
+                        }}
+                        className="btn-next-review"
+                        title="Lanjut ke langkah berikutnya"
+                      >
+                        <Play size={14} fill="currentColor" />
+                        <span>Next</span>
+                      </button>
+                    </div>
+
+                    {/* Opening (lichess-org/chess-openings) + Engine candidate lines (MultiPV) */}
+                    {(() => {
+                      const prevFen =
+                        currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
+                      const cand = currentPlyIndex >= 0 ? scoreMap[prevFen]?.lines : undefined;
+                      const played = currentPlyIndex >= 0 ? moveHistory[currentPlyIndex] : null;
+                      const opening = currentBoardOpening || detectOpeningFromFens(
+                        rawMoveHistory.slice(0, Math.max(0, currentPlyIndex + 1)).map((m) => m.fen)
+                      );
+                      if (!cand?.length && !opening) return null;
+                      return (
+                        <div className="review-variations-card">
+                          {opening && (
+                            <div
+                              className="review-opening-row"
+                              onClick={() => setShowExplorer(true)}
+                              title="Buka Opening Explorer untuk variasi dan teori lengkap"
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <span className="review-opening-eco">{opening.eco}</span>
+                              <span className="review-opening-name">{opening.name}</span>
+                              <span className="review-opening-explore-pill">
+                                <Compass size={12} /> Explorer
+                              </span>
+                            </div>
+                          )}
+                          {cand && cand.length > 0 && (
+                            <>
+                              <div className="review-variations-title">
+                                Alternatif engine (posisi sebelum {played?.san})
+                              </div>
+                              {cand.map((l, i) => {
+                                const isPlayed =
+                                  !!played && l.uci === `${played.from}${played.to}${played.promotion || ''}`;
+                                return (
+                                  <div
+                                    key={l.uci}
+                                    className={`review-variation-line ${isPlayed ? 'played' : ''}`}
+                                  >
+                                    <span className="rv-rank">{i + 1}</span>
+                                    <span className="rv-san">{l.san}</span>
+                                    <span className="rv-eval">{l.scoreDisplay}</span>
+                                    {isPlayed && <span className="rv-tag">dimainkan</span>}
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+
+
+
+                {/* Reset Manual Variation */}
+                {isVariationActive && (
+                  <div style={{ padding: '0.25rem 0.9rem', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleResetToOriginalGame}
+                      className="variation-reset-badge-btn"
+                      title="Kembalikan ke notasi pertandingan asli"
+                    >
+                      <RotateCcw size={12} />
+                      <span>Reset Variasi Manual</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Review Move List Table (Matching Image 4) */}
+                <div className="review-moves-scroll" ref={reviewMovesScrollRef}>
+                  {moveRows.map((row) => {
+                    const isWhiteActive =
+                      row.white && currentPlyIndex === row.white.ply - 1;
+                    const isBlackActive =
+                      row.black && currentPlyIndex === row.black.ply - 1;
+
+                    const getMoveColor = (item?: MoveHistoryItem) => {
+                      if (!item?.classification) return '#ffffff';
+                      const meta = REVIEW_CLASSIFICATIONS.find(
+                        (c) => c.type === item.classification
+                      );
+                      if (item.classification === 'book') return '#c3996b';
+                      if (
+                        meta &&
+                        [
+                          'brilliant',
+                          'great',
+                          'best',
+                          'inaccuracy',
+                          'mistake',
+                          'miss',
+                          'blunder',
+                        ].includes(item.classification)
+                      ) {
+                        return meta.color;
+                      }
+                      return '#ffffff';
+                    };
+
+                    return (
+                      <div key={row.number} className="review-table-row">
+                        <span className="review-row-num">{row.number}.</span>
+
+                        {/* White Move */}
+                        {row.white ? (
+                          <button
+                            type="button"
+                            onClick={() => jumpToPly(row.white!.ply - 1)}
+                            className={`review-move-pill ${isWhiteActive ? 'active' : ''
+                              }`}
+                          >
+                            {row.white.classification && (
+                              <span className="inline-badge">
+                                <ChessComBadgeIcon
+                                  type={row.white.classification}
+                                  size={14}
+                                />
+                              </span>
+                            )}
+                            {renderMoveFigurine(
+                              row.white.piece,
+                              'w',
+                              row.white.san
+                            )}
+                            <span
+                              className="inline-san"
+                              style={{ color: getMoveColor(row.white) }}
+                            >
+                              {formatSanWithoutPiece(row.white.san)}
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="review-move-empty" />
+                        )}
+
+                        {/* Black Move */}
+                        {row.black ? (
+                          <button
+                            type="button"
+                            onClick={() => jumpToPly(row.black!.ply - 1)}
+                            className={`review-move-pill ${isBlackActive ? 'active' : ''
+                              }`}
+                          >
+                            {row.black.classification && (
+                              <span className="inline-badge">
+                                <ChessComBadgeIcon
+                                  type={row.black.classification}
+                                  size={14}
+                                />
+                              </span>
+                            )}
+                            {renderMoveFigurine(
+                              row.black.piece,
+                              'b',
+                              row.black.san
+                            )}
+                            <span
+                              className="inline-san"
+                              style={{ color: getMoveColor(row.black) }}
+                            >
+                              {formatSanWithoutPiece(row.black.san)}
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="review-move-empty" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Evaluation Chart Box (Matching Image 3) */}
+                <div className="review-chart-section">
+                  <div
+                    className="chesscom-eval-chart-box"
+                    title="Klik grafik untuk melompat ke langkah catur"
+                  >
                     <svg
                       viewBox="0 0 320 64"
                       preserveAspectRatio="none"
@@ -4642,10 +5287,17 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       onClick={handleChartClick}
                     >
                       {/* Center baseline line */}
-                      <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
+                      <line
+                        x1="0"
+                        y1="32"
+                        x2="320"
+                        y2="32"
+                        stroke="#6a6762"
+                        strokeWidth="1"
+                      />
                       {/* Solid white fill below curve */}
                       <path d={evalChartData.svgPath} fill="#ffffff" />
-                      {/* Significant move dots along curve */}
+                      {/* Move markers along curve */}
                       {evalChartData.dots.map((d, i) => (
                         <circle
                           key={i}
@@ -4658,796 +5310,162 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             jumpToPly(d.ply - 1);
-                            setIsReviewActive(true);
                           }}
                           style={{ cursor: 'pointer' }}
                         />
                       ))}
+                      {/* Vertical cursor indicator at active move */}
+                      {currentPlyIndex >= 0 &&
+                        evalChartData.points &&
+                        evalChartData.points[currentPlyIndex] && (
+                          <g>
+                            <line
+                              x1={evalChartData.points[currentPlyIndex].x}
+                              y1={0}
+                              x2={evalChartData.points[currentPlyIndex].x}
+                              y2={64}
+                              stroke="#c3996b"
+                              strokeWidth="2"
+                            />
+                            <circle
+                              cx={evalChartData.points[currentPlyIndex].x}
+                              cy={evalChartData.points[currentPlyIndex].y}
+                              r={4.5}
+                              fill="#c3996b"
+                              stroke="#ffffff"
+                              strokeWidth="1.5"
+                            />
+                          </g>
+                        )}
                     </svg>
                   </div>
+                </div>
 
-                  {isAnalysisPendingAdmin && (
-                    <div
-                      style={{
-                        margin: '0.65rem 0.85rem',
-                        padding: '0.85rem 1rem',
-                        background: 'rgba(234, 179, 8, 0.12)',
-                        border: '1px solid rgba(234, 179, 8, 0.35)',
-                        borderRadius: '8px',
-                        textAlign: 'center',
-                      }}
-                    >
-                      <p style={{ margin: 0, fontSize: '0.84rem', fontWeight: 700, color: '#facc15' }}>
-                        ⏳ Menunggu Analisis Resmi dari Admin
-                      </p>
-                      <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
-                        Hasil evaluasi resmi Stockfish akan otomatis tampil dari satu sumber setelah dianalisis oleh admin turnamen.
-                      </p>
-                      {isAdmin ? (
-                        <button
-                          type="button"
-                          onClick={handleClearCache}
-                          style={{
-                            marginTop: '0.6rem',
-                            padding: '0.45rem 1.1rem',
-                            background: '#81b64c',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontWeight: 700,
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ⚡ Jalankan Analisis Resmi Sekarang (Admin)
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleClearCache}
-                          style={{
-                            marginTop: '0.6rem',
-                            padding: '0.45rem 1.1rem',
-                            background: '#81b64c',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontWeight: 700,
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ⚡ Mulai Analisis Mandiri Sekarang
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {/* Unified Review Card (Matching Chess.com Image 1) */}
-                  <div className="chesscom-review-table-card">
-                    {/* Players Row */}
-                    <div className="review-grid-row">
-                      <span className="review-grid-label">Players</span>
-                      <div className="review-player-cell">
-                        <div className="review-player-avatar-box white-player">
-                          {whitePlayer?.avatar ? (
-                            <img src={whitePlayer.avatar} alt={whiteName} />
-                          ) : (
-                            <span className="avatar-placeholder">♙</span>
-                          )}
-                        </div>
-                        <span className="review-player-username" title={whiteUsername || whiteName}>
-                          {whiteUsername || whiteName}
-                        </span>
-                      </div>
-                      <div />
-                      <div className="review-player-cell">
-                        <div className="review-player-avatar-box black-player">
-                          {blackPlayer?.avatar ? (
-                            <img src={blackPlayer.avatar} alt={blackName} />
-                          ) : (
-                            <span className="avatar-placeholder">♟</span>
-                          )}
-                        </div>
-                        <span className="review-player-username" title={blackUsername || blackName}>
-                          {blackUsername || blackName}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Accuracy Row */}
-                    <div className="review-grid-row">
-                      <span className="review-grid-label">Accuracy</span>
-                      <div className="review-accuracy-box white-box">
-                        {reviewStats.whiteAccuracy}
-                      </div>
-                      <div />
-                      <div className="review-accuracy-box black-box">
-                        {reviewStats.blackAccuracy}
-                      </div>
-                    </div>
-
-                    {/* Game Rating Row (Chess.com Performance Rating) */}
-                    <div className="review-grid-row">
-                      <span className="review-grid-label">Game Rating</span>
-                      <div className="review-rating-box white-box" title="Estimasi Performa Rating Putih (Chess.com CAPS)">
-                        {reviewStats.whiteGameRating}
-                      </div>
-                      <div className="review-rating-vs-badge" title="Performance Rating">
-                        VS
-                      </div>
-                      <div className="review-rating-box black-box" title="Estimasi Performa Rating Hitam (Chess.com CAPS)">
-                        {reviewStats.blackGameRating}
-                      </div>
-                    </div>
-
-                    <div className="review-grid-divider" />
-
-                    {/* Rekap Opening Card (Menggantikan Skills) */}
-                    <div
-                      className="review-opening-recap-box"
-                      onClick={() => jumpToPly(0)}
-                      title="Klik untuk melihat langkah pembukaan di papan catur"
-                    >
-                      <div className="review-recap-header">
-                        <div className="recap-title-left">
-                          <span className="recap-eco-pill">{openingRecap.eco}</span>
-                          <span className="recap-book-icon">📖</span>
-                          <span className="recap-opening-name" title={openingRecap.name}>
-                            {openingRecap.name}
-                          </span>
-                        </div>
-                        <span className="recap-book-badge">
-                          {openingRecap.totalBook} Buku
-                        </span>
-                      </div>
-
-                      <div className="recap-stats-bar">
-                        <span className="recap-stat-pill white">
-                          Putih: {openingRecap.bookCountW} book
-                        </span>
-                        <span className="recap-stat-pill black">
-                          Hitam: {openingRecap.bookCountB} book
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="review-grid-divider" />
-
-                    {/* 10 Classification Rows (Matching Chess.com Image 2) */}
-                    {REVIEW_CLASSIFICATIONS.map((item) => {
-                      const countKey = item.type;
-                      const wCount = calculatedCounts[countKey]?.w ?? 0;
-                      const bCount = calculatedCounts[countKey]?.b ?? 0;
-                      const totalCount = wCount + bCount;
-
-                      return (
-                        <div
-                          key={item.type}
-                          className="review-classification-row"
-                          onClick={() => totalCount > 0 && handleJumpToClassification(item.type)}
-                          title={
-                            totalCount > 0
-                              ? `Lihat langkah ${item.label} (${totalCount} langkah) di papan catur`
-                              : item.details
-                          }
-                        >
-                          <span className="review-class-label">{item.label}</span>
-                          <span
-                            className="review-class-count white-count"
-                            style={{ color: wCount > 0 ? item.color : '#6b7280' }}
-                            onClick={(e) => {
-                              if (wCount > 0) {
-                                e.stopPropagation();
-                                handleJumpToClassification(item.type, 'w');
-                              }
-                            }}
-                          >
-                            {wCount}
-                          </span>
-                          <div className="review-class-icon-cell">
-                            <ChessComBadgeIcon type={item.type} size={22} />
-                          </div>
-                          <span
-                            className="review-class-count black-count"
-                            style={{ color: bCount > 0 ? item.color : '#6b7280' }}
-                            onClick={(e) => {
-                              if (bCount > 0) {
-                                e.stopPropagation();
-                                handleJumpToClassification(item.type, 'b');
-                              }
-                            }}
-                          >
-                            {bCount}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Start Review CTA Button */}
+                {/* Playback Controls (Image 4) */}
+                <div className="review-playback-bar">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsReviewActive(true);
-                      jumpToPly(0);
-                    }}
-                    className="btn-start-review-cta"
+                    onClick={handleFirstMove}
+                    className="review-nav-btn"
+                    title="Langkah Awal"
                   >
-                    <Play size={16} fill="currentColor" />
-                    <span>Start Review</span>
+                    <ChevronsLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrevMove}
+                    className="review-nav-btn"
+                    title="Langkah Sebelumnya"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTogglePlayReplay}
+                    className="review-nav-btn btn-play-pause"
+                    title={
+                      isPlayingReplay
+                        ? 'Jeda Putar Ulang'
+                        : 'Putar Ulang Otomatis'
+                    }
+                  >
+                    {isPlayingReplay ? (
+                      <Pause size={18} />
+                    ) : (
+                      <Play size={18} fill="currentColor" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextMove}
+                    className="review-nav-btn"
+                    title="Langkah Berikutnya"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLastMove}
+                    className="review-nav-btn"
+                    title="Langkah Akhir"
+                  >
+                    <ChevronsRight size={18} />
                   </button>
                 </div>
-              ) : (
-                /* INTERACTIVE GAME REVIEW MODE (Matching Chess.com Image 4) */
-                <div className="review-active-mode-container">
-                  {/* Top Header */}
-                  <div className="review-active-header">
-                    <div className="review-active-header-left">
-                      <button
-                        type="button"
-                        onClick={() => setIsReviewActive(false)}
-                        className="review-header-icon-btn"
-                        title="Kembali ke Ringkasan Ulasan"
-                      >
-                        <ChevronLeft size={20} />
-                      </button>
-                      <button
-                        type="button"
-                        className="review-header-icon-btn"
-                        title="Simpan / Tandai Permainan"
-                      >
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                        </svg>
-                      </button>
-                    </div>
 
-                    <div className="review-active-title">
-                      <span className="review-title-star">★</span>
-                      <span>Game Review</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowExplorer(!showExplorer)}
-                        className={`review-header-icon-btn ${showExplorer ? 'active' : ''}`}
-                        title={showExplorer ? 'Tutup Opening Explorer' : 'Buka Opening Explorer'}
-                        style={showExplorer ? { color: '#81b64c', background: 'rgba(129, 182, 76, 0.2)' } : undefined}
-                      >
-                        <Compass size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsEngineModalOpen(true)}
-                        className="review-header-icon-btn"
-                        title="Pengaturan Engine Stockfish (Kedalaman & Evaluasi)"
-                      >
-                        <Sliders size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsSoundModalOpen(true)}
-                        className="review-header-icon-btn"
-                        title="Pengaturan Suara & Tema Catur"
-                      >
-                        <Settings size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Engine meta row: Depth / Re-analyze / Sumber Resmi (baris sendiri agar header tidak sesak) */}
-                  <div className="review-meta-row">
-                    <button
-                      type="button"
-                      onClick={() => (isAdmin || !match) && setIsEngineModalOpen(true)}
-                      className="review-meta-pill"
-                      title={`Kedalaman Analisis Stockfish: Depth ${stockfishDepth}${isAdmin ? ' (Klik untuk ubah)' : ''}`}
-                      style={{ cursor: (isAdmin || !match) ? 'pointer' : 'default' }}
+                {/* Footer Bar (Image 4) */}
+                <div className="review-footer-bar">
+                  <button
+                    type="button"
+                    onClick={() => jumpToPly(0)}
+                    className="review-footer-btn"
+                    title="Kembali ke awal langkah pembukaan"
+                  >
+                    <Bookmark size={14} />
+                    <span>Opening</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsFlipped(!isFlipped)}
+                    className="review-footer-btn"
+                    title="Putar Papan Catur"
+                  >
+                    <RotateCcw size={13} />
+                    <span>Putar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyFen}
+                    className="review-footer-btn"
+                    title="Salin FEN"
+                  >
+                    {copiedFen ? <Check size={13} /> : <Copy size={13} />}
+                    <span>{copiedFen ? 'Tersalin' : 'FEN'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyPgn}
+                    className="review-footer-btn"
+                    title="Salin PGN"
+                  >
+                    {copiedPgn ? <Check size={13} /> : <Share2 size={13} />}
+                    <span>{copiedPgn ? 'Tersalin' : 'PGN'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSoundModalOpen(true)}
+                    className="review-footer-btn"
+                    title="Pengaturan Efek Suara Catur"
+                  >
+                    <Volume2 size={13} />
+                    <span>Suara</span>
+                  </button>
+                  {(match?.chessComUrl || recentGame?.url) && (
+                    <a
+                      href={match?.chessComUrl || recentGame?.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="review-footer-btn review-footer-chesscom-pill"
+                      title="Buka pertandingan ini langsung di Chess.com"
+                      style={{
+                        color: '#81b64c',
+                        background: 'rgba(129, 182, 76, 0.15)',
+                        border: '1px solid rgba(129, 182, 76, 0.35)',
+                        borderRadius: '6px',
+                        padding: '0.2rem 0.55rem',
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
                     >
-                      <Cpu size={12} />
-                      <span>Depth {stockfishDepth}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearCache}
-                      className="review-meta-pill"
-                      title="Analisis ulang game ini menggunakan Stockfish dan bersihkan cache lama"
-                    >
-                      <RotateCcw size={11} />
-                      <span>Re-analyze</span>
-                    </button>
-                    {match?.id && !isAnalysisPendingAdmin && isAnalysisComplete && (
-                      <span
-                        className="review-meta-pill official"
-                        title="Analisis resmi terverifikasi dari 1 sumber database admin turnamen"
-                      >
-                        ✓ Sumber Resmi
-                      </span>
-                    )}
-                  </div>
-
-                  {showExplorer ? (
-                    <div className="desktop-explorer-panel">
-                      {renderOpeningExplorerContent()}
-                    </div>
-                  ) : (
-                    <>
-                      {/* Coach Speech Bubble Banner */}
-                      <div className={`review-active-coach-banner ${showExplanation ? 'expanded' : ''}`}>
-                        <div className="coach-avatar">
-                          <CoachAvatarSvg size={showExplanation ? 48 : 44} />
-                        </div>
-                        <div className={`active-coach-bubble ${showExplanation ? 'expanded' : ''}`}>
-                          {showExplanation ? (
-                            <div className="coach-explanation-expanded-view">
-                              <div className="coach-exp-top-row">
-                                <div className="coach-exp-title-group">
-                                  <Lightbulb size={18} style={{ color: '#eab308', flexShrink: 0 }} />
-                                  <span className="coach-exp-badge-name">
-                                    {currentMoveCoachComment.title}
-                                  </span>
-                                  {currentMoveCoachComment.badge && (
-                                    <ChessComBadgeIcon type={currentMoveCoachComment.badge} size={17} />
-                                  )}
-                                </div>
-                                <span className="bubble-eval-pill">
-                                  {currentEvalBarData.scoreDisplay}
-                                </span>
-                              </div>
-
-                              <div className="coach-exp-body-text">
-                                <p className="coach-exp-lead">
-                                  {currentMoveCoachComment.detailedExplanation}
-                                </p>
-                                {currentMoveCoachComment.tacticalAdvice && (
-                                  <div className="coach-exp-advice-box">
-                                    <span className="advice-star">★</span>
-                                    <span>{currentMoveCoachComment.tacticalAdvice}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ) : showBestMove ? (
-                            <>
-                              <div className="bubble-text-left">
-                                <ChessComBadgeIcon type="best" size={18} />
-                                <span>
-                                  {`Langkah terbaik adalah ${bestMoveSanDisplay || bestMoveInfo?.san || 'langkah catur komputer'}`}
-                                </span>
-                              </div>
-                              <span className="bubble-eval-pill" style={{ background: '#81b64c', color: '#ffffff' }}>
-                                Best
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <div className="bubble-text-left">
-                                {currentMoveCoachComment.badge && (
-                                  <ChessComBadgeIcon
-                                    type={currentMoveCoachComment.badge}
-                                    size={18}
-                                  />
-                                )}
-                                <span>{currentMoveCoachComment.summary}</span>
-                              </div>
-                              <span className="bubble-eval-pill">
-                                {currentEvalBarData.scoreDisplay}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Action Row: Best + Explain + Next (Matching Chess.com Image 2) */}
-                      <div className="review-action-row">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowBestMove(!showBestMove);
-                            setShowExplanation(false);
-                          }}
-                          className={`btn-best-move ${showBestMove ? 'active' : ''}`}
-                          title="Perlihatkan langkah terbaik di papan catur"
-                        >
-                          <Star size={15} fill={showBestMove ? '#ffffff' : 'none'} />
-                          <span>Best</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowExplanation(!showExplanation);
-                            setShowBestMove(false);
-                          }}
-                          className={`btn-explain ${showExplanation ? 'active' : ''}`}
-                          title="Penjelasan Taktis Langkah"
-                        >
-                          <Lightbulb size={15} />
-                          <span>Explain</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowBestMove(false);
-                            setShowExplanation(false);
-                            handleNextMove();
-                          }}
-                          className="btn-next-review"
-                          title="Lanjut ke langkah berikutnya"
-                        >
-                          <Play size={14} fill="currentColor" />
-                          <span>Next</span>
-                        </button>
-                      </div>
-
-                      {/* Opening (lichess-org/chess-openings) + Engine candidate lines (MultiPV) */}
-                      {(() => {
-                        const prevFen =
-                          currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
-                        const cand = currentPlyIndex >= 0 ? scoreMap[prevFen]?.lines : undefined;
-                        const played = currentPlyIndex >= 0 ? moveHistory[currentPlyIndex] : null;
-                        const opening = currentBoardOpening || detectOpeningFromFens(
-                          rawMoveHistory.slice(0, Math.max(0, currentPlyIndex + 1)).map((m) => m.fen)
-                        );
-                        if (!cand?.length && !opening) return null;
-                        return (
-                          <div className="review-variations-card">
-                            {opening && (
-                              <div
-                                className="review-opening-row"
-                                onClick={() => setShowExplorer(true)}
-                                title="Buka Opening Explorer untuk variasi dan teori lengkap"
-                                style={{ cursor: 'pointer' }}
-                              >
-                                <span className="review-opening-eco">{opening.eco}</span>
-                                <span className="review-opening-name">{opening.name}</span>
-                                <span className="review-opening-explore-pill">
-                                  <Compass size={12} /> Explorer
-                                </span>
-                              </div>
-                            )}
-                            {cand && cand.length > 0 && (
-                              <>
-                                <div className="review-variations-title">
-                                  Alternatif engine (posisi sebelum {played?.san})
-                                </div>
-                                {cand.map((l, i) => {
-                                  const isPlayed =
-                                    !!played && l.uci === `${played.from}${played.to}${played.promotion || ''}`;
-                                  return (
-                                    <div
-                                      key={l.uci}
-                                      className={`review-variation-line ${isPlayed ? 'played' : ''}`}
-                                    >
-                                      <span className="rv-rank">{i + 1}</span>
-                                      <span className="rv-san">{l.san}</span>
-                                      <span className="rv-eval">{l.scoreDisplay}</span>
-                                      {isPlayed && <span className="rv-tag">dimainkan</span>}
-                                    </div>
-                                  );
-                                })}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </>
+                      <span>🎮 Chess.com</span>
+                      <ExternalLink size={12} />
+                    </a>
                   )}
-
-
-
-                  {/* Reset Manual Variation */}
-                  {isVariationActive && (
-                    <div style={{ padding: '0.25rem 0.9rem', display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        onClick={handleResetToOriginalGame}
-                        className="variation-reset-badge-btn"
-                        title="Kembalikan ke notasi pertandingan asli"
-                      >
-                        <RotateCcw size={12} />
-                        <span>Reset Variasi Manual</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Review Move List Table (Matching Image 4) */}
-                  <div className="review-moves-scroll" ref={reviewMovesScrollRef}>
-                    {moveRows.map((row) => {
-                      const isWhiteActive =
-                        row.white && currentPlyIndex === row.white.ply - 1;
-                      const isBlackActive =
-                        row.black && currentPlyIndex === row.black.ply - 1;
-
-                      const getMoveColor = (item?: MoveHistoryItem) => {
-                        if (!item?.classification) return '#ffffff';
-                        const meta = REVIEW_CLASSIFICATIONS.find(
-                          (c) => c.type === item.classification
-                        );
-                        if (item.classification === 'book') return '#c3996b';
-                        if (
-                          meta &&
-                          [
-                            'brilliant',
-                            'great',
-                            'best',
-                            'inaccuracy',
-                            'mistake',
-                            'miss',
-                            'blunder',
-                          ].includes(item.classification)
-                        ) {
-                          return meta.color;
-                        }
-                        return '#ffffff';
-                      };
-
-                      return (
-                        <div key={row.number} className="review-table-row">
-                          <span className="review-row-num">{row.number}.</span>
-
-                          {/* White Move */}
-                          {row.white ? (
-                            <button
-                              type="button"
-                              onClick={() => jumpToPly(row.white!.ply - 1)}
-                              className={`review-move-pill ${
-                                isWhiteActive ? 'active' : ''
-                              }`}
-                            >
-                              {row.white.classification && (
-                                <span className="inline-badge">
-                                  <ChessComBadgeIcon
-                                    type={row.white.classification}
-                                    size={14}
-                                  />
-                                </span>
-                              )}
-                              {renderMoveFigurine(
-                                row.white.piece,
-                                'w',
-                                row.white.san
-                              )}
-                              <span
-                                className="inline-san"
-                                style={{ color: getMoveColor(row.white) }}
-                              >
-                                {formatSanWithoutPiece(row.white.san)}
-                              </span>
-                            </button>
-                          ) : (
-                            <div className="review-move-empty" />
-                          )}
-
-                          {/* Black Move */}
-                          {row.black ? (
-                            <button
-                              type="button"
-                              onClick={() => jumpToPly(row.black!.ply - 1)}
-                              className={`review-move-pill ${
-                                isBlackActive ? 'active' : ''
-                              }`}
-                            >
-                              {row.black.classification && (
-                                <span className="inline-badge">
-                                  <ChessComBadgeIcon
-                                    type={row.black.classification}
-                                    size={14}
-                                  />
-                                </span>
-                              )}
-                              {renderMoveFigurine(
-                                row.black.piece,
-                                'b',
-                                row.black.san
-                              )}
-                              <span
-                                className="inline-san"
-                                style={{ color: getMoveColor(row.black) }}
-                              >
-                                {formatSanWithoutPiece(row.black.san)}
-                              </span>
-                            </button>
-                          ) : (
-                            <div className="review-move-empty" />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Evaluation Chart Box (Matching Image 3) */}
-                  <div className="review-chart-section">
-                    <div
-                      className="chesscom-eval-chart-box"
-                      title="Klik grafik untuk melompat ke langkah catur"
-                    >
-                      <svg
-                        viewBox="0 0 320 64"
-                        preserveAspectRatio="none"
-                        className="chesscom-eval-chart-svg"
-                        onClick={handleChartClick}
-                      >
-                        {/* Center baseline line */}
-                        <line
-                          x1="0"
-                          y1="32"
-                          x2="320"
-                          y2="32"
-                          stroke="#6a6762"
-                          strokeWidth="1"
-                        />
-                        {/* Solid white fill below curve */}
-                        <path d={evalChartData.svgPath} fill="#ffffff" />
-                        {/* Move markers along curve */}
-                        {evalChartData.dots.map((d, i) => (
-                          <circle
-                            key={i}
-                            cx={d.x}
-                            cy={d.y}
-                            r={3.2}
-                            fill={d.color}
-                            stroke="#ffffff"
-                            strokeWidth="0.8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              jumpToPly(d.ply - 1);
-                            }}
-                            style={{ cursor: 'pointer' }}
-                          />
-                        ))}
-                        {/* Vertical cursor indicator at active move */}
-                        {currentPlyIndex >= 0 &&
-                          evalChartData.points &&
-                          evalChartData.points[currentPlyIndex] && (
-                            <g>
-                              <line
-                                x1={evalChartData.points[currentPlyIndex].x}
-                                y1={0}
-                                x2={evalChartData.points[currentPlyIndex].x}
-                                y2={64}
-                                stroke="#c3996b"
-                                strokeWidth="2"
-                              />
-                              <circle
-                                cx={evalChartData.points[currentPlyIndex].x}
-                                cy={evalChartData.points[currentPlyIndex].y}
-                                r={4.5}
-                                fill="#c3996b"
-                                stroke="#ffffff"
-                                strokeWidth="1.5"
-                              />
-                            </g>
-                          )}
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* Playback Controls (Image 4) */}
-                  <div className="review-playback-bar">
-                    <button
-                      type="button"
-                      onClick={handleFirstMove}
-                      className="review-nav-btn"
-                      title="Langkah Awal"
-                    >
-                      <ChevronsLeft size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handlePrevMove}
-                      className="review-nav-btn"
-                      title="Langkah Sebelumnya"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleTogglePlayReplay}
-                      className="review-nav-btn btn-play-pause"
-                      title={
-                        isPlayingReplay
-                          ? 'Jeda Putar Ulang'
-                          : 'Putar Ulang Otomatis'
-                      }
-                    >
-                      {isPlayingReplay ? (
-                        <Pause size={18} />
-                      ) : (
-                        <Play size={18} fill="currentColor" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleNextMove}
-                      className="review-nav-btn"
-                      title="Langkah Berikutnya"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleLastMove}
-                      className="review-nav-btn"
-                      title="Langkah Akhir"
-                    >
-                      <ChevronsRight size={18} />
-                    </button>
-                  </div>
-
-                  {/* Footer Bar (Image 4) */}
-                  <div className="review-footer-bar">
-                    <button
-                      type="button"
-                      onClick={() => jumpToPly(0)}
-                      className="review-footer-btn"
-                      title="Kembali ke awal langkah pembukaan"
-                    >
-                      <Bookmark size={14} />
-                      <span>Opening</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsFlipped(!isFlipped)}
-                      className="review-footer-btn"
-                      title="Putar Papan Catur"
-                    >
-                      <RotateCcw size={13} />
-                      <span>Putar</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCopyFen}
-                      className="review-footer-btn"
-                      title="Salin FEN"
-                    >
-                      {copiedFen ? <Check size={13} /> : <Copy size={13} />}
-                      <span>{copiedFen ? 'Tersalin' : 'FEN'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCopyPgn}
-                      className="review-footer-btn"
-                      title="Salin PGN"
-                    >
-                      {copiedPgn ? <Check size={13} /> : <Share2 size={13} />}
-                      <span>{copiedPgn ? 'Tersalin' : 'PGN'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsSoundModalOpen(true)}
-                      className="review-footer-btn"
-                      title="Pengaturan Efek Suara Catur"
-                    >
-                      <Volume2 size={13} />
-                      <span>Suara</span>
-                    </button>
-                    {(match?.chessComUrl || recentGame?.url) && (
-                      <a
-                        href={match?.chessComUrl || recentGame?.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="review-footer-btn review-footer-chesscom-pill"
-                        title="Buka pertandingan ini langsung di Chess.com"
-                        style={{
-                          color: '#81b64c',
-                          background: 'rgba(129, 182, 76, 0.15)',
-                          border: '1px solid rgba(129, 182, 76, 0.35)',
-                          borderRadius: '6px',
-                          padding: '0.2rem 0.55rem',
-                          fontWeight: 800,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <span>🎮 Chess.com</span>
-                        <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
                 </div>
-              )}
+              </div>
+            )}
           </aside>
         </div>
 
