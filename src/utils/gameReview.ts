@@ -788,6 +788,14 @@ function classifyCore(
   const loss = Math.round(winProbLost * 1000) / 10;
   const accuracy = calculateMoveAccuracy(winProbLost);
 
+  // cpLoss TIDAK boleh dipakai jika ada skor mat (cp mat = +-10000 -> selisih palsu raksasa)
+  // atau jika posisi sudah di ekor datar sigmoid (sudah menang / kalah mutlak), karena selisih cp
+  // di sana hampir tidak mengubah peluang menang dan chess.com tidak memberi label apa pun.
+  const hasMateScore =
+    (mateBefore !== null && mateBefore !== undefined) || (mateAfter !== null && mateAfter !== undefined);
+  const inFlatTail = winProbBefore < 0.03 || winProbBefore > 0.97;
+  const cpLossUsed = hasMateScore || inFlatTail ? 0 : cpLoss;
+
   const base = {
     loss,
     accuracy,
@@ -948,8 +956,17 @@ function classifyCore(
       return { ...base, loss: Math.max(loss, 30), label: 'blunder' };
     }
 
-    // Jika membuang forced mate menjadi keunggulan biasa (0.50 <= winProbAfter < 0.85) -> Miss
-    if (!hasForcedMateAfter && winProbAfter < 0.85) {
+    // Membuang forced mate sama sekali -> Miss, MESKIPUN posisi masih menang besar
+    // (mis. 22...Qh1+ dan 25...Rxf1+ pada partai contoh, di mana Qxg2# tersedia).
+    if (!hasForcedMateAfter) {
+      return { ...base, loss: Math.max(loss, 15), label: 'miss' };
+    }
+
+    // Mat masih ada tetapi LEBIH LAMBAT dari mat terbaik (mis. 21...e3 padahal ada Qxg2#).
+    // Langkah mat tercepat menyisakan (mateBefore - 1) setelah dimainkan, jadi mateAfter >= mateBefore
+    // berarti satu langkah lebih lambat atau lebih. Dibatasi mat pendek (<= 2) agar
+    // "M6 -> M7" tidak ikut dihukum.
+    if (mateBefore !== null && mateBefore <= 2 && (mateAfter as number) >= mateBefore) {
       return { ...base, loss: Math.max(loss, 15), label: 'miss' };
     }
   }
@@ -990,10 +1007,10 @@ function classifyCore(
   if (winProbLost >= 0.05) {
     return { ...base, label: 'inaccuracy' };
   }
-  if (winProbLost <= 0.02 && cpLoss < 150) {
+  if (winProbLost <= 0.02 && cpLossUsed < 150) {
     return { ...base, label: 'excellent' };
   }
-  if (cpLoss < 300) {
+  if (cpLossUsed < 300) {
     return { ...base, label: 'good' };
   }
   const effLoss = Math.max(loss, 6);
