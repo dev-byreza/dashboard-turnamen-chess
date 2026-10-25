@@ -75,8 +75,15 @@ export interface ReviewedMove {
   /** Menyimpan bestUci mentah dari engine jika dibutuhkan untuk keperluan internal */
   engineBestUci?: string;
   engineBestSan?: string;
-  /** Koordinat panah feedback { from, to } (bernilai null pada langkah Best / Great / Brilliant / Book) */
-  feedbackArrow?: { from: Square; to: Square } | null;
+  /**
+   * Panah saran langkah terbaik engine. Muncul HANYA jika label langkah terbaik engine LEBIH TINGGI
+   * daripada label langkah yang dimainkan (mis. Excellent/Good -> panah Best hijau,
+   * Great -> panah Brilliant jika langkah terbaik engine ternyata Brilliant).
+   * `color` mengikuti label langkah terbaik tersebut (lihat ARROW_COLORS).
+   */
+  feedbackArrow?: { from: Square; to: Square; color?: string; label?: ReviewLabel } | null;
+  /** Label yang akan didapat langkah terbaik engine (hanya terisi saat panah ditampilkan). */
+  bestLabel?: ReviewLabel;
   evalBefore: PositionScore;
   evalAfter: PositionScore;
 }
@@ -719,33 +726,126 @@ export function isGreatMove(ctx: GreatMoveContext): boolean {
   return false;
 }
 
+/** Warna panah feedback per jenis langkah terbaik (samakan dengan warna ikon di UI jika berbeda). */
+export const ARROW_COLORS: Record<'best' | 'great' | 'brilliant', string> = {
+  best: '#81b64c', // hijau (default)
+  great: '#749bbf', // biru
+  brilliant: '#1baca6', // teal, warna ikon Brilliant
+};
+
+export function arrowColorForLabel(label?: ReviewLabel | null): string {
+  if (label === 'brilliant') return ARROW_COLORS.brilliant;
+  if (label === 'great') return ARROW_COLORS.great;
+  return ARROW_COLORS.best;
+}
+
+/** Peringkat kualitas label. Panah muncul jika peringkat langkah terbaik engine > peringkat langkah yang dimainkan. */
+const LABEL_RANK: Record<ReviewLabel, number> = {
+  blunder: 0,
+  mistake: 1,
+  miss: 1,
+  inaccuracy: 2,
+  good: 3,
+  excellent: 4,
+  best: 5,
+  book: 5,
+  great: 6,
+  brilliant: 7,
+};
+
 /**
- * Membungkus hasil ReviewedMove agar properti `bestUci`, `bestSan`, dan `feedbackArrow`
- * HANYA aktif ketika langkah yang dimainkan BUKAN `best`, `great`, `brilliant`, atau `book`.
- * Dengan demikian, UI papan catur tidak akan menampilkan panah hijau saran langkah terbaik
- * saat pemain sudah memainkan langkah Best / Great / Brilliant / Book, tetapi otomatis
- * menampilkan panah saran terbaik ketika pemain memainkan langkah di luar itu (Excellent, Good, Inaccuracy, Mistake, Miss, Blunder).
+ * Label yang AKAN didapat langkah terbaik engine seandainya dimainkan
+ * (Best / Great / Brilliant), memakai logika classifyCore yang sama.
+ * Mengembalikan null jika tidak bisa ditentukan.
+ */
+function labelOfEngineTopMove(
+  m: { ply: number; color: 'w' | 'b'; san: string; from: string; to: string; piece: string; captured?: string; promotion?: string; fen: string },
+  before: PositionScore,
+  prevLoss: number,
+  prevMove?: { to: string; captured?: string; classification?: ReviewLabel; loss?: number }
+): ReviewLabel | null {
+  const top = before.lines?.[0];
+  const bestUci = before.bestUci || top?.uci;
+  if (!top || !bestUci || bestUci.length < 4) return null;
+  try {
+    const board = new Chess(before.fen);
+    const mv = board.move({
+      from: bestUci.slice(0, 2) as Square,
+      to: bestUci.slice(2, 4) as Square,
+      promotion: bestUci.length > 4 ? (bestUci[4] as PieceSymbol) : undefined,
+    });
+    if (!mv) return null;
+
+    // Skor mat pada baris engine dihitung dari posisi SEBELUM langkah (sudut pandang Putih).
+    // Jika yang mengejar mat adalah pemain yang melangkah, setelah langkah itu sisa mat berkurang 1.
+    const sign = m.color === 'w' ? 1 : -1;
+    let afterMate: number | undefined = top.mate;
+    if (afterMate !== undefined && afterMate * sign > 0) {
+      const remaining = Math.abs(afterMate) - 1;
+      afterMate = remaining === 0 ? undefined : sign * remaining;
+    }
+
+    const afterScore: PositionScore = {
+      fen: board.fen(),
+      cp: top.cp,
+      mate: afterMate,
+      winWhite: top.winWhite,
+      scoreDisplay: top.scoreDisplay,
+    };
+    const fakeMove = {
+      ply: m.ply,
+      color: m.color,
+      san: mv.san,
+      from: mv.from,
+      to: mv.to,
+      piece: mv.piece,
+      captured: mv.captured,
+      promotion: mv.promotion,
+      fen: board.fen(),
+    };
+    const label = classifyCore(fakeMove, before, afterScore, prevLoss, prevMove).label;
+    return label === 'book' ? 'best' : label;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Menentukan panah feedback. Panah ditampilkan jika langkah yang dimainkan BUKAN langkah terbaik engine
+ * DAN label langkah terbaik engine lebih tinggi daripada label langkah yang dimainkan.
+ * Contoh: Excellent/Good -> panah hijau (Best); Great padahal ada Brilliant -> panah Brilliant.
  */
 function finalizeReviewedMove(
   result: ReviewedMove,
   playedUci: string,
   rawBestUci?: string,
-  rawBestSan?: string
+  rawBestSan?: string,
+  bestLabel: ReviewLabel | null = null
 ): ReviewedMove {
-  const showArrow = shouldShowBestMoveArrow(result.label, playedUci, rawBestUci);
+  const hasBest = !!rawBestUci && rawBestUci.length >= 4;
+  const sameMove = hasBest && playedUci.slice(0, 4) === rawBestUci!.slice(0, 4);
+  const targetLabel: ReviewLabel = bestLabel ?? 'best';
+  const showArrow =
+    hasBest &&
+    !sameMove &&
+    result.label !== 'book' &&
+    LABEL_RANK[targetLabel] > LABEL_RANK[result.label];
+
   return {
     ...result,
     bestUci: showArrow ? rawBestUci : undefined,
     bestSan: showArrow ? rawBestSan : undefined,
     engineBestUci: rawBestUci,
     engineBestSan: rawBestSan,
-    feedbackArrow:
-      showArrow && rawBestUci && rawBestUci.length >= 4
-        ? {
-          from: rawBestUci.slice(0, 2) as Square,
-          to: rawBestUci.slice(2, 4) as Square,
-        }
-        : null,
+    bestLabel: showArrow ? targetLabel : undefined,
+    feedbackArrow: showArrow
+      ? {
+        from: rawBestUci!.slice(0, 2) as Square,
+        to: rawBestUci!.slice(2, 4) as Square,
+        color: arrowColorForLabel(targetLabel),
+        label: targetLabel,
+      }
+      : null,
   };
 }
 
@@ -760,7 +860,8 @@ export function classifyByEngine(
   const rawBestUci = before.bestUci || before.lines?.[0]?.uci || undefined;
   const rawBestSan = before.bestSan || before.lines?.[0]?.san || undefined;
   const rawResult = classifyCore(m, before, after, prevLoss, prevMove);
-  return finalizeReviewedMove(rawResult, playedUci, rawBestUci, rawBestSan);
+  const bestLabel = labelOfEngineTopMove(m, before, prevLoss, prevMove);
+  return finalizeReviewedMove(rawResult, playedUci, rawBestUci, rawBestSan, bestLabel);
 }
 
 function classifyCore(
@@ -1032,9 +1133,28 @@ function classifyCore(
 /**
  * Calculates estimated Chess.com Game Performance Rating based on CAPS Accuracy & move quality
  */
+/**
+ * Menghitung jumlah tiap label dari daftar langkah hasil review.
+ * Tidak peka huruf besar/kecil ('miss' / 'Miss') dan membaca field `label` maupun `classification`,
+ * supaya Miss tidak pernah terbaca 0 hanya karena beda penulisan.
+ */
+export function countReviewLabels(
+  moves: Array<{ label?: string; classification?: string } | null | undefined>
+): Record<ReviewLabel, number> {
+  const out: Record<ReviewLabel, number> = {
+    brilliant: 0, great: 0, book: 0, best: 0, excellent: 0,
+    good: 0, inaccuracy: 0, mistake: 0, miss: 0, blunder: 0,
+  };
+  for (const mv of moves) {
+    const key = String(mv?.label ?? mv?.classification ?? '').toLowerCase() as ReviewLabel;
+    if (key in out) out[key] += 1;
+  }
+  return out;
+}
+
 export function calculateGameRating(
   accuracy: number,
-  counts: { brilliant?: number; great?: number; best?: number; mistake?: number; blunder?: number },
+  counts: { brilliant?: number; great?: number; best?: number; mistake?: number; miss?: number; blunder?: number },
   baseRating?: number
 ): number {
   let est = 0;
@@ -1050,6 +1170,7 @@ export function calculateGameRating(
   est += (counts.brilliant || 0) * 40;
   est += (counts.great || 0) * 20;
   est -= (counts.mistake || 0) * 15;
+  est -= (counts.miss || 0) * 20; // estimasi, belum dikalibrasi terhadap chess.com
   est -= (counts.blunder || 0) * 35;
 
   if (baseRating && baseRating > 300 && baseRating < 3000) {
