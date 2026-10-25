@@ -8,16 +8,18 @@ const coinageFont = localFont({
   display: 'swap',
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || 'https://chesspoliwako.vercel.app';
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://chesspoliwako.vercel.app'
-  ),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'Chess Club Poliwako | Dashboard Turnamen Catur Politeknik Sorowako',
     template: '%s | Chess Club Poliwako',
   },
   description:
     'Portal resmi Turnamen Catur Chess Club Poliwako (Politeknik Sorowako). Jadwal pertandingan sistem Swiss, live standings, rating Elo, verifikasi Chess.com, dan analisis Stockfish 19.',
+  applicationName: 'Chess Club Poliwako',
   keywords: [
     'chess poliwako',
     'catur poliwako',
@@ -47,14 +49,6 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  icons: {
-    icon: [
-      { url: '/images/logo-chess-club-sorowako.png', type: 'image/png' },
-      { url: '/favicon.ico' },
-    ],
-    shortcut: '/images/logo-chess-club-sorowako.png',
-    apple: '/images/logo-chess-club-sorowako.png',
-  },
   openGraph: {
     title: 'Chess Club Poliwako | Dashboard Turnamen Catur Politeknik Sorowako',
     description:
@@ -76,6 +70,14 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Chess Club Poliwako',
+  alternateName: ['Chess Poliwako', 'Catur Poliwako', 'Chess Club Politeknik Sorowako'],
+  url: siteUrl,
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -84,13 +86,10 @@ export default function RootLayout({
   return (
     <html lang="id" className={coinageFont.variable}>
       <head>
-        <meta name="google-site-verification" content="r2pQdj_gyvNqj74cYKT3ZPq99aOdKz4p4UZeTYjA8wo" />
-        <meta name="google-site-verification" content="google9e513362f436402a" />
-        <link rel="icon" type="image/png" href="/images/logo-chess-club-sorowako.png" />
-        <link rel="shortcut icon" href="/images/logo-chess-club-sorowako.png" />
-        <link rel="apple-touch-icon" href="/images/logo-chess-club-sorowako.png" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </head>
       <body>{children}</body>
     </html>
