@@ -380,6 +380,12 @@ export function isMaterialSacrifice(fenBefore: string, playedMoveUci: string): {
     return { isSacrifice: false, netMaterialLost: 0, sacrificeType: 'NONE' };
   }
 
+  // Raja tidak bisa dikorbankan: langkah raja (termasuk rokade dan keluar dari skak) BUKAN pengorbanan,
+  // walaupun ada perwira lain yang sudah tergantung sebelum langkah itu.
+  if (moveObj.piece === 'k') {
+    return { isSacrifice: false, netMaterialLost: 0, sacrificeType: 'NONE' };
+  }
+
   // ---------------------------------------------------------------------------
   // 1. CEK DIRECT SACRIFICE (Pengorbanan di petak tujuan langkah baru)
   // ---------------------------------------------------------------------------
@@ -985,8 +991,12 @@ function classifyCore(
     hadForcedMate ||
     (secondLine !== undefined && winProbSecondBest < 0.85 && !secondBestHasForcedMate);
 
+  // Langkah raja (SAN diawali 'K' atau rokade 'O-O') tidak pernah Brilliant: raja tidak bisa dikorbankan.
+  const isKingMove = /^(K|O-O)/.test(m.san);
+
   if (
     !isUnsoundPieceHangInLostPos &&
+    !isKingMove &&
     (isEngineTopMove || winProbLost <= 0.015 || hasForcedMateAfter) &&
     isSacrifice &&
     !isRecapture &&
