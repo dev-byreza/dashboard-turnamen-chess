@@ -3,12 +3,17 @@ import { Chess } from 'chess.js';
 import path from 'path';
 import { createRequire } from 'module';
 
-const nodeRequire = createRequire(import.meta.url);
+// JANGAN pakai createRequire(import.meta.url): webpack mengenali pola itu dan mengganti
+// nodeRequire(...) dengan require miliknya, sehingga file engine di /public tidak ditemukan
+// ("Cannot find module"). Dengan path yang dihitung saat runtime, ini jadi require asli Node.
+const nodeRequire = createRequire(path.join(process.cwd(), 'package.json'));
 
 // In-memory cache for Stockfish 19 evaluations
 const evalCache = new Map<string, any>();
 
 export const dynamic = 'force-dynamic';
+// Analisis depth tinggi bisa melewati batas ~10 detik bawaan fungsi serverless Vercel.
+export const maxDuration = 60;
 
 function centipawnsToWinChance(cp: number, mate?: number): number {
   if (mate !== undefined && mate !== 0) {
