@@ -4,8 +4,31 @@ import { getCachedAnalysisFromDb, saveCachedAnalysisToDb } from '../../../lib/db
 
 export const dynamic = 'force-dynamic';
 
-// In-memory hot cache for instant retrieval across concurrent requests
-const memoryCache = new Map<string, any>();
+// Cache memori hanya "hot cache" singkat. Di serverless tiap instance punya salinan sendiri,
+// jadi TTL pendek mencegah instance lain menyajikan analisis lama setelah analisis ulang.
+const MEMORY_TTL_MS = 60_000;
+const MEMORY_MAX_ENTRIES = 200;
+const memoryCache = new Map<string, { data: any; at: number }>();
+
+function memGet(key: string): any | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at > MEMORY_TTL_MS) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function memSet(key: string, data: any) {
+  if (memoryCache.size >= MEMORY_MAX_ENTRIES) {
+    memoryCache.delete(memoryCache.keys().next().value as string);
+  }
+  memoryCache.set(key, { data, at: Date.now() });
+}
+
+// Respons selalu segar: jangan di-cache browser / CDN
+const noStore = { headers: { 'Cache-Control': 'no-store' } };
 
 /**
  * Validate that all best moves inside the scoreMap are strictly legal moves on their corresponding FENs.
@@ -51,35 +74,40 @@ export async function GET(req: NextRequest) {
     const effectiveKey = key || (url ? `game_${url.replace(/[^a-zA-Z0-9]/g, '_')}` : '');
 
     // 1. Hot in-memory cache check
-    if (effectiveKey && memoryCache.has(effectiveKey)) {
-      const memData = memoryCache.get(effectiveKey);
+    const memData = effectiveKey ? memGet(effectiveKey) : null;
+    if (memData) {
       if (isAnalysisDataValid(memData)) {
-        return NextResponse.json({
-          success: true,
-          source: 'memory',
-          key: effectiveKey,
-          data: memData,
-        });
-      } else {
-        memoryCache.delete(effectiveKey);
+        return NextResponse.json(
+          {
+            success: true,
+            source: 'memory',
+            key: effectiveKey,
+            data: memData,
+          },
+          noStore
+        );
       }
+      memoryCache.delete(effectiveKey);
     }
 
     // 2. Persistent PostgreSQL cache check (with url fallback)
     const dbCached = await getCachedAnalysisFromDb(effectiveKey, url);
     if (dbCached) {
       if (isAnalysisDataValid(dbCached)) {
-        if (effectiveKey) memoryCache.set(effectiveKey, dbCached);
-        return NextResponse.json({
-          success: true,
-          source: 'postgres',
-          key: effectiveKey,
-          data: dbCached,
-        });
+        if (effectiveKey) memSet(effectiveKey, dbCached);
+        return NextResponse.json(
+          {
+            success: true,
+            source: 'postgres',
+            key: effectiveKey,
+            data: dbCached,
+          },
+          noStore
+        );
       }
     }
 
-    return NextResponse.json({ success: false, notFound: true });
+    return NextResponse.json({ success: false, notFound: true }, noStore);
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err?.message || 'Error fetching analysis cache' }, { status: 500 });
   }
@@ -99,12 +127,14 @@ export async function POST(req: NextRequest) {
       if (!isAnalysisDataValid(data)) {
         return NextResponse.json({ success: false, error: 'Data analisis mengandung langkah tidak sah' }, { status: 400 });
       }
-      memoryCache.set(key, data);
       const keysList: string[] = Array.isArray(extraKeys) ? extraKeys : [];
-      for (const k of keysList) {
-        if (k) memoryCache.set(k, data);
-      }
+      // Simpan ke database dulu; memori baru diperbarui jika penyimpanan berhasil,
+      // sehingga memori tidak pernah berisi data yang tidak ada di database.
       await saveCachedAnalysisToDb(key, data, keysList);
+      memSet(key, data);
+      for (const k of keysList) {
+        if (k) memSet(k, data);
+      }
       return NextResponse.json({ success: true, key, saved: true });
     }
 
