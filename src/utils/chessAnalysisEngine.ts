@@ -279,6 +279,10 @@ export function detectPieceSacrifice(fenBefore: string, playedUci: string): bool
   const movingPiece = chess.get(from);
   if (!movingPiece) return false;
 
+  // Raja tidak bisa dikorbankan: langkah raja (termasuk rokade dan keluar dari skak) BUKAN pengorbanan,
+  // walaupun ada perwira lain yang sudah tergantung sebelum langkah itu.
+  if (movingPiece.type === 'k') return false;
+
   const moverColor = movingPiece.color;
   const targetPiece = chess.get(to);
   const capturedValue = targetPiece ? PIECE_VALUES[targetPiece.type] : 0;
