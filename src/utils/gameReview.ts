@@ -4,7 +4,7 @@
  * (the same idea Chess.com uses), instead of any heuristic / pseudo-random labelling.
  */
 import { Chess, Square, PieceSymbol, Color } from 'chess.js';
-import { analyzeCurrent, analyzePositions } from './stockfishClient';
+import { analyzeCurrent, analyzePositions, isMobileDevice } from './stockfishClient';
 import type { EvalResult } from './stockfishClient';
 import { centipawnsToWinChance } from './stockfishEngine';
 import { isBookPosition } from './openingBook';
@@ -156,8 +156,19 @@ import { getStockfishEngine } from './stockfishEngine';
 /** Jumlah kandidat langkah untuk review seluruh partai (classifyByEngine hanya butuh PV1 dan PV2). */
 export const REVIEW_MULTIPV = 2;
 
-/** Batas waktu per posisi: engine berhenti saat depth tercapai ATAU batas ini habis. */
+/**
+ * Batas waktu per posisi untuk REVIEW SELURUH PARTAI (100+ posisi): engine berhenti saat
+ * depth tercapai ATAU batas ini habis. Dibuat pendek supaya total waktu review wajar;
+ * klasifikasi langkah berbasis selisih win probability sehingga depth ~14-16 sudah cukup.
+ *   depth 18 -> 1800 ms (desktop), 2000 ms (HP, core lebih lambat)
+ */
 function reviewMovetimeCap(depth: number): number {
+  const base = Math.min(2000, Math.max(800, depth * 100));
+  return isMobileDevice() ? Math.min(2500, Math.round(base * 1.15)) : base;
+}
+
+/** Batas waktu untuk SATU posisi yang sedang dilihat (live): boleh lebih lama agar lebih akurat. */
+function liveMovetimeCap(depth: number): number {
   return Math.min(6000, Math.max(1500, depth * 250));
 }
 
@@ -233,7 +244,7 @@ export async function fetchPositionScore(
 
   try {
     const r = await analyzeCurrent(fen, {
-      movetime: reviewMovetimeCap(depth),
+      movetime: liveMovetimeCap(depth),
       maxDepth: depth,
       multipv: 3,
       minDepth: Math.min(depth, 10),

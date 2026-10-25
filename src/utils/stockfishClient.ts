@@ -456,7 +456,7 @@ export async function analyzeCurrent(
 /* ------------------------ API: review seluruh partai ------------------------ */
 export interface AnalyzeOptions extends SearchOptions {
   minDepth?: number;          // hasil cache lebih dangkal dari ini dihitung ulang (default 12)
-  poolSize?: number;          // jumlah worker paralel (default: setengah jumlah core, 1-3)
+  poolSize?: number;          // jumlah worker paralel (default: lihat defaultPoolSize)
   useServerCache?: boolean;   // default true
   fresh?: boolean;            // true = abaikan semua cache (analisis ulang murni)
   signal?: AbortSignal;
@@ -464,9 +464,26 @@ export interface AnalyzeOptions extends SearchOptions {
   onError?: (fen: string, err: Error) => void;
 }
 
+/** True di HP / tablet (Chrome Android, Safari iOS). */
+export function isMobileDevice(): boolean {
+  return typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/**
+ * Jumlah worker paralel untuk review seluruh partai (tiap worker = 1 thread Stockfish).
+ * - Desktop/laptop: ~60% dari thread logis (hyperthreading hanya menambah ~20-30%), maks 6.
+ *     8 thread -> 4 worker, 12 thread -> 7 -> 6, 16 thread -> 6.
+ * - HP: core "hemat daya" jauh lebih lambat, jadi pakai maks 3 worker.
+ *     8 core -> 3 worker, 4-7 core -> 2 worker, di bawah itu -> 1 worker.
+ */
 function defaultPoolSize() {
   const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
-  return clamp(Math.floor(cores / 2), 1, 3);
+  if (isMobileDevice()) {
+    if (cores >= 8) return 3;
+    if (cores >= 4) return 2;
+    return 1;
+  }
+  return clamp(Math.floor(cores * 0.6), 1, 6);
 }
 
 /**
