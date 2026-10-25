@@ -1,340 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Redis } from '@upstash/redis';
 import { Chess } from 'chess.js';
-import path from 'path';
 
-// File engine di /public harus dimuat dengan require ASLI Node, bukan require milik webpack.
-// - createRequire(import.meta.url) diubah webpack menjadi require dinamis -> "Cannot find module".
-// - createRequire(path...) pada build ini menghasilkan nilai yang bukan fungsi -> "nodeRequire is not a function".
-// __non_webpack_require__ diganti webpack menjadi require asli Node saat build; eval('require')
-// sebagai cadangan jika simbol itu tidak diganti.
-declare const __non_webpack_require__: NodeRequire | undefined;
-const nodeRequire: NodeRequire =
-  typeof __non_webpack_require__ === 'function' ? __non_webpack_require__ : eval('require');
-
-// In-memory cache for Stockfish 19 evaluations
-const evalCache = new Map<string, any>();
-
+/**
+ * Cache evaluasi di Redis (Upstash / Vercel KV). Engine tetap jalan di browser;
+ * server hanya menyimpan dan membagikan hasilnya antar pengguna.
+ *
+ * Env: UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+ *      (atau KV_REST_API_URL + KV_REST_API_TOKEN dari integrasi Vercel KV)
+ * Instal: npm i @upstash/redis
+ *
+ * Jika env tidak ada, route ini tetap menjawab (tanpa cache) sehingga aplikasi tidak error.
+ */
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// Analisis depth tinggi bisa melewati batas ~10 detik bawaan fungsi serverless Vercel.
-export const maxDuration = 60;
 
-function centipawnsToWinChance(cp: number, mate?: number): number {
-  if (mate !== undefined && mate !== 0) {
-    return mate > 0 ? 100 : 0;
+const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+const redis = url && token ? new Redis({ url, token }) : null;
+
+const PREFIX = 'sf19lite:v1:'; // naikkan versi jika engine/format berubah
+const TTL_SECONDS = 60 * 60 * 24 * 90; // 90 hari
+const MAX_ITEMS = 200;
+const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+
+interface RawLine { rank: number; cp: number; mate?: number; pv: string[] }
+interface RawEval { depth: number; multipv: number; lines: RawLine[] }
+
+function validKey(key: unknown): key is string {
+  if (typeof key !== 'string' || key.length > 100) return false;
+  if (key.trim().split(/\s+/).length !== 4) return false;
+  try {
+    new Chess(`${key} 0 1`);
+    return true;
+  } catch {
+    return false;
   }
-  const clamped = Math.max(-2000, Math.min(2000, cp));
-  const chance = 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * clamped)) - 1);
-  return Math.round(Math.max(0, Math.min(100, chance)) * 10) / 10;
 }
 
-// Convert UCI (e.g. "f3d4") to SAN ("Nxd4") and from/to - returns null if move is ILLEGAL on fenStr
-function parseUciMove(fenStr: string, uci: string) {
-  if (!uci || uci.length < 4) return null;
+/** Validasi ketat karena data berasal dari client: bentuk, rentang, dan legalitas langkah terbaik. */
+function sanitizeRaw(key: string, raw: any): RawEval | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { depth, multipv } = raw;
+  if (!Number.isInteger(depth) || depth < 10 || depth > 60) return null;
+  if (!Number.isInteger(multipv) || multipv < 1 || multipv > 5) return null;
+  if (!Array.isArray(raw.lines) || raw.lines.length < 1 || raw.lines.length > 5) return null;
+
+  const lines: RawLine[] = [];
+  for (const l of raw.lines) {
+    if (!Number.isInteger(l?.rank) || l.rank < 1 || l.rank > 5) return null;
+    if (typeof l.cp !== 'number' || !Number.isFinite(l.cp) || Math.abs(l.cp) > 20000) return null;
+    if (l.mate !== undefined && l.mate !== null && (!Number.isInteger(l.mate) || Math.abs(l.mate) > 300)) return null;
+    if (!Array.isArray(l.pv) || l.pv.length < 1 || l.pv.length > 12) return null;
+    if (!l.pv.every((m: unknown) => typeof m === 'string' && UCI_RE.test(m))) return null;
+    lines.push({
+      rank: l.rank,
+      cp: Math.round(l.cp),
+      ...(l.mate !== undefined && l.mate !== null ? { mate: l.mate } : {}),
+      pv: l.pv,
+    });
+  }
+
   try {
-    const c = new Chess(fenStr);
-    const from = uci.slice(0, 2);
-    const to = uci.slice(2, 4);
-    const promotion = uci.slice(4, 5) || undefined;
-    const m = c.move({ from, to, promotion: promotion as any });
-    if (!m) return null;
-    return {
-      san: m.san,
-      from: m.from,
-      to: m.to,
-      piece: m.piece,
-      legal: true,
-    };
+    const best = (lines.find((x) => x.rank === 1) ?? lines[0]).pv[0];
+    new Chess(`${key} 0 1`).move({
+      from: best.slice(0, 2),
+      to: best.slice(2, 4),
+      promotion: (best.slice(4, 5) || undefined) as any,
+    });
   } catch {
     return null;
   }
+  return { depth, multipv, lines };
 }
 
-/**
- * ONE shared Stockfish instance (re-creating a WASM instance per request leaks memory
- * and made concurrent requests interfere with each other). Requests are serialized.
- */
-let sharedEngine: any = null;
-let activeLineListener: ((line: string) => void) | null = null;
-
-function getEngine() {
-  if (sharedEngine) return sharedEngine;
-  const stockfishPath = path.join(
-    process.cwd(),
-    'public',
-    'engines',
-    'stockfish',
-    'stockfish-19-lite-single.js'
-  );
-  const Stockfish = nodeRequire(stockfishPath);
-  sharedEngine = Stockfish({
-    locateFile: (file: string) =>
-      path.join(process.cwd(), 'public', 'engines', 'stockfish', file),
-    print: (line: string) => {
-      if (typeof line === 'string' && activeLineListener) activeLineListener(line);
-    },
-    printErr: () => { },
-  });
-  sharedEngine.processCommand('uci');
-  sharedEngine.processCommand('setoption name MultiPV value 1');
-  sharedEngine.processCommand('setoption name Hash value 64');
-  return sharedEngine;
-}
-
-let queue: Promise<unknown> = Promise.resolve();
-function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-  const p = queue.then(fn, fn);
-  queue = p.catch(() => undefined);
-  return p;
-}
-
-function flushEngine(engine: any): Promise<void> {
-  return new Promise((resolve) => {
-    let resolved = false;
-    const timer = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        activeLineListener = null;
-        resolve();
-      }
-    }, 400);
-
-    activeLineListener = (line: string) => {
-      if (line.includes('readyok')) {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timer);
-          activeLineListener = null;
-          resolve();
-        }
-      }
-    };
-
-    engine.processCommand('stop');
-    engine.processCommand('isready');
-  });
-}
-
-function formatPvContinuation(startFen: string, uciMoves: string[], maxMoves = 8): string {
+export async function POST(req: NextRequest) {
+  let body: any;
   try {
-    const c = new Chess(startFen);
-    const tokens: string[] = [];
-    let isFirst = true;
-
-    for (let i = 0; i < Math.min(uciMoves.length, maxMoves); i++) {
-      const uci = uciMoves[i];
-      if (!uci || uci.length < 4) break;
-      const from = uci.slice(0, 2);
-      const to = uci.slice(2, 4);
-      const promo = uci.slice(4, 5) || undefined;
-      const turn = c.turn();
-      const moveNum = c.moveNumber();
-      const res = c.move({ from, to, promotion: promo as any });
-      if (!res) break;
-
-      if (isFirst) {
-        tokens.push(turn === 'b' ? `${moveNum}... ${res.san}` : `${moveNum}. ${res.san}`);
-        isFirst = false;
-      } else if (turn === 'w') {
-        tokens.push(`${moveNum}. ${res.san}`);
-      } else {
-        tokens.push(res.san);
-      }
-    }
-    return tokens.join(' ');
+    body = await req.json();
   } catch {
-    return uciMoves.slice(0, maxMoves).join(' ');
-  }
-}
-
-async function evaluateWithStockfish19Lite(cleanFen: string, depth = 12, multipv = 3): Promise<any> {
-  const engine = getEngine();
-  await flushEngine(engine);
-
-  return new Promise((resolve, reject) => {
-    try {
-      const targetDepth = Math.min(24, Math.max(6, depth));
-      const pvCount = Math.min(5, Math.max(1, multipv));
-      engine.processCommand(`setoption name MultiPV value ${pvCount}`);
-      // The side to move in the FEN decides the sign: UCI scores are side-to-move relative
-      const isBlackToMove = cleanFen.split(' ')[1] === 'b';
-
-      // Candidate lines by rank (white perspective)
-      const lineMap = new Map<number, { cp: number; mate?: number; display: string; uci: string; pvMoves: string[] }>();
-
-      let latest = {
-        depth: 0,
-        scoreCp: 0,
-        scoreDisplay: '0.0',
-        mateIn: undefined as number | undefined,
-        bestMoveUci: '',
-      };
-
-      // Only a real `bestmove` resolves the search. On timeout we send `stop` and still
-      // wait for `bestmove`, so a stale bestmove can never leak into the next request.
-      const timeoutMs = Math.max(5000, targetDepth * 500);
-      const timer = setTimeout(() => engine.processCommand('stop'), timeoutMs);
-
-      activeLineListener = (line: string) => {
-        if (line.startsWith('info') && line.includes(' score ') && !line.includes('lowerbound') && !line.includes('upperbound')) {
-          const depthMatch = line.match(/\bdepth\s+(\d+)/);
-          const cpMatch = line.match(/score\s+cp\s+(-?\d+)/);
-          const mateMatch = line.match(/score\s+mate\s+(-?\d+)/);
-          const pvIdx = line.indexOf(' pv ');
-          const pvRest = pvIdx !== -1 ? line.slice(pvIdx + 4).trim() : '';
-          const pvMoves = pvRest ? pvRest.split(/\s+/) : [];
-          const uciMove = pvMoves[0] || '';
-
-          let cp = latest.scoreCp;
-          let mate: number | undefined;
-          let scoreText = latest.scoreDisplay;
-
-          if (mateMatch) {
-            const raw = parseInt(mateMatch[1], 10);
-            const m = isBlackToMove ? -raw : raw;
-            mate = m;
-            scoreText = m > 0 ? `M${m}` : `-M${Math.abs(m)}`;
-            cp = m > 0 ? 10000 : -10000;
-          } else if (cpMatch) {
-            let raw = parseInt(cpMatch[1], 10);
-            if (isBlackToMove) raw = -raw;
-            cp = raw;
-            const pawnVal = (cp / 100).toFixed(1);
-            scoreText = cp > 0 ? `+${pawnVal}` : pawnVal === '-0.0' ? '0.0' : pawnVal;
-          } else {
-            return;
-          }
-
-          const rank = parseInt(line.match(/\bmultipv\s+(\d+)/)?.[1] || '1', 10);
-          if (uciMove) lineMap.set(rank, { cp, mate, display: scoreText, uci: uciMove, pvMoves });
-          if (rank !== 1) return;
-
-          latest = {
-            depth: depthMatch ? parseInt(depthMatch[1], 10) : latest.depth,
-            scoreCp: cp,
-            scoreDisplay: scoreText,
-            mateIn: mate,
-            bestMoveUci: uciMove || latest.bestMoveUci,
-          };
-        }
-
-        if (line.startsWith('bestmove')) {
-          clearTimeout(timer);
-          activeLineListener = null;
-          const parts = line.split(/\s+/);
-          const rawBestUci = parts[1] && parts[1] !== '(none)' ? parts[1] : latest.bestMoveUci;
-
-          // Parse and strictly validate move legality on cleanFen
-          let parsed = rawBestUci ? parseUciMove(cleanFen, rawBestUci) : null;
-          let bestUci = parsed ? rawBestUci : '';
-
-          const validLines: any[] = [];
-          const sortedEntries = Array.from(lineMap.entries()).sort((a, b) => a[0] - b[0]);
-          for (const [rank, l] of sortedEntries) {
-            const p = parseUciMove(cleanFen, l.uci);
-            if (p) {
-              validLines.push({
-                rank,
-                uci: l.uci,
-                san: p.san,
-                continuation: formatPvContinuation(cleanFen, l.pvMoves || [l.uci]),
-                scoreCp: l.cp,
-                mateIn: l.mate,
-                scoreDisplay: l.display,
-                winChanceWhite: centipawnsToWinChance(l.cp, l.mate),
-              });
-              if (!parsed) {
-                bestUci = l.uci;
-                parsed = p;
-              }
-            }
-          }
-
-          // Fallback to first legal move from cleanFen if engine move was somehow invalid
-          if (!parsed) {
-            try {
-              const c = new Chess(cleanFen);
-              const legals = c.moves({ verbose: true });
-              if (legals.length > 0) {
-                const fb = legals[0];
-                bestUci = `${fb.from}${fb.to}${fb.promotion || ''}`;
-                parsed = {
-                  san: fb.san,
-                  from: fb.from,
-                  to: fb.to,
-                  piece: fb.piece,
-                  legal: true,
-                };
-              }
-            } catch { }
-          }
-
-          resolve({
-            success: true,
-            fen: cleanFen,
-            depth: latest.depth || targetDepth,
-            reachedTarget: latest.depth >= targetDepth,
-            scoreCp: latest.scoreCp,
-            scoreDisplay: latest.scoreDisplay,
-            mateIn: latest.mateIn,
-            winChanceWhite: centipawnsToWinChance(latest.scoreCp, latest.mateIn),
-            bestMoveUci: bestUci,
-            bestMoveSan: parsed ? parsed.san : '',
-            bestMoveFrom: parsed ? parsed.from : '',
-            bestMoveTo: parsed ? parsed.to : '',
-            lines: validLines,
-            engine: 'Stockfish 19 Lite WASM',
-          });
-        }
-      };
-
-      engine.processCommand(`position fen ${cleanFen}`);
-      engine.processCommand(`go depth ${targetDepth}`);
-    } catch (err) {
-      activeLineListener = null;
-      reject(err);
-    }
-  });
-}
-
-async function evaluateCached(cleanFen: string, depth: number, multipv = 3, fresh = false) {
-  const cacheKey = `${cleanFen}_d${depth}_m${multipv}`;
-  if (!fresh && evalCache.has(cacheKey)) return evalCache.get(cacheKey);
-  const result = await enqueue(() => evaluateWithStockfish19Lite(cleanFen, depth, multipv));
-  if (result.reachedTarget) evalCache.set(cacheKey, result);
-  return result;
-}
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const fen = searchParams.get('fen');
-  const depth = parseInt(searchParams.get('depth') || '12', 10);
-
-  if (!fen) {
-    return NextResponse.json({ success: false, error: 'Parameter FEN is required' }, { status: 400 });
+    return NextResponse.json({ error: 'Body bukan JSON' }, { status: 400 });
   }
 
   try {
-    const mpv = parseInt(searchParams.get('multipv') || '3', 10);
-    const fresh = searchParams.get('fresh') === '1';
-    return NextResponse.json(await evaluateCached(fen.trim(), depth, mpv, fresh));
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-  }
-}
+    if (body?.action === 'get') {
+      const keys: unknown[] = Array.isArray(body.keys) ? body.keys.slice(0, MAX_ITEMS) : [];
+      const results: (RawEval | null)[] = keys.map(() => null);
+      if (!redis) return NextResponse.json({ results, disabled: true });
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const fen = body?.fen;
-    const depth = parseInt(body?.depth || '12', 10);
-    const mpv = parseInt(body?.multipv || '3', 10);
-
-    if (!fen) {
-      return NextResponse.json({ success: false, error: 'Parameter FEN is required' }, { status: 400 });
+      const idx = keys.map((k, i) => (validKey(k) ? i : -1)).filter((i) => i >= 0);
+      if (idx.length) {
+        const values = await redis.mget<(RawEval | null)[]>(...idx.map((i) => PREFIX + (keys[i] as string)));
+        idx.forEach((i, j) => {
+          results[i] = values[j] ?? null;
+        });
+      }
+      return NextResponse.json({ results });
     }
 
-    return NextResponse.json(await evaluateCached(fen.trim(), depth, mpv));
+    if (body?.action === 'put') {
+      if (!redis) return NextResponse.json({ stored: 0, disabled: true });
+      const entries: any[] = Array.isArray(body.entries) ? body.entries.slice(0, MAX_ITEMS) : [];
+
+      const clean: { key: string; raw: RawEval }[] = [];
+      for (const e of entries) {
+        if (!validKey(e?.key)) continue;
+        const raw = sanitizeRaw(e.key, e.raw);
+        if (raw) clean.push({ key: e.key, raw });
+      }
+      if (!clean.length) return NextResponse.json({ stored: 0 });
+
+      // Hanya timpa jika hasil baru lebih dalam / lebih banyak varian
+      const existing = await redis.mget<(RawEval | null)[]>(...clean.map((e) => PREFIX + e.key));
+      const pipe = redis.pipeline();
+      let stored = 0;
+      clean.forEach((e, i) => {
+        const old = existing[i];
+        const better = !old || e.raw.depth > old.depth || (e.raw.multipv > old.multipv && e.raw.depth >= old.depth);
+        if (better) {
+          pipe.set(PREFIX + e.key, e.raw, { ex: TTL_SECONDS });
+          stored++;
+        }
+      });
+      if (stored) await pipe.exec();
+      return NextResponse.json({ stored });
+    }
+
+    return NextResponse.json({ error: 'action tidak dikenal' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
