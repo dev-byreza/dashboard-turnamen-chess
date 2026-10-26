@@ -82,6 +82,8 @@ export interface ChessBoardPreviewModalProps {
   onClose: () => void;
   onSaveAnalysis?: (matchId: string, analysis: Record<string, PositionScore>) => void;
   isAdmin?: boolean;
+  /** Mode partai LIVE: ikuti langkah terakhir, analisis hanya posisi terkini, tanpa review penuh/cache. */
+  isLive?: boolean;
 }
 
 export type ChessComBadgeType =
@@ -1150,6 +1152,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   onClose,
   onSaveAnalysis,
   isAdmin = false,
+  isLive = false,
 }) => {
   const [isAnalysisPendingAdmin, setIsAnalysisPendingAdmin] = useState(false);
   const [userTriggeredClientAnalysis, setUserTriggeredClientAnalysis] = useState(false);
@@ -1179,6 +1182,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [originalGameHistory, setOriginalGameHistory] = useState<MoveHistoryItem[]>([]);
   const branchPlyIndexRef = useRef<number>(-1);
   const [currentPlyIndex, setCurrentPlyIndex] = useState<number>(-1); // -1 = start pos
+  // Mode live: ikuti langkah terakhir hanya jika pengguna memang sedang berada di langkah terakhir
+  const currentPlyIndexRef = useRef<number>(-1);
+  const liveHistoryLenRef = useRef<number>(0);
+  useEffect(() => {
+    currentPlyIndexRef.current = currentPlyIndex;
+  }, [currentPlyIndex]);
   const [animatingMove, setAnimatingMove] = useState<{
     moves: { square: Square; dx: number; dy: number }[];
     animKey: string;
@@ -1231,6 +1240,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   useEffect(() => {
     if (!isOpen || rawMoveHistory.length === 0) {
+      setAnalysisProgress({ done: 0, total: 0 });
+      return;
+    }
+    // Mode live: posisi terus bertambah, jadi review penuh tidak dijalankan. Review penuh berjalan otomatis
+    // begitu partai selesai (isLive berubah menjadi false). Posisi terkini dianalisis oleh engine live.
+    if (isLive) {
       setAnalysisProgress({ done: 0, total: 0 });
       return;
     }
@@ -1467,7 +1482,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
       if (flushTimer) clearTimeout(flushTimer);
       ctrl.abort();
     };
-  }, [isOpen, fenKey, reviewDepth, analysisNonce, match?.id, match?.chessComAnalysis, recentGame?.url, isAdmin]);
+  }, [isOpen, fenKey, reviewDepth, analysisNonce, match?.id, match?.chessComAnalysis, recentGame?.url, isAdmin, isLive]);
 
   const isAnalyzing = analysisProgress.total > 0 && analysisProgress.done < analysisProgress.total;
   const isAnalysisComplete =
@@ -1642,6 +1657,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (!isOpen) {
       if (replayTimerRef.current) clearInterval(replayTimerRef.current);
       setIsPlayingReplay(false);
+      liveHistoryLenRef.current = 0;
       return;
     }
 
@@ -1674,8 +1690,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           });
         });
 
-        const outcome =
-          match?.result ||
+        const outcome = isLive
+          ? null
+          : match?.result ||
           (recentGame
             ? recentGame.white.result === 'win'
               ? '1-0'
@@ -1688,7 +1705,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         setOriginalGameHistory(classifiedHistory);
         setMoveHistory(classifiedHistory);
         setChessInstance(newChess);
-        setCurrentPlyIndex(classifiedHistory.length - 1); // Jump to final position
+        const lastPly = classifiedHistory.length - 1;
+        if (isLive) {
+          // Partai live: pindah ke langkah baru hanya jika pengguna sedang mengikuti langkah terakhir
+          const wasFollowing =
+            liveHistoryLenRef.current === 0 || currentPlyIndexRef.current >= liveHistoryLenRef.current - 1;
+          setCurrentPlyIndex(wasFollowing ? lastPly : Math.min(currentPlyIndexRef.current, lastPly));
+          liveHistoryLenRef.current = classifiedHistory.length;
+        } else {
+          setCurrentPlyIndex(lastPly); // Jump to final position
+        }
       } catch {
         // Fallback if PGN parsing failed
         fallbackToFen(newChess, initialFen);
@@ -1696,7 +1722,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     } else {
       fallbackToFen(newChess, initialFen);
     }
-  }, [isOpen, match, recentGame]);
+  }, [isOpen, match, recentGame, isLive]);
 
   const fallbackToFen = (chessObj: Chess, fenStr: string) => {
     if (fenStr.trim()) {
@@ -2882,8 +2908,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
   // Dynamic Review Statistics & Accuracy
   const reviewStats = useMemo(() => {
-    const matchResult =
-      match?.result ||
+    const matchResult = isLive
+      ? null
+      : match?.result ||
       recentGame?.tournamentScore ||
       (recentGame?.pgn?.includes('1-0')
         ? '1-0'
@@ -3770,7 +3797,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             >
               <Settings size={18} />
             </button>
-            {(match?.chessComUrl || recentGame?.url) && (
+            {!isLive && (match?.chessComUrl || recentGame?.url) && (
               <a
                 href={match?.chessComUrl || recentGame?.url}
                 target="_blank"
@@ -4044,6 +4071,14 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             <span className="chesscom-match-badge">
               {match ? `Babak ${match.round} • Papan ${match.boardNumber}` : 'Analisis Bebas'}
             </span>
+            {isLive && (
+              <span
+                className="chesscom-match-badge"
+                style={{ color: '#ff6b6b', borderColor: '#ff6b6b', fontWeight: 700 }}
+              >
+                ● LIVE
+              </span>
+            )}
           </div>
 
           <div className="chesscom-nav-right">
@@ -5511,7 +5546,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <Volume2 size={13} />
                       <span>Suara</span>
                     </button>
-                    {(match?.chessComUrl || recentGame?.url) && (
+                    {!isLive && (match?.chessComUrl || recentGame?.url) && (
                       <a
                         href={match?.chessComUrl || recentGame?.url}
                         target="_blank"
