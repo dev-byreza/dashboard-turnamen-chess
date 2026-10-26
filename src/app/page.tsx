@@ -37,6 +37,8 @@ import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles, V
 import { ChessSoundSettingsModal } from '../components/ChessSoundSettingsModal';
 import { HomeHighlights } from '../components/HomeHighlights';
 import { latestPosts } from '../data/posts';
+import { LiveGamesList } from '../components/LiveGamesList';
+import { LiveArbiterPanel } from '../components/LiveArbiterPanel';
 
 
 export default function SwissTournamentPage() {
@@ -741,17 +743,25 @@ export default function SwissTournamentPage() {
             />
           </>
         ) : dbStatus === 'connected' ? (
-          <HomeHighlights
-            posts={latestPosts}
-            tournamentSlot={
-              <TournamentDirectory
-                tournaments={store.tournaments}
-                activeId={store.activeId}
-                isAdmin={isAdminConnected}
-                onAdminOpen={handleSetActive}
-              />
-            }
-          />
+          <>
+            <LiveGamesList isAdmin={isAdminConnected} />
+            {isAdminConnected && (
+              <div style={{ margin: '0 0 16px' }}>
+                <LiveArbiterPanel />
+              </div>
+            )}
+            <HomeHighlights
+              posts={latestPosts}
+              tournamentSlot={
+                <TournamentDirectory
+                  tournaments={store.tournaments}
+                  activeId={store.activeId}
+                  isAdmin={isAdminConnected}
+                  onAdminOpen={handleSetActive}
+                />
+              }
+            />
+          </>
         ) : (
           <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">
             <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
