@@ -2,16 +2,19 @@ import React from 'react';
 import Link from 'next/link';
 import { Sparkles, Newspaper, ArrowRight } from 'lucide-react';
 import type { BlogPost } from '../data/posts';
+import { LiveGamesList } from './LiveGamesList';
 
 interface HomeHighlightsProps {
   /** Isi blok Turnamen (pakai <TournamentDirectory /> yang sudah ada). */
   tournamentSlot: React.ReactNode;
   posts: BlogPost[];
+  /** Admin membuka papan live dengan hak admin (analisis engine penuh). */
+  isAdmin?: boolean;
 }
 
 const COVER_TONES = ['is-gold', 'is-green', 'is-blue'] as const;
 
-export function HomeHighlights({ tournamentSlot, posts }: HomeHighlightsProps) {
+export function HomeHighlights({ tournamentSlot, posts, isAdmin = false }: HomeHighlightsProps) {
   return (
     <section className="hh" aria-label="Sorotan Chess Club">
       {/* 1. Turnamen: satu section panjang */}
@@ -23,6 +26,9 @@ export function HomeHighlights({ tournamentSlot, posts }: HomeHighlightsProps) {
           <h2 id="hh-a" className="hh-title"><Sparkles size={17} /> Analisis</h2>
           <Link href="/analisis" className="hh-more">Buka analisis</Link>
         </header>
+
+        {/* Partai live: hanya tampil bila ada partai yang sedang berlangsung */}
+        <LiveGamesList isAdmin={isAdmin} />
 
         <div className="hh-wide-grid">
           <div className="hh-review" aria-hidden="true">
