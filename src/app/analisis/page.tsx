@@ -20,6 +20,7 @@ import {
   History,
 } from 'lucide-react';
 import { ChessBoardPreviewModal } from '@/components/ChessBoardPreviewModal';
+import { LiveGamesList } from '@/components/LiveGamesList';
 import {
   ChessComRecentGame,
   sanitizeChessComUsername,
@@ -432,6 +433,9 @@ export default function StandaloneAnalysisPage() {
 
             {/* Modal Body */}
             <div className="standalone-modal-body">
+              {/* Partai live: hanya tampil bila ada partai yang sedang berlangsung */}
+              <LiveGamesList />
+
               {/* Tabs: Akun Chess.com vs Tempel PGN */}
               <div className="standalone-picker-tabs">
                 <button
