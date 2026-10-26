@@ -455,10 +455,9 @@ export function isMaterialSacrifice(fenBefore: string, playedMoveUci: string): {
  * FUNGSI UTAMA: Menentukan apakah langkah berhak mendapat label BRILLIANT (!!)
  */
 export function isBrilliantMove(input: BrilliantCheckInput): boolean {
-  const { fenBefore, playedMoveUci, pv1, pv2, playedEP } = input;
+  const { fenBefore, playedMoveUci, pv1, playedEP } = input;
 
   const ep1 = evalToEP(pv1.cp, pv1.mate);
-  const ep2 = pv2 ? evalToEP(pv2.cp, pv2.mate) : 0;
   const epLoss = Math.max(0, ep1 - playedEP);
 
   // GERBANG 1: Harus merupakan Best Move (atau selisih EP <= 1.5%)
@@ -469,10 +468,10 @@ export function isBrilliantMove(input: BrilliantCheckInput): boolean {
   if (playedEP < 0.40) return false;
 
   // GERBANG 3: Filter posisi yang sudah menang telak (Already Completely Winning)
-  // Jika EP1 > 92% DAN langkah alternatif kedua (EP2) juga masih menang mudah (> 85%),
-  // maka pengorbanan tersebut hanya "pamer" di posisi menang, bukan Brilliant krusial —
-  // KECUALI langkah tersebut menghasilkan skakmat paksa (pv1.mate > 0).
-  if (ep1 > 0.92 && pv2 !== undefined && ep2 > 0.85 && pv1.mate === undefined) {
+  // Jika EP1 > 92%, pengorbanan hanya "pamer" di posisi menang, bukan Brilliant krusial —
+  // KECUALI langkah tersebut menghasilkan skakmat paksa (pv1.mate > 0). Sesuai Chess.com, nilai
+  // alternatif kedua (EP2) tidak lagi dipertimbangkan.
+  if (ep1 > 0.92 && pv1.mate === undefined) {
     return false;
   }
 
@@ -985,11 +984,14 @@ function classifyCore(
     detectPieceSacrifice(before.fen, playedUci) ||
     isMaterialSacrifice(before.fen, playedUci).isSacrifice;
 
+  // Filter anti-showoff: jika posisi SEBELUM langkah sudah menang telak (winProb >= 92%), pengorbanan tidak
+  // dianggap Brilliant (sesuai Chess.com), KECUALI langkah itu mengarah ke / berasal dari mate paksa.
+  // (Pengecualian lama "langkah kedua terbaik < 85%" dihapus: mis. Bxf2 di +12.5 dengan alternatif +4.1
+  // tetap bukan Brilliant di Chess.com.)
   const isNotTrivialWinningShowoff =
     winProbBefore < 0.92 ||
     hasForcedMateAfter ||
-    hadForcedMate ||
-    (secondLine !== undefined && winProbSecondBest < 0.85 && !secondBestHasForcedMate);
+    hadForcedMate;
 
   // Langkah raja (SAN diawali 'K' atau rokade 'O-O') tidak pernah Brilliant: raja tidak bisa dikorbankan.
   const isKingMove = /^(K|O-O)/.test(m.san);

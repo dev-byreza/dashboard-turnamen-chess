@@ -342,11 +342,16 @@ export function detectPieceSacrifice(fenBefore: string, playedUci: string): bool
       const hangingPieceValue = PIECE_VALUES[oppMove.captured];
       if (hangingPieceValue < PIECE_VALUES.n) continue; // Abaikan jika yang ditinggal hanya pion
 
-      const attackerValue = PIECE_VALUES[oppMove.piece];
-      const isDefended = isSquareDefended(chess, oppMove.to, moverColor);
+      // Pakai SEE (static exchange) sungguhan, bukan sekadar "apakah petak dilindungi secara statis".
+      // Pengecekan statis salah mengira perwira tergantung padahal pelindungnya baru terbuka (x-ray)
+      // setelah penyerang memakan. Contoh: benteng lawan di e2 memakan Gajah di f2, lalu Benteng kita di c2
+      // memakan balik di f2 (Rxf2 Rxf2) -> kita justru untung, ini BUKAN pengorbanan.
+      chess.move(oppMove);
+      const recaptureGain = getSeeCaptureGain(chess, oppMove.to);
+      chess.undo();
 
-      // Jika perwira kita tidak terlindungi, atau diserang oleh bidak yang nilainya lebih rendah minimal 200 poin
-      if (!isDefended || attackerValue <= hangingPieceValue - 200) {
+      const netLoss = hangingPieceValue - recaptureGain;
+      if (netLoss >= 200) {
         return true;
       }
     }
@@ -471,12 +476,10 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     // - Posisi setelah melangkah tidak kalah (winProbAfter >= 0.40)
     // - Filter anti-showoff: Bukan pengorbanan sia-sia di posisi yang sudah menang telak,
     //   KECUALI langkah tersebut mengarah ke skakmat paksa (hasForcedMateAfter / hadForcedMateBefore)
-    //   atau langkah terbaik ke-2 belum menang mudah (winProbSecondBest < 0.85)
     const isNotTrivialWinningShowoff =
       winProbBefore < 0.92 ||
       hasForcedMateAfter ||
-      hadForcedMateBefore ||
-      (evalSecondBest !== undefined && winProbSecondBest < 0.85 && !secondBestHasForcedMate);
+      hadForcedMateBefore;
 
     if (isSacrifice && isNotTrivialWinningShowoff && winProbAfter >= 0.40) {
       return {

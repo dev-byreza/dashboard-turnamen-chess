@@ -2174,16 +2174,9 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         };
       }
 
-      // Jika langkah Excellent atau Good, secara default tampilkan langkah pemain KECUALI jika user menekan tombol "Best"
-      if (!showBestMove && (currentMove.classification === 'excellent' || currentMove.classification === 'good')) {
-        return {
-          from: currentMove.from as Square,
-          to: currentMove.to as Square,
-          san: currentMove.san,
-          isCurrentMoveBest: true,
-          classification: currentMove.classification,
-        };
-      }
+      // Langkah Excellent / Good: panah menunjuk LANGKAH TERBAIK engine di posisi sebelum langkah
+      // (bukan langkah yang dimainkan), sehingga pemain melihat alternatif yang lebih baik.
+      // Tidak ada early return di sini; alur lanjut ke pencarian langkah terbaik di bawah.
 
       // 1. Check Stockfish 19 Lite evaluation on the decision position (prevFen)
       if (decisionEval?.bestMoveUci && decisionEval.bestMoveUci.length >= 4) {
@@ -2290,8 +2283,8 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const currentClassification =
     currentPlyIndex >= 0 ? moveHistory[currentPlyIndex]?.classification : null;
 
-  // Panah otomatis tampil untuk: inaccuracy/mistake/miss/blunder (menunjuk langkah terbaik) dan
-  // brilliant/great/best/excellent/good (menunjuk langkah yang dimainkan)
+  // Panah otomatis tampil untuk: inaccuracy/mistake/miss/blunder/excellent/good (menunjuk langkah TERBAIK
+  // engine) dan brilliant/great/best (menunjuk langkah yang dimainkan)
   const isSuboptimalMove =
     currentClassification === 'inaccuracy' ||
     currentClassification === 'mistake' ||
@@ -2326,6 +2319,54 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     if (!shouldShowBestArrow || !bestMoveInfo?.from || !bestMoveInfo?.to) return null;
     return createUniversalBoardArrow(bestMoveInfo.from, bestMoveInfo.to, isFlipped);
   }, [shouldShowBestArrow, bestMoveInfo, isFlipped]);
+
+  // Panah opsi buku teori: saat langkah yang ditampilkan adalah BOOK, gambar juga langkah teori lain
+  // yang tersedia di posisi SEBELUM langkah itu. Langkah yang dimainkan = panah tebal,
+  // opsi lain = panah lebih tipis dan transparan (maks. BOOK_OPTION_ARROW_LIMIT opsi).
+  const BOOK_ARROW_COLOR = '#c3996b';
+  const BOOK_OPTION_ARROW_LIMIT = 4;
+  const bookOptionArrows = useMemo(() => {
+    if (!isReviewActive || showBestMove || currentClassification !== 'book' || currentPlyIndex < 0) {
+      return [] as Array<{ key: string; points: string; transform: string; isPlayed: boolean }>;
+    }
+    const played = moveHistory[currentPlyIndex];
+    const prevFen = currentPlyIndex <= 0 ? START_FEN : rawMoveHistory[currentPlyIndex - 1]?.fen;
+    const result: Array<{ key: string; points: string; transform: string; isPlayed: boolean }> = [];
+    if (!played?.from || !played?.to || !prevFen) return result;
+
+    const playedKey = `${played.from}${played.to}`;
+    const seen = new Set<string>([playedKey]);
+
+    let options: BookMoveInfo[] = [];
+    try {
+      options = getOpeningBookMoves(prevFen);
+    } catch {
+      options = [];
+    }
+
+    let optionCount = 0;
+    for (const opt of options) {
+      if (optionCount >= BOOK_OPTION_ARROW_LIMIT) break;
+      if (!opt?.from || !opt?.to) continue;
+      const k = `${opt.from}${opt.to}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const arrow = createUniversalBoardArrow(opt.from, opt.to, isFlipped, {
+        lineWidth: 12,
+        arrowheadWidth: 38,
+        arrowheadHeight: 32,
+      });
+      if (arrow) {
+        result.push({ key: k, ...arrow, isPlayed: false });
+        optionCount++;
+      }
+    }
+
+    // Langkah yang dimainkan digambar terakhir supaya berada di atas panah opsi lain
+    const main = createUniversalBoardArrow(played.from, played.to, isFlipped);
+    if (main) result.push({ key: playedKey, ...main, isPlayed: true });
+    return result;
+  }, [isReviewActive, showBestMove, currentClassification, currentPlyIndex, moveHistory, rawMoveHistory, isFlipped]);
 
   // Effective board FEN to display (if Best Move is toggled in Review, show previous position before the move so the piece makes the arrow)
   const effectiveBoardFen = useMemo(() => {
@@ -4313,6 +4354,25 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       fill={bestMoveColor}
                       opacity="0.88"
                     />
+                  </svg>
+                )}
+
+                {/* Panah opsi buku teori (langkah Book yang dimainkan + opsi teori lain) */}
+                {bookOptionArrows.length > 0 && (
+                  <svg
+                    className="chesscom-board-arrow-overlay"
+                    viewBox="0 0 800 800"
+                    preserveAspectRatio="none"
+                  >
+                    {bookOptionArrows.map((a) => (
+                      <polygon
+                        key={a.key}
+                        points={a.points}
+                        transform={a.transform}
+                        fill={BOOK_ARROW_COLOR}
+                        opacity={a.isPlayed ? 0.9 : 0.45}
+                      />
+                    ))}
                   </svg>
                 )}
 
