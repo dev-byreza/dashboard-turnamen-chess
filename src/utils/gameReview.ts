@@ -949,6 +949,25 @@ function classifyCore(
       ));
   if (isOpeningBook) return { ...base, loss: 0, accuracy: 100, label: 'book' };
 
+  // 2b. LANJUTAN BOOK (rantai teori)
+  // Database pembukaan lokal (ECO Lichess) hanya berisi variasi BERNAMA, sedangkan Chess.com memakai database
+  // master yang jauh lebih luas, sehingga langkah teori umum seperti 3.Bc4 atau 4.d3 di Vienna Game tidak
+  // terdaftar di sini dan jatuh menjadi Excellent. Selama langkah lawan sebelumnya masih Book, langkah ini
+  // sehat setingkat Best/Excellent (winProbLost <= 2%), berupa pengembangan/pion tengah/rokade, dan masih di
+  // awal pembukaan (ply <= 12), langkah ini tetap dianggap Book.
+  const isDevelopingMove =
+    /^O-O/.test(m.san) ||
+    m.piece === 'n' ||
+    m.piece === 'b' ||
+    (m.piece === 'p' && !/^[ah]/.test(m.from));
+  const isBookContinuation =
+    m.ply <= 12 &&
+    prevMove?.classification === 'book' &&
+    isDevelopingMove &&
+    winProbLost <= 0.02 &&
+    cpLossUsed < 150;
+  if (isBookContinuation) return { ...base, loss: 0, accuracy: 100, label: 'book' };
+
   // Fallback jika bestMoveUci kosong (misal dari Web Worker), namun langkah tidak kehilangan winProb atau mengarah ke skakmat
   const isEngineTopMove = (!!bestMoveUci && playedUci === bestMoveUci) || (!bestMoveUci && winProbLost <= 0.005);
 
