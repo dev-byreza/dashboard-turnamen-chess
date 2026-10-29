@@ -528,7 +528,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
       const bTest = new Chess(fenBefore);
       const toSq = playedUci.slice(2, 4) as Square;
       const targetPiece = bTest.get(toSq);
-      isCapturedPiece = targetPiece !== null && targetPiece.type !== 'p';
+      isCapturedPiece = !!targetPiece && targetPiece.type !== 'p';
     } catch {}
     const opponentBlunderedLast =
       previousOpponentMoveClass === 'Blunder' || (previousOpponentWinLoss ?? 0) >= 0.15;

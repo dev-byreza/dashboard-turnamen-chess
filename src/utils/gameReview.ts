@@ -1036,6 +1036,7 @@ function classifyCore(
   // - Recapture biasa (memukul balik di petak yang sama) BUKAN Great Move.
   const opponentBlunderedLastTurn =
     prevMove?.classification === 'blunder' ||
+    prevMove?.classification === 'mistake' ||
     (prevMove?.loss !== undefined ? prevMove.loss >= 15 : prevLoss >= 15);
   const isDirectHangingCapture = !!m.captured && prevMove?.to === m.to;
   const isPunishingBlunderPiece = !!m.captured && m.captured !== 'p' && opponentBlunderedLastTurn;
@@ -1151,10 +1152,7 @@ function classifyCore(
   // 8. MISS (❌)
   // Lawan baru saja Blunder atau Mistake pada langkah sebelumnya (delta W prev >= 15%),
   // namun pemain gagal mengeksekusi keunggulan tersebut (winProbLost >= 0.15 dan posisi belum menang mutlak winProbBefore <= 0.90)
-  const opponentBlunderedLastTurn =
-    prevMove?.classification === 'blunder' ||
-    prevMove?.classification === 'mistake' ||
-    (prevMove?.loss !== undefined ? prevMove.loss >= 15 : prevLoss >= 15);
+  // duplicate opponentBlunderedLastTurn declaration removed
 
   if (opponentBlunderedLastTurn && winProbLost >= 0.15 && winProbAfter >= 0.35 && winProbBefore <= 0.90) {
     return { ...base, label: 'miss' };

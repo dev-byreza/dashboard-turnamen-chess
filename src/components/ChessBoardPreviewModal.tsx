@@ -743,7 +743,7 @@ export function classifyGameMoves(
       !blunderPlies.has(m.ply) &&
       m.ply !== whiteBrilliantPly &&
       m.ply !== blackBrilliantPly &&
-      (m.ply * 7) % 9 === 0
+      false // Great moves are only verified by Stockfish engine evaluation, never heuristic
     ) {
       greatPlies.add(m.ply);
     }
