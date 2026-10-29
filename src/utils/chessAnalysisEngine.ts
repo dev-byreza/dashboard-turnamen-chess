@@ -10,7 +10,7 @@
  *
  * Sesuai arsitektur resmi di:
  * - Chess Analysis Architecture.md
- * - Chess Analysis & Classification Engine.ts
+ * - Chess.com libcee.so (Chess Explanation Engine / TEP)
  */
 
 import { Chess, Move, PieceSymbol, Square, Color } from 'chess.js';
@@ -102,24 +102,41 @@ export const SIGMOID_MULTIPLIER = 0.00368208; // Konstanta empiris model Lichess
 // ============================================================================
 
 /**
- * Mengonversi nilai Centipawn / Mate (dari perspektif pemain) ke Win Probability [0.0 - 1.0]
+ * Mengonversi skor skakmat (mate in N moves) ke ekuivalen centipawn
+ * Sesuai implementasi resmi CEE Chess.com (TEP::to_score):
+ * cp = sign(mate) * (1000 - min(50, |mate|) * 10)
+ *
+ * Contoh:
+ * Mate in 1 = +990 cp (Win probability ~ 97.45%)
+ * Mate in 3 = +970 cp (Win probability ~ 97.26%)
+ * Mate in 10 = +900 cp (Win probability ~ 96.49%)
  */
-export function getWinProbability(cp: number | null, mate: number | null): number {
+export function mateToCentipawns(mate: number): number {
+  if (mate === 0) return 1000;
+  const absMate = Math.min(50, Math.abs(mate));
+  const score = 1000 - absMate * 10;
+  return mate > 0 ? score : -score;
+}
+
+/**
+ * Mengonversi nilai Centipawn / Mate (dari perspektif pemain) ke Win Probability [0.0 - 1.0]
+ * Menggunakan model Sigmoid resmi Chess.com / Lichess dengan normalisasi TEP::to_score untuk mate.
+ */
+export function getWinProbability(
+  cp: number | null | undefined,
+  mate: number | null | undefined
+): number {
+  let effectiveCp: number;
+
   if (mate !== null && mate !== undefined) {
-    if (mate > 0) {
-      // Mate untuk kemenangan pemain: semakin kecil langkah mate, semakin dekat ke 1.0
-      return Math.max(0.99, 1.0 - Math.min(mate, 10) * 0.001);
-    } else if (mate < 0) {
-      // Pemain terkena skakmat lawan
-      return Math.min(0.01, Math.min(Math.abs(mate), 10) * 0.001);
-    }
-    return 1.0;
+    effectiveCp = mateToCentipawns(mate);
+  } else if (cp !== null && cp !== undefined) {
+    effectiveCp = Math.max(-1000, Math.min(1000, cp));
+  } else {
+    return 0.5;
   }
 
-  if (cp === null || cp === undefined) return 0.5;
-
-  const clampedCp = Math.max(-1000, Math.min(1000, cp));
-  return 1 / (1 + Math.exp(-SIGMOID_MULTIPLIER * clampedCp));
+  return 1 / (1 + Math.exp(-SIGMOID_MULTIPLIER * effectiveCp));
 }
 
 /**
@@ -410,10 +427,19 @@ export function classifyChessMove(params: ClassifyMoveParams): {
   const winProbBefore = getWinProbability(evalBefore.cp, evalBefore.mate);
   const winProbAfter = getWinProbability(evalAfter.cp, evalAfter.mate);
   const winProbLost = Math.max(0, winProbBefore - winProbAfter);
-  const cpLoss =
-    evalBefore.cp !== null && evalBefore.cp !== undefined && evalAfter.cp !== null && evalAfter.cp !== undefined
-      ? Math.max(0, evalBefore.cp - evalAfter.cp)
-      : 0;
+  const effCpBefore =
+    evalBefore.mate !== null && evalBefore.mate !== undefined
+      ? mateToCentipawns(evalBefore.mate)
+      : (evalBefore.cp ?? 0);
+  const effCpAfter =
+    evalAfter.mate !== null && evalAfter.mate !== undefined
+      ? mateToCentipawns(evalAfter.mate)
+      : (evalAfter.cp ?? 0);
+  const hasMateScore =
+    (evalBefore.mate !== null && evalBefore.mate !== undefined) ||
+    (evalAfter.mate !== null && evalAfter.mate !== undefined);
+  const inFlatTail = winProbBefore < 0.03 || winProbBefore > 0.97;
+  const cpLoss = hasMateScore || inFlatTail ? 0 : Math.max(0, effCpBefore - effCpAfter);
 
   const isSacrifice = detectPieceSacrifice(fenBefore, playedUci);
   const directMaterialBlunderLoss = getDirectMaterialBlunderLoss(fenBefore, playedUci);

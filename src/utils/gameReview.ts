@@ -8,6 +8,7 @@ import { analyzeCurrent, analyzePositions, isMobileDevice } from './stockfishCli
 import type { EvalResult } from './stockfishClient';
 import { centipawnsToWinChance } from './stockfishEngine';
 import { isBookPosition } from './openingBook';
+import { mateToCentipawns } from './chessAnalysisEngine';
 import {
   getWinProbability,
   calculateMoveAccuracy,
@@ -19,6 +20,7 @@ import {
 } from './chessAnalysisEngine';
 
 export {
+  mateToCentipawns,
   getWinProbability,
   calculateMoveAccuracy,
   calculateGameAccuracy,
