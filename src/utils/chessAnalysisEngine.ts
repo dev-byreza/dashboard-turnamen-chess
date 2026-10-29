@@ -522,9 +522,21 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     // - Merupakan langkah #1 terbaik engine (atau langkah eksploitasi pin taktis yang tetap menang mutlak)
     // - Bukan langkah paksa (legalMovesCount > 1)
     // - Posisi setelah melangkah tetap terjaga (winProbAfter >= 0.30)
+    // - Memakan perwira gratis hasil blunder lawan BUKAN Great Move (hanya Best Move)
+    let isCapturedPiece = false;
+    try {
+      const bTest = new Chess(fenBefore);
+      const toSq = playedUci.slice(2, 4) as Square;
+      const targetPiece = bTest.get(toSq);
+      isCapturedPiece = targetPiece !== null && targetPiece.type !== 'p';
+    } catch {}
+    const opponentBlunderedLast =
+      previousOpponentMoveClass === 'Blunder' || (previousOpponentWinLoss ?? 0) >= 0.15;
+    const isBlunderPunishCapture = isCapturedPiece && opponentBlunderedLast;
+
     if (legalMovesCount > 1 && winProbAfter >= 0.30) {
       // Skenario A: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice seperti Qd7-h3! di mana pion g2 ter-pin oleh Rg8)
-      if (isPinExploit && (!evalSecondBest || uniquenessGap >= 0.05 || hasForcedMateAfter || winProbAfter >= 0.85)) {
+      if (isPinExploit && !isBlunderPunishCapture && (!evalSecondBest || uniquenessGap >= 0.05 || hasForcedMateAfter || winProbAfter >= 0.85)) {
         return {
           classification: 'Great',
           isSacrifice,
@@ -551,7 +563,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
           };
         }
 
-        if (winProbBefore <= 0.95) {
+        if (!isBlunderPunishCapture && winProbBefore <= 0.90) {
           // Skenario C: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding pilihan #2)
           if (uniquenessGap >= 0.15) {
             return {

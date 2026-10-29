@@ -1030,11 +1030,22 @@ function classifyCore(
   }
 
   // 4. GREAT MOVE (!)
+  // Filter Anti-False-Positive Chess.com (libcee.so CEE):
+  // - Memakan perwira gratis yang baru saja digantung/di-blunder lawan BUKAN Great Move (hanya Best Move).
+  //   Contoh: Lawan baru saja jalan 17. Bg4?? menggantung gajah di depan Menteri, lalu pemain makan 17... Qxg4.
+  // - Recapture biasa (memukul balik di petak yang sama) BUKAN Great Move.
+  const opponentBlunderedLastTurn =
+    prevMove?.classification === 'blunder' ||
+    (prevMove?.loss !== undefined ? prevMove.loss >= 15 : prevLoss >= 15);
+  const isDirectHangingCapture = !!m.captured && prevMove?.to === m.to;
+  const isPunishingBlunderPiece = !!m.captured && m.captured !== 'p' && opponentBlunderedLastTurn;
+  const isTrivialCaptureOrRecapture = isDirectHangingCapture || isRecapture || isPunishingBlunderPiece;
   // Skenario A: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice seperti Qd7-h3! di mana pion g2 ter-pin mutlak ke Kg1 oleh Rg8)
   const isPinExploit = isTacticalPinExploit(before.fen, playedUci);
   if (
     legalMoves > 1 &&
     isPinExploit &&
+    !isTrivialCaptureOrRecapture &&
     winProbAfter >= 0.30 &&
     (isEngineTopMove || (winProbAfter >= 0.85 && winProbLost <= 0.05)) &&
     (!secondLine || uniquenessGap >= 0.05 || hasForcedMateAfter || winProbAfter >= 0.85)
@@ -1055,7 +1066,7 @@ function classifyCore(
       return { ...base, accuracy: 100, label: 'great' };
     }
 
-    if (winProbBefore <= 0.95) {
+    if (!isTrivialCaptureOrRecapture && winProbBefore <= 0.90) {
       // Skenario C: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding langkah terbaik #2)
       if (uniquenessGap >= 0.15) {
         return { ...base, accuracy: 100, label: 'great' };
