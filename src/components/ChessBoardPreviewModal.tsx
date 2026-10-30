@@ -1194,8 +1194,23 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   const [showBestMove, setShowBestMove] = useState<boolean>(false);
   const [isSoundModalOpen, setIsSoundModalOpen] = useState<boolean>(false);
   const [isEngineModalOpen, setIsEngineModalOpen] = useState<boolean>(false);
-  const [mobileMode, setMobileMode] = useState<'analysis' | 'review'>('analysis');
-  const [showExplorer, setShowExplorer] = useState<boolean>(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'review' | 'analysis' | 'explorer'>('review');
+  const showExplorer = activeSidebarTab === 'explorer';
+  const setShowExplorer = useCallback((show: boolean | ((prev: boolean) => boolean)) => {
+    setActiveSidebarTab((prev) => {
+      const current = prev === 'explorer';
+      const next = typeof show === 'function' ? show(current) : show;
+      return next ? 'explorer' : 'review';
+    });
+  }, []);
+  const mobileMode = activeSidebarTab === 'analysis' ? 'analysis' : 'review';
+  const setMobileMode = useCallback((mode: 'analysis' | 'review' | ((prev: 'analysis' | 'review') => 'analysis' | 'review')) => {
+    setActiveSidebarTab((prev) => {
+      const current = prev === 'analysis' ? 'analysis' : 'review';
+      const next = typeof mode === 'function' ? mode(current) : mode;
+      return next;
+    });
+  }, []);
   const [analysisNonce, setAnalysisNonce] = useState(0);
   const [stockfishDepth, setStockfishDepth] = useState<number>(() => {
     if (typeof window !== 'undefined') {
@@ -3609,6 +3624,271 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     setIsReviewActive(true);
   };
 
+  // Key Moments derivation & navigation (Chess.com Signature Feature)
+  const keyMomentPlies = useMemo(() => {
+    return rawMoveHistory
+      .map((m, idx) => ({ ply: idx, classification: m.classification }))
+      .filter((m) =>
+        ['brilliant', 'great', 'blunder', 'miss', 'mistake'].includes(
+          (m.classification || '').toLowerCase()
+        )
+      )
+      .map((m) => m.ply);
+  }, [rawMoveHistory]);
+
+  const currentKeyMomentIndex = keyMomentPlies.indexOf(currentPlyIndex);
+
+  const handlePrevKeyMoment = useCallback(() => {
+    if (keyMomentPlies.length === 0) return;
+    const prev = [...keyMomentPlies].reverse().find((p) => p < currentPlyIndex);
+    if (prev !== undefined) {
+      jumpToPly(prev);
+    } else {
+      jumpToPly(keyMomentPlies[0]);
+    }
+  }, [keyMomentPlies, currentPlyIndex, jumpToPly]);
+
+  const handleNextKeyMoment = useCallback(() => {
+    if (keyMomentPlies.length === 0) return;
+    const next = keyMomentPlies.find((p) => p > currentPlyIndex);
+    if (next !== undefined) {
+      jumpToPly(next);
+    } else {
+      jumpToPly(keyMomentPlies[keyMomentPlies.length - 1]);
+    }
+  }, [keyMomentPlies, currentPlyIndex, jumpToPly]);
+
+  // Dedicated Stockfish 19 Engine Analysis Workbench (Chess.com Authentic Layout)
+  const renderAnalysisPanelContent = () => (
+    <div className="analysis-panel-container">
+      {/* Top Engine Status Bar */}
+      <div className="analysis-engine-header-card">
+        <div className="analysis-engine-meta-left">
+          <div className="engine-name-row">
+            <span className="engine-pulse-dot" />
+            <span className="engine-brand-name">Stockfish 19 Lite</span>
+            <span className="engine-depth-tag">Depth {reviewDepth}</span>
+            <span className="engine-multipv-tag">3 PV</span>
+          </div>
+          <div className="analysis-engine-eval-row">
+            <span className="analysis-large-score">{currentEvalBarData.scoreDisplay}</span>
+            <span className="analysis-win-prob-text">
+              {currentEvalBarData.winWhite > 50
+                ? `Keunggulan Putih (${currentEvalBarData.winWhite.toFixed(1)}%)`
+                : currentEvalBarData.winWhite < 50
+                ? `Keunggulan Hitam (${(100 - currentEvalBarData.winWhite).toFixed(1)}%)`
+                : 'Posisi Imbang (50%)'}
+            </span>
+          </div>
+        </div>
+        <div className="analysis-engine-actions">
+          <button
+            type="button"
+            onClick={handleClearCache}
+            className="analysis-btn-pill"
+            title="Analisis ulang posisi ini dan hapus cache lama"
+          >
+            <RotateCcw size={12} />
+            <span>Re-analyze</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsEngineModalOpen(true)}
+            className="analysis-btn-pill"
+            title="Pengaturan engine Stockfish"
+          >
+            <Sliders size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* Top 3 Engine Candidate Lines (MultiPV) */}
+      <div className="analysis-multipv-section">
+        <div className="analysis-multipv-title">
+          <span>Alternatif Langkah Terbaik Engine ({currentCandidateLines.length || 0})</span>
+          <span className="multipv-subtitle">Klik untuk memainkan di papan catur</span>
+        </div>
+        {currentCandidateLines.length > 0 ? (
+          <div className="analysis-multipv-list">
+            {currentCandidateLines.map((candLine, idx) => (
+              <div
+                key={idx}
+                className="analysis-multipv-card"
+                onClick={() => {
+                  if (candLine.uci && candLine.uci.length >= 4) {
+                    executeMove(
+                      candLine.uci.slice(0, 2) as Square,
+                      candLine.uci.slice(2, 4) as Square
+                    );
+                  }
+                }}
+                title="Klik untuk memainkan variasi rekomendasi komputer ini di papan"
+              >
+                <div className="cand-rank-badge">#{idx + 1}</div>
+                <div className="cand-score-pill">{candLine.scoreDisplay}</div>
+                <div className="cand-san-highlight">
+                  {candLine.san || candLine.uci}
+                </div>
+                <div className="cand-continuation-text">
+                  {formatCandidateLineDisplay(
+                    candLine,
+                    currentBoardFen,
+                    currentPlyIndex,
+                    candLine.san,
+                    moveHistory.slice(currentPlyIndex + 1)
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="analysis-multipv-loading">
+            <Cpu size={16} className="analysis-cpu-pulse" />
+            <span>Stockfish sedang menghitung alternatif langkah terbaik...</span>
+          </div>
+        )}
+      </div>
+
+      {/* Move Notation List (Full Table) */}
+      <div className="analysis-moves-table-wrapper" ref={reviewMovesScrollRef}>
+        <div className="analysis-moves-scroll">
+          {moveRows.map((row) => {
+            const isWhiteActive = row.white && currentPlyIndex === row.white.ply - 1;
+            const isBlackActive = row.black && currentPlyIndex === row.black.ply - 1;
+            return (
+              <div key={row.number} className="review-table-row">
+                <span className="review-row-num">{row.number}.</span>
+                {row.white ? (
+                  <button
+                    type="button"
+                    onClick={() => jumpToPly(row.white!.ply - 1)}
+                    className={`review-move-pill ${isWhiteActive ? 'active' : ''}`}
+                  >
+                    {row.white.classification && (
+                      <span className="inline-badge">
+                        <ChessComBadgeIcon type={row.white.classification} size={14} />
+                      </span>
+                    )}
+                    {renderMoveFigurine(row.white.piece, 'w', row.white.san)}
+                    <span className="inline-san">{formatSanWithoutPiece(row.white.san)}</span>
+                  </button>
+                ) : (
+                  <div className="review-move-empty" />
+                )}
+                {row.black ? (
+                  <button
+                    type="button"
+                    onClick={() => jumpToPly(row.black!.ply - 1)}
+                    className={`review-move-pill ${isBlackActive ? 'active' : ''}`}
+                  >
+                    {row.black.classification && (
+                      <span className="inline-badge">
+                        <ChessComBadgeIcon type={row.black.classification} size={14} />
+                      </span>
+                    )}
+                    {renderMoveFigurine(row.black.piece, 'b', row.black.san)}
+                    <span className="inline-san">{formatSanWithoutPiece(row.black.san)}</span>
+                  </button>
+                ) : (
+                  <div className="review-move-empty" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Advantage Evaluation Chart */}
+      <div className="review-chart-section">
+        <div className="chesscom-eval-chart-box" title="Klik grafik untuk melompat ke langkah catur">
+          <svg viewBox="0 0 320 64" preserveAspectRatio="none" className="chesscom-eval-chart-svg" onClick={handleChartClick}>
+            <line x1="0" y1="32" x2="320" y2="32" stroke="#6a6762" strokeWidth="1" />
+            <path d={evalChartData.svgPath} fill="#ffffff" />
+            {evalChartData.dots.map((d, i) => (
+              <circle
+                key={i}
+                cx={d.x}
+                cy={d.y}
+                r={3.2}
+                fill={d.color}
+                stroke="#ffffff"
+                strokeWidth="0.8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  jumpToPly(d.ply - 1);
+                }}
+                style={{ cursor: 'pointer' }}
+              />
+            ))}
+            {currentPlyIndex >= 0 && evalChartData.points && evalChartData.points[currentPlyIndex] && (
+              <g>
+                <line
+                  x1={evalChartData.points[currentPlyIndex].x}
+                  y1={0}
+                  x2={evalChartData.points[currentPlyIndex].x}
+                  y2={64}
+                  stroke="#c3996b"
+                  strokeWidth="2"
+                />
+                <circle
+                  cx={evalChartData.points[currentPlyIndex].x}
+                  cy={evalChartData.points[currentPlyIndex].y}
+                  r={4.5}
+                  fill="#c3996b"
+                  stroke="#ffffff"
+                  strokeWidth="1.5"
+                />
+              </g>
+            )}
+          </svg>
+        </div>
+      </div>
+
+      {/* Playback Controls */}
+      <div className="review-playback-bar">
+        <button type="button" onClick={handleFirstMove} className="review-nav-btn" title="Langkah Awal">
+          <ChevronsLeft size={18} />
+        </button>
+        <button type="button" onClick={handlePrevMove} className="review-nav-btn" title="Langkah Sebelumnya">
+          <ChevronLeft size={18} />
+        </button>
+        <button type="button" onClick={handleTogglePlayReplay} className="review-nav-btn btn-play-pause" title={isPlayingReplay ? 'Jeda' : 'Putar'}>
+          {isPlayingReplay ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
+        </button>
+        <button type="button" onClick={handleNextMove} className="review-nav-btn" title="Langkah Berikutnya">
+          <ChevronRight size={18} />
+        </button>
+        <button type="button" onClick={handleLastMove} className="review-nav-btn" title="Langkah Akhir">
+          <ChevronsRight size={18} />
+        </button>
+      </div>
+
+      {/* Footer Bar */}
+      <div className="review-footer-bar">
+        <button type="button" onClick={() => jumpToPly(0)} className="review-footer-btn" title="Kembali ke awal langkah pembukaan">
+          <Bookmark size={14} />
+          <span>Opening</span>
+        </button>
+        <button type="button" onClick={() => setIsFlipped(!isFlipped)} className="review-footer-btn" title="Putar Papan Catur">
+          <RotateCcw size={13} />
+          <span>Putar</span>
+        </button>
+        <button type="button" onClick={handleCopyFen} className="review-footer-btn" title="Salin FEN">
+          {copiedFen ? <Check size={13} /> : <Copy size={13} />}
+          <span>{copiedFen ? 'Tersalin' : 'FEN'}</span>
+        </button>
+        <button type="button" onClick={handleCopyPgn} className="review-footer-btn" title="Salin PGN">
+          {copiedPgn ? <Check size={13} /> : <Share2 size={13} />}
+          <span>{copiedPgn ? 'Tersalin' : 'PGN'}</span>
+        </button>
+        <button type="button" onClick={() => setIsSoundModalOpen(true)} className="review-footer-btn" title="Pengaturan Efek Suara Catur">
+          <Volume2 size={13} />
+          <span>Suara</span>
+        </button>
+      </div>
+    </div>
+  );
+
   const renderOpeningExplorerContent = () => (
     <div className="chesscom-explorer-container">
       {/* Explorer Header */}
@@ -3624,7 +3904,7 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
         </div>
         <button
           type="button"
-          onClick={() => setShowExplorer(false)}
+          onClick={() => setActiveSidebarTab('review')}
           className="explorer-close-btn"
           title="Tutup Explorer"
         >
@@ -3763,16 +4043,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           <button
             type="button"
             onClick={
-              showExplorer
-                ? () => setShowExplorer(false)
+              activeSidebarTab !== 'review'
+                ? () => setActiveSidebarTab('review')
                 : isReviewActive
                 ? () => setIsReviewActive(false)
                 : onClose
             }
             className="mobile-header-btn"
             title={
-              showExplorer
-                ? 'Tutup Opening Explorer'
+              activeSidebarTab !== 'review'
+                ? 'Kembali ke Game Review'
                 : isReviewActive
                 ? 'Kembali ke Statistik Ulasan'
                 : 'Kembali (Esc)'
@@ -3783,29 +4063,23 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
           <div
             className="mobile-header-title-group"
             onClick={() => {
-              if (showExplorer) {
-                setShowExplorer(false);
-              } else if (isReviewActive) {
-                setMobileMode((prev) => (prev === 'analysis' ? 'review' : 'analysis'));
-              }
+              setActiveSidebarTab((prev) => {
+                if (prev === 'review') return 'analysis';
+                if (prev === 'analysis') return 'explorer';
+                return 'review';
+              });
             }}
-            title={
-              showExplorer
-                ? 'Tutup Explorer'
-                : isReviewActive
-                ? 'Beralih Mode Analysis / Game Review'
-                : 'Game Review'
-            }
+            title="Ketuk untuk beralih Review / Analysis / Explorer"
           >
-            {showExplorer ? (
+            {activeSidebarTab === 'explorer' ? (
               <>
-                <Compass size={16} className="mobile-title-icon" style={{ color: '#81b64c' }} />
+                <Compass size={16} className="mobile-title-icon" style={{ color: '#c3996b' }} />
                 <span className="mobile-title-text">Opening Explorer</span>
               </>
-            ) : isReviewActive && mobileMode === 'analysis' ? (
+            ) : activeSidebarTab === 'analysis' ? (
               <>
-                <Search size={16} className="mobile-title-icon" />
-                <span className="mobile-title-text">Analysis</span>
+                <Zap size={16} className="mobile-title-icon" style={{ color: '#38bdf8' }} />
+                <span className="mobile-title-text">Engine Analysis</span>
               </>
             ) : (
               <>
@@ -4105,6 +4379,36 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             <span className="chesscom-match-badge">
               {match ? `Babak ${match.round} • Papan ${match.boardNumber}` : 'Analisis Bebas'}
             </span>
+          </div>
+
+          <div className="chesscom-nav-center">
+            <button
+              type="button"
+              className={`chesscom-nav-tab ${activeSidebarTab === 'review' ? 'active' : ''}`}
+              onClick={() => setActiveSidebarTab('review')}
+              title="Game Review (Ulasan Pertandingan & Evaluasi Akurasi)"
+            >
+              <Star size={15} className="tab-icon-review" fill={activeSidebarTab === 'review' ? '#81b64c' : 'none'} />
+              <span>Review</span>
+            </button>
+            <button
+              type="button"
+              className={`chesscom-nav-tab ${activeSidebarTab === 'analysis' ? 'active' : ''}`}
+              onClick={() => setActiveSidebarTab('analysis')}
+              title="Engine Analysis (Stockfish 19 Deep Analysis & Alternatif Langkah)"
+            >
+              <Zap size={15} className="tab-icon-analysis" />
+              <span>Analysis</span>
+            </button>
+            <button
+              type="button"
+              className={`chesscom-nav-tab ${activeSidebarTab === 'explorer' ? 'active' : ''}`}
+              onClick={() => setActiveSidebarTab('explorer')}
+              title="Opening Explorer (Teori Buku Catur & Rekap Variasi)"
+            >
+              <Compass size={15} style={{ color: '#c3996b' }} />
+              <span>Explorer</span>
+            </button>
           </div>
 
           <div className="chesscom-nav-right">
@@ -4625,6 +4929,36 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
               </div>
             ) : (
               <div className="chesscom-mobile-review-card">
+                {/* Key Moments Bar on Mobile */}
+                {keyMomentPlies.length > 0 && (
+                  <div className="chesscom-key-moments-nav-card" style={{ margin: '0 0 0.5rem 0' }}>
+                    <div className="key-moments-pill">
+                      <Zap size={13} className="key-moments-zap-icon" />
+                      <span className="key-moments-text">
+                        Momen: <strong>{currentKeyMomentIndex >= 0 ? `${currentKeyMomentIndex + 1}/${keyMomentPlies.length}` : `${keyMomentPlies.length}`}</strong>
+                      </span>
+                    </div>
+                    <div className="key-moments-nav-btns">
+                      <button
+                        type="button"
+                        onClick={handlePrevKeyMoment}
+                        className="btn-key-moment-nav"
+                        title="Lompat ke momen kunci sebelumnya"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleNextKeyMoment}
+                        className="btn-key-moment-nav"
+                        title="Lompat ke momen kunci berikutnya"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Coach Speech Bubble on Mobile */}
                 <div className="review-coach-speech-bubble">
                   <div className="review-coach-avatar-wrapper">
@@ -4732,6 +5066,37 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
 
           {/* RIGHT: Game Review Sidebar Panel (Default & Exclusive Mode) */}
           <aside className="chesscom-sidebar-section">
+            {/* Top Sidebar Tab Switcher */}
+            <div className="chesscom-sidebar-tab-header">
+              <button
+                type="button"
+                className={`sidebar-tab-btn tab-review ${activeSidebarTab === 'review' ? 'active' : ''}`}
+                onClick={() => setActiveSidebarTab('review')}
+                title="Beralih ke Game Review"
+              >
+                <Star size={14} fill={activeSidebarTab === 'review' ? '#81b64c' : 'none'} color="#81b64c" />
+                <span>Review</span>
+              </button>
+              <button
+                type="button"
+                className={`sidebar-tab-btn tab-analysis ${activeSidebarTab === 'analysis' ? 'active' : ''}`}
+                onClick={() => setActiveSidebarTab('analysis')}
+                title="Beralih ke Stockfish 19 Engine Analysis"
+              >
+                <Zap size={14} color="#38bdf8" />
+                <span>Analysis</span>
+              </button>
+              <button
+                type="button"
+                className={`sidebar-tab-btn tab-explorer ${activeSidebarTab === 'explorer' ? 'active' : ''}`}
+                onClick={() => setActiveSidebarTab('explorer')}
+                title="Beralih ke Opening Explorer"
+              >
+                <Compass size={14} color="#c3996b" />
+                <span>Explorer</span>
+              </button>
+            </div>
+
             {!isAnalysisComplete ? (
               /* ANALYSIS RUNNING HERO: Waiting until analysis completes 100% for the first time */
               <div className="review-panel-container">
@@ -4765,6 +5130,12 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                     Stockfish sedang mengkalkulasi seluruh evaluasi, akurasi, dan taktik pertandingan secara step by step. Data Game Review akan tampil lengkap setelah 100%.
                   </p>
                 </div>
+              </div>
+            ) : activeSidebarTab === 'analysis' ? (
+              renderAnalysisPanelContent()
+            ) : activeSidebarTab === 'explorer' ? (
+              <div className="desktop-explorer-panel">
+                {renderOpeningExplorerContent()}
               </div>
             ) : !isReviewActive ? (
               /* REVIEW SUMMARY VIEW (Matching Chess.com Image 1 & 3) */
@@ -5120,6 +5491,36 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       </span>
                     )}
                   </div>
+
+                  {/* Key Moments Fast Navigation Bar (Chess.com Signature Feature) */}
+                  {keyMomentPlies.length > 0 && (
+                    <div className="chesscom-key-moments-nav-card">
+                      <div className="key-moments-pill">
+                        <Zap size={14} className="key-moments-zap-icon" />
+                        <span className="key-moments-text">
+                          Momen Kunci: <strong>{currentKeyMomentIndex >= 0 ? `${currentKeyMomentIndex + 1} dari ${keyMomentPlies.length}` : `${keyMomentPlies.length} momen`}</strong>
+                        </span>
+                      </div>
+                      <div className="key-moments-nav-btns">
+                        <button
+                          type="button"
+                          onClick={handlePrevKeyMoment}
+                          className="btn-key-moment-nav"
+                          title="Lompat ke momen kunci sebelumnya (Brilliant, Great, Blunder, Miss, Mistake)"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleNextKeyMoment}
+                          className="btn-key-moment-nav"
+                          title="Lompat ke momen kunci berikutnya"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {showExplorer ? (
                     <div className="desktop-explorer-panel">
