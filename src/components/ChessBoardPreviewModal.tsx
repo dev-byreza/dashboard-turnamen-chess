@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { Chess, Square } from 'chess.js';
 import { Player, SwissMatch } from '../types/chess';
-import { ChessComRecentGame } from '../utils/chessComApi';
+import { ChessComRecentGame, fetchChessComProfile } from '../utils/chessComApi';
 import {
   getStockfishEngine,
   PositionEvaluation,
@@ -1140,6 +1140,8 @@ export function createUniversalBoardArrow(
 
   return { points, transform };
 }
+
+const globalPlayerAvatarCache = new Map<string, string | null>();
 
 export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
   isOpen,
@@ -2755,6 +2757,65 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
     recentGame?.black.username ||
     pgnHeaders['black'];
 
+  // Auto-fetch profile picture from Chess.com if player avatar is not already present
+  const [fetchedWhiteAvatar, setFetchedWhiteAvatar] = useState<string | null>(null);
+  const [fetchedBlackAvatar, setFetchedBlackAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // White player avatar
+    if (whitePlayer?.avatar) {
+      setFetchedWhiteAvatar(whitePlayer.avatar);
+    } else if (whiteUsername) {
+      const u = whiteUsername.trim().toLowerCase();
+      if (globalPlayerAvatarCache.has(u)) {
+        setFetchedWhiteAvatar(globalPlayerAvatarCache.get(u) || null);
+      } else {
+        fetchChessComProfile(u)
+          .then((profile) => {
+            const avatarUrl = profile?.avatar || null;
+            globalPlayerAvatarCache.set(u, avatarUrl);
+            if (isMounted) setFetchedWhiteAvatar(avatarUrl);
+          })
+          .catch(() => {
+            globalPlayerAvatarCache.set(u, null);
+          });
+      }
+    } else {
+      setFetchedWhiteAvatar(null);
+    }
+
+    // Black player avatar
+    if (blackPlayer?.avatar) {
+      setFetchedBlackAvatar(blackPlayer.avatar);
+    } else if (blackUsername) {
+      const u = blackUsername.trim().toLowerCase();
+      if (globalPlayerAvatarCache.has(u)) {
+        setFetchedBlackAvatar(globalPlayerAvatarCache.get(u) || null);
+      } else {
+        fetchChessComProfile(u)
+          .then((profile) => {
+            const avatarUrl = profile?.avatar || null;
+            globalPlayerAvatarCache.set(u, avatarUrl);
+            if (isMounted) setFetchedBlackAvatar(avatarUrl);
+          })
+          .catch(() => {
+            globalPlayerAvatarCache.set(u, null);
+          });
+      }
+    } else {
+      setFetchedBlackAvatar(null);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [whitePlayer?.avatar, blackPlayer?.avatar, whiteUsername, blackUsername]);
+
+  const effectiveWhiteAvatar = whitePlayer?.avatar || fetchedWhiteAvatar;
+  const effectiveBlackAvatar = blackPlayer?.avatar || fetchedBlackAvatar;
+
   // Move groups for the 3-column table
   const moveRows = useMemo(() => {
     const rows: { number: number; white?: MoveHistoryItem; black?: MoveHistoryItem }[] = [];
@@ -3936,10 +3997,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           {whiteUsername || whiteName}
                         </span>
                         <div className="summary-player-avatar-box white-player">
-                          {whitePlayer?.avatar ? (
-                            <img src={whitePlayer.avatar} alt={whiteName} />
+                          {effectiveWhiteAvatar ? (
+                            <img src={effectiveWhiteAvatar} alt={whiteName} />
                           ) : (
-                            <span className="avatar-placeholder">♙</span>
+                            <ChessComNeoPiece piece="P" size={26} />
                           )}
                         </div>
                       </div>
@@ -3948,10 +4009,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                           {blackUsername || blackName}
                         </span>
                         <div className="summary-player-avatar-box black-player">
-                          {blackPlayer?.avatar ? (
-                            <img src={blackPlayer.avatar} alt={blackName} />
+                          {effectiveBlackAvatar ? (
+                            <img src={effectiveBlackAvatar} alt={blackName} />
                           ) : (
-                            <span className="avatar-placeholder">♟</span>
+                            <ChessComNeoPiece piece="p" size={26} />
                           )}
                         </div>
                       </div>
@@ -4137,14 +4198,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             <div className="chesscom-player-bar top">
               <div className="player-info-cluster">
                 <div className="player-avatar-wrapper">
-                  {blackPlayer?.avatar ? (
+                  {(isFlipped ? effectiveWhiteAvatar : effectiveBlackAvatar) ? (
                     <img
-                      src={blackPlayer.avatar}
-                      alt={blackName}
+                      src={(isFlipped ? effectiveWhiteAvatar : effectiveBlackAvatar)!}
+                      alt={isFlipped ? whiteName : blackName}
                       className="player-avatar-img"
                     />
                   ) : (
-                    <div className="player-avatar-fallback black">♟</div>
+                    <div className={`player-avatar-fallback ${isFlipped ? 'white' : 'black'}`}>
+                      <ChessComNeoPiece piece={isFlipped ? 'P' : 'p'} size={24} />
+                    </div>
                   )}
                   <span className="status-indicator online" />
                 </div>
@@ -4401,14 +4464,16 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
             <div className="chesscom-player-bar bottom">
               <div className="player-info-cluster">
                 <div className="player-avatar-wrapper">
-                  {whitePlayer?.avatar ? (
+                  {(isFlipped ? effectiveBlackAvatar : effectiveWhiteAvatar) ? (
                     <img
-                      src={whitePlayer.avatar}
-                      alt={whiteName}
+                      src={(isFlipped ? effectiveBlackAvatar : effectiveWhiteAvatar)!}
+                      alt={isFlipped ? blackName : whiteName}
                       className="player-avatar-img"
                     />
                   ) : (
-                    <div className="player-avatar-fallback white">♙</div>
+                    <div className={`player-avatar-fallback ${isFlipped ? 'black' : 'white'}`}>
+                      <ChessComNeoPiece piece={isFlipped ? 'p' : 'P'} size={24} />
+                    </div>
                   )}
                   <span className="status-indicator online" />
                 </div>
@@ -4818,10 +4883,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <span className="review-grid-label">Players</span>
                       <div className="review-player-cell">
                         <div className="review-player-avatar-box white-player">
-                          {whitePlayer?.avatar ? (
-                            <img src={whitePlayer.avatar} alt={whiteName} />
+                          {effectiveWhiteAvatar ? (
+                            <img src={effectiveWhiteAvatar} alt={whiteName} />
                           ) : (
-                            <span className="avatar-placeholder">♙</span>
+                            <ChessComNeoPiece piece="P" size={28} />
                           )}
                         </div>
                         <span className="review-player-username" title={whiteUsername || whiteName}>
@@ -4831,10 +4896,10 @@ export const ChessBoardPreviewModal: React.FC<ChessBoardPreviewModalProps> = ({
                       <div />
                       <div className="review-player-cell">
                         <div className="review-player-avatar-box black-player">
-                          {blackPlayer?.avatar ? (
-                            <img src={blackPlayer.avatar} alt={blackName} />
+                          {effectiveBlackAvatar ? (
+                            <img src={effectiveBlackAvatar} alt={blackName} />
                           ) : (
-                            <span className="avatar-placeholder">♟</span>
+                            <ChessComNeoPiece piece="p" size={28} />
                           )}
                         </div>
                         <span className="review-player-username" title={blackUsername || blackName}>

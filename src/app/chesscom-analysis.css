@@ -259,14 +259,15 @@
 }
 
 .player-avatar-fallback.white {
-  background: #ffffff;
-  color: #121212;
-}
-
-.player-avatar-fallback.black {
   background: #2b2926;
   color: #ffffff;
   border: 1px solid #4a4742;
+}
+
+.player-avatar-fallback.black {
+  background: #181715;
+  color: #ffffff;
+  border: 1px solid #383531;
 }
 
 .status-indicator.online {
