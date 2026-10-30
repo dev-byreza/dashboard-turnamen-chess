@@ -1009,10 +1009,13 @@ function classifyCore(
   // dianggap Brilliant (sesuai Chess.com), KECUALI langkah itu mengarah ke / berasal dari mate paksa.
   // (Pengecualian lama "langkah kedua terbaik < 85%" dihapus: mis. Bxf2 di +12.5 dengan alternatif +4.1
   // tetap bukan Brilliant di Chess.com.)
+  // Pengorbanan yang mengarah ke posisi skakmat langsung atau serangan telak (cp >= +600)
+  const isDecisiveAttackSacrifice = isSacrifice && winProbAfter >= 0.90 && cpAfter >= 600;
   const isNotTrivialWinningShowoff =
     winProbBefore < 0.92 ||
     hasForcedMateAfter ||
-    hadForcedMate;
+    hadForcedMate ||
+    isDecisiveAttackSacrifice;
 
   // Langkah raja (SAN diawali 'K' atau rokade 'O-O') tidak pernah Brilliant: raja tidak bisa dikorbankan.
   const isKingMove = /^(K|O-O)/.test(m.san);
@@ -1020,7 +1023,7 @@ function classifyCore(
   if (
     !isUnsoundPieceHangInLostPos &&
     !isKingMove &&
-    (isEngineTopMove || winProbLost <= 0.015 || hasForcedMateAfter) &&
+    (isEngineTopMove || winProbLost <= 0.035 || hasForcedMateAfter) &&
     isSacrifice &&
     !isRecapture &&
     isNotTrivialWinningShowoff &&
@@ -1038,8 +1041,8 @@ function classifyCore(
     prevMove?.classification === 'blunder' ||
     prevMove?.classification === 'mistake' ||
     (prevMove?.loss !== undefined ? prevMove.loss >= 15 : prevLoss >= 15);
-  const isDirectHangingCapture = !!m.captured && prevMove?.to === m.to;
-  const isPunishingBlunderPiece = !!m.captured && m.captured !== 'p' && opponentBlunderedLastTurn;
+  const isDirectHangingCapture = !!m.captured && opponentBlunderedLastTurn && prevMove?.to === m.to;
+  const isPunishingBlunderPiece = !!m.captured && m.captured !== 'p' && opponentBlunderedLastTurn && prevMove?.to === m.to;
   const isTrivialCaptureOrRecapture = isDirectHangingCapture || isRecapture || isPunishingBlunderPiece;
   // Skenario A: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice seperti Qd7-h3! di mana pion g2 ter-pin mutlak ke Kg1 oleh Rg8)
   const isPinExploit = isTacticalPinExploit(before.fen, playedUci);
@@ -1058,7 +1061,7 @@ function classifyCore(
   // - WAJIB merupakan langkah #1 terbaik engine (isEngineTopMove === true)
   // - Bukan langkah paksa (legalMoves > 1)
   // - Posisi setelah melangkah tetap prima / terjaga (winProbAfter >= 0.30)
-  if (isEngineTopMove && legalMoves > 1 && winProbAfter >= 0.30) {
+  if (isEngineTopMove && legalMoves > 1 && winProbAfter >= 0.15) {
     // Skenario B: Menemukan Skakmat Paksa (Mate in 2+) dari posisi non-mate, atau satu-satunya langkah skakmat paksa
     const foundNewForcedMate =
       (!hadForcedMate && hasForcedMateAfter) ||
@@ -1068,8 +1071,16 @@ function classifyCore(
     }
 
     if (!isTrivialCaptureOrRecapture && winProbBefore <= 0.90) {
-      // Skenario C: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding langkah terbaik #2)
-      if (uniquenessGap >= 0.15) {
+      // Skenario C: "The Only Move"
+      // 1) Universal: gap peluang menang >= 15%
+      // 2) The Only Defensive/Sharp Move: Pada posisi tertekan (winProbBefore <= 0.40), langkah #1 unggul
+      //    secara signifikan (gap centipawn >= 100 cp dan uniquenessGap >= 0.05) dibanding langkah lain yang kalah
+      const cp1 = moverCp({ cp: before.lines?.[0]?.cp ?? before.cp } as any);
+      const cp2 = moverCp({ cp: secondLine?.cp } as any);
+      const rawCpGap = cp1 - cp2;
+      const isDefensiveOnlyMove = winProbBefore <= 0.40 && rawCpGap >= 100 && uniquenessGap >= 0.05;
+
+      if (uniquenessGap >= 0.15 || isDefensiveOnlyMove) {
         return { ...base, accuracy: 100, label: 'great' };
       }
 

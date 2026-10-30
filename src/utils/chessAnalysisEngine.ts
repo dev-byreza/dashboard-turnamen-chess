@@ -60,6 +60,7 @@ export interface ClassifyMoveParams {
   isBookMove?: boolean;
   previousOpponentMoveClass?: MoveClassification;
   previousOpponentWinLoss?: number;
+  previousOpponentMoveTo?: string;
 }
 
 export interface AnalyzedMoveResult {
@@ -421,6 +422,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     isBookMove = false,
     previousOpponentMoveClass,
     previousOpponentWinLoss = 0,
+    previousOpponentMoveTo,
   } = params;
 
   const bestMoveUci = evalBefore.pv[0] || '';
@@ -502,12 +504,20 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     // - Posisi setelah melangkah tidak kalah (winProbAfter >= 0.40)
     // - Filter anti-showoff: Bukan pengorbanan sia-sia di posisi yang sudah menang telak,
     //   KECUALI langkah tersebut mengarah ke skakmat paksa (hasForcedMateAfter / hadForcedMateBefore)
+    const isDecisiveAttackSacrifice = isSacrifice && winProbAfter >= 0.90 && (evalAfter.cp ?? 0) >= 600;
     const isNotTrivialWinningShowoff =
       winProbBefore < 0.92 ||
       hasForcedMateAfter ||
-      hadForcedMateBefore;
+      hadForcedMateBefore ||
+      isDecisiveAttackSacrifice;
 
-    if (isSacrifice && isNotTrivialWinningShowoff && winProbAfter >= 0.40) {
+    if (
+      !isUnsoundPieceHangInLostPos &&
+      (isEngineTopMove || winProbLost <= 0.035 || hasForcedMateAfter) &&
+      isSacrifice &&
+      isNotTrivialWinningShowoff &&
+      winProbAfter >= 0.40
+    ) {
       return {
         classification: 'Brilliant',
         isSacrifice: true,
@@ -532,9 +542,12 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     } catch {}
     const opponentBlunderedLast =
       previousOpponentMoveClass === 'Blunder' || (previousOpponentWinLoss ?? 0) >= 0.15;
-    const isBlunderPunishCapture = isCapturedPiece && opponentBlunderedLast;
+    const isBlunderPunishCapture =
+      isCapturedPiece &&
+      opponentBlunderedLast &&
+      (!previousOpponentMoveTo || previousOpponentMoveTo === playedUci.slice(2, 4));
 
-    if (legalMovesCount > 1 && winProbAfter >= 0.30) {
+    if (legalMovesCount > 1 && winProbAfter >= 0.15) {
       // Skenario A: Eksploitasi Pin Taktis Asli (Pseudo-Sacrifice seperti Qd7-h3! di mana pion g2 ter-pin oleh Rg8)
       if (isPinExploit && !isBlunderPunishCapture && (!evalSecondBest || uniquenessGap >= 0.05 || hasForcedMateAfter || winProbAfter >= 0.85)) {
         return {
@@ -564,8 +577,10 @@ export function classifyChessMove(params: ClassifyMoveParams): {
         }
 
         if (!isBlunderPunishCapture && winProbBefore <= 0.90) {
-          // Skenario C: "The Only Move" (Langkah #1 mutlak unggul >= 15% dibanding pilihan #2)
-          if (uniquenessGap >= 0.15) {
+          // Skenario C: "The Only Move"
+          const rawCpGap = (evalBefore.cp ?? 0) - (evalSecondBest?.cp ?? evalBefore.cp ?? 0);
+          const isDefensiveOnlyMove = winProbBefore <= 0.40 && rawCpGap >= 100 && uniquenessGap >= 0.05;
+          if (uniquenessGap >= 0.15 || isDefensiveOnlyMove) {
             return {
               classification: 'Great',
               isSacrifice,
