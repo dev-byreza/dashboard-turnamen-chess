@@ -236,6 +236,24 @@ function getSeeCaptureGain(chess: Chess, targetSquare: Square, depth = 0): numbe
 }
 
 /**
+ * Menghitung keuntungan tangkapan (SEE gain) pada suatu petak SEBELUM pemain melangkah.
+ * Digunakan untuk mengecek apakah perwira lawan SUDAH bisa memakan petak tersebut dengan untung materi
+ * sebelum langkah kita dimainkan (contoh: akibat garpuan atau serangan turn sebelumnya).
+ */
+function getSeeGainBeforeMove(fenBefore: string, targetSquare: Square, moverColor: Color): number {
+  const oppColor: Color = moverColor === 'w' ? 'b' : 'w';
+  const tokens = fenBefore.split(' ');
+  tokens[1] = oppColor;
+  tokens[3] = '-';
+  try {
+    const oppBoard = new Chess(tokens.join(' '));
+    return getSeeCaptureGain(oppBoard, targetSquare);
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Menghitung apakah sebuah langkah secara langsung menaruh perwira (N/B/R/Q) ke petak yang
  * dapat dimakan gratis oleh lawan (atau ditukar dengan bidak yang jauh lebih murah),
  * atau meninggalkan perwira tanpa pengawalan.
@@ -413,6 +431,15 @@ export function detectPieceSacrifice(fenBefore: string, playedUci: string): bool
       const hangingPieceValue = PIECE_VALUES[oppMove.captured];
       if (hangingPieceValue < PIECE_VALUES.n) continue; // Abaikan jika yang ditinggal hanya pion
 
+      // Filter Anti-False-Positive Chess.com:
+      // Jika perwira ini SUDAH tergantung / bisa dimakan lawan dengan untung materi SEBELUM langkah kita
+      // (contoh: akibat garpuan langkah sebelumnya seperti 19... Nc2 yang menyerang a1 & e1),
+      // maka membiarkannya tetap di petak semula BUKAN pengorbanan baru dari langkah ini!
+      const gainBefore = getSeeGainBeforeMove(fenBefore, oppMove.to, moverColor);
+      if (gainBefore >= 200) {
+        continue;
+      }
+
       // Pakai SEE (static exchange) sungguhan, bukan sekadar "apakah petak dilindungi secara statis".
       // Pengecekan statis salah mengira perwira tergantung padahal pelindungnya baru terbuka (x-ray)
       // setelah penyerang memakan. Contoh: benteng lawan di e2 memakan Gajah di f2, lalu Benteng kita di c2
@@ -564,17 +591,16 @@ export function classifyChessMove(params: ClassifyMoveParams): {
       (cpLoss <= 80 && winProbLost <= 0.04) ||
       (winProbAfter >= 0.75 && cpLoss <= 120 && winProbLost <= 0.06);
 
-    const isDecisiveAttackSacrifice =
-      isSacrifice &&
-      isSoundSacrifice &&
-      winProbAfter >= 0.75 &&
-      (isEngineTopMove || cpLoss <= 120);
+    // Filter anti-showoff & simplification Chess.com:
+    // Jika posisi SEBELUM langkah sudah menang telak (winProbBefore >= 0.90 atau |effCpBefore| >= 600 centipawns),
+    // pengorbanan materi untuk menyederhanakan posisi (trade-down) BUKAN Brilliant (!!),
+    // KECUALI langkah tersebut mengarah ke skakmat paksa (hasForcedMateAfter || hadForcedMateBefore).
+    const isAlreadyDecisivelyWinning =
+      (winProbBefore >= 0.90 || Math.abs(effCpBefore) >= 600) &&
+      !hasForcedMateAfter &&
+      !hadForcedMateBefore;
 
-    const isNotTrivialWinningShowoff =
-      winProbBefore < 0.92 ||
-      hasForcedMateAfter ||
-      hadForcedMateBefore ||
-      isDecisiveAttackSacrifice;
+    const isNotTrivialWinningShowoff = !isAlreadyDecisivelyWinning;
 
     if (
       !isUnsoundPieceHangInLostPos &&
@@ -646,7 +672,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
         if (
           isForkTactic &&
           !isBlunderPunishCapture &&
-          winProbAfter >= 0.70
+          winProbAfter >= 0.60
         ) {
           return {
             classification: 'Great',

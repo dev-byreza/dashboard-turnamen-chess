@@ -355,6 +355,23 @@ function calculateCaptureGainOnSquare(chess: Chess, targetSquare: Square, depth 
 }
 
 /**
+ * Menghitung keuntungan tangkapan lawan pada suatu petak SEBELUM pemain melangkah.
+ * Digunakan untuk menyaring perwira yang SUDAH tergantung / diserang sebelum giliran pemain.
+ */
+function getGainBeforeMove(fenBefore: string, targetSquare: Square, moverColor: Color): number {
+  const oppColor: Color = moverColor === 'w' ? 'b' : 'w';
+  const tokens = fenBefore.split(' ');
+  tokens[1] = oppColor;
+  tokens[3] = '-';
+  try {
+    const oppBoard = new Chess(tokens.join(' '));
+    return calculateCaptureGainOnSquare(oppBoard, targetSquare);
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Mengecek apakah terdapat pengorbanan materi (Direct Sacrifice maupun Passive/Hanging Sacrifice)
  */
 export function isMaterialSacrifice(fenBefore: string, playedMoveUci: string): {
@@ -432,6 +449,15 @@ export function isMaterialSacrifice(fenBefore: string, playedMoveUci: string): {
         PIECE_VALUES[cell.type] >= 3 &&
         cell.type !== 'k'
       ) {
+        // Filter Anti-False-Positive Chess.com:
+        // Jika perwira ini SUDAH tergantung / bisa dimakan lawan dengan untung materi SEBELUM langkah kita
+        // (contoh: akibat garpuan langkah sebelumnya seperti 19... Nc2 yang menyerang a1 & e1),
+        // maka membiarkannya tetap di petak semula BUKAN pengorbanan baru dari langkah ini!
+        const gainBefore = getGainBeforeMove(fenBefore, cell.square as Square, playerColor);
+        if (gainBefore >= 2) {
+          continue;
+        }
+
         // Berapa keuntungan bersih lawan jika lawan memakan perwira kita di petak ini?
         const opponentGainOnHanging = calculateCaptureGainOnSquare(board, cell.square);
         // Kurangi dengan keuntungan yang baru saja kita dapat di langkah `moveObj` (misal kita baru saja makan Menteri lawan)
@@ -1021,17 +1047,16 @@ function classifyCore(
     (cpLoss <= 80 && winProbLost <= 0.04) ||
     (winProbAfter >= 0.75 && cpLoss <= 120 && winProbLost <= 0.06);
 
-  const isDecisiveAttackSacrifice =
-    isSacrifice &&
-    isSoundSacrifice &&
-    winProbAfter >= 0.75 &&
-    (isEngineTopMove || cpLoss <= 120);
+  // Filter anti-showoff & simplification Chess.com:
+  // Jika posisi SEBELUM langkah sudah menang telak (winProbBefore >= 0.90 atau |cpBefore| >= 600 centipawns),
+  // pengorbanan materi untuk menyederhanakan posisi (trade-down) BUKAN Brilliant (!!),
+  // KECUALI langkah tersebut mengarah ke skakmat paksa (hasForcedMateAfter || hadForcedMate).
+  const isAlreadyDecisivelyWinning =
+    (winProbBefore >= 0.90 || Math.abs(cpBefore) >= 600) &&
+    !hasForcedMateAfter &&
+    !hadForcedMate;
 
-  const isNotTrivialWinningShowoff =
-    winProbBefore < 0.92 ||
-    hasForcedMateAfter ||
-    hadForcedMate ||
-    isDecisiveAttackSacrifice;
+  const isNotTrivialWinningShowoff = !isAlreadyDecisivelyWinning;
 
   // Langkah raja (SAN diawali 'K' atau rokade 'O-O') tidak pernah Brilliant: raja tidak bisa dikorbankan.
   const isKingMove = /^(K|O-O)/.test(m.san);
@@ -1091,7 +1116,7 @@ function classifyCore(
     if (
       isForkTactic &&
       !isTrivialCaptureOrRecapture &&
-      winProbAfter >= 0.70
+      winProbAfter >= 0.60
     ) {
       return { ...base, accuracy: 100, label: 'great' };
     }
