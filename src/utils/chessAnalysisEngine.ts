@@ -279,6 +279,59 @@ export function getDirectMaterialBlunderLoss(fenBefore: string, playedUci: strin
 }
 
 /**
+ * Memeriksa apakah langkah perwira (misal Kuda/Pion) menghasilkan garpuan taktis (tactical fork)
+ * ke setidaknya 2 perwira besar lawan (Menteri/Benteng) atau Raja lawan.
+ */
+export function isMajorPieceFork(fenBefore: string, playedUci: string): boolean {
+  if (!fenBefore || !playedUci || playedUci.length < 4) return false;
+  try {
+    const board = new Chess(fenBefore);
+    const from = playedUci.slice(0, 2) as Square;
+    const to = playedUci.slice(2, 4) as Square;
+    const movingPiece = board.get(from);
+    if (!movingPiece || movingPiece.type === 'k') return false;
+
+    const moverColor = board.turn();
+    const enemyColor: Color = moverColor === 'w' ? 'b' : 'w';
+
+    const moveRes = board.move({ from, to, promotion: (playedUci[4] as any) || 'q' });
+    if (!moveRes) return false;
+
+    const file = to.charCodeAt(0) - 97;
+    const rank = parseInt(to[1], 10) - 1;
+
+    let attackedValuableCount = 0;
+    const b = board.board();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = b[r][c];
+        if (!p || p.color !== enemyColor) continue;
+        if (p.type === 'q' || p.type === 'r' || p.type === 'k') {
+          const targetSq = (String.fromCharCode(97 + c) + (8 - r)) as Square;
+          const df = Math.abs((targetSq.charCodeAt(0) - 97) - file);
+          const dr = Math.abs((parseInt(targetSq[1], 10) - 1) - rank);
+
+          if (movingPiece.type === 'n') {
+            if ((df === 1 && dr === 2) || (df === 2 && dr === 1)) {
+              attackedValuableCount++;
+            }
+          } else if (movingPiece.type === 'p') {
+            const pawnDr = moverColor === 'w' ? 1 : -1;
+            if ((parseInt(targetSq[1], 10) - 1) - rank === pawnDr && df === 1) {
+              attackedValuableCount++;
+            }
+          }
+        }
+      }
+    }
+
+    return attackedValuableCount >= 2;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Mendeteksi apakah langkah yang baru dimainkan merupakan pengorbanan materi (Sacrifice).
  * Menggunakan analisis serangan balasan pada posisi setelah langkah dimainkan.
  */
@@ -496,6 +549,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     (isEngineTopMove ||
       winProbLost <= 0.015 ||
       hasForcedMateAfter ||
+      (isSacrifice && cpLoss <= 120 && winProbLost <= 0.06) ||
       (isPinExploit && winProbAfter >= 0.85 && winProbLost <= 0.05))
   ) {
     // Syarat Brilliant (!!):
@@ -503,17 +557,18 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     // - Mengorbankan materi (isSacrifice)
     // - Posisi setelah melangkah tidak kalah (winProbAfter >= 0.40)
     // - Filter anti-showoff: Bukan pengorbanan sia-sia di posisi yang sudah menang telak,
-    //   KECUALI langkah tersebut mengarah ke skakmat paksa (hasForcedMateAfter / hadForcedMateBefore)
+    //   KECUALI langkah tersebut mengarah ke skakmat paksa atau serangan mutlak (isDecisiveAttackSacrifice)
     const isSoundSacrifice =
       isEngineTopMove ||
       hasForcedMateAfter ||
-      (cpLoss <= 60 && winProbLost <= 0.02);
+      (cpLoss <= 80 && winProbLost <= 0.04) ||
+      (winProbAfter >= 0.75 && cpLoss <= 120 && winProbLost <= 0.06);
 
     const isDecisiveAttackSacrifice =
       isSacrifice &&
       isSoundSacrifice &&
-      winProbAfter >= 0.90 &&
-      (isEngineTopMove || cpLoss <= 60);
+      winProbAfter >= 0.75 &&
+      (isEngineTopMove || cpLoss <= 120);
 
     const isNotTrivialWinningShowoff =
       winProbBefore < 0.92 ||
@@ -576,6 +631,23 @@ export function classifyChessMove(params: ClassifyMoveParams): {
           (!hadForcedMateBefore && hasForcedMateAfter) ||
           (hasForcedMateAfter && evalSecondBest !== undefined && !secondBestHasForcedMate && winProbSecondBest < 0.90);
         if (foundForcedMate && (!evalSecondBest || uniquenessGap >= 0.05 || !secondBestHasForcedMate)) {
+          return {
+            classification: 'Great',
+            isSacrifice,
+            winProbBefore,
+            winProbAfter,
+            winProbLost,
+            accuracy: 100,
+          };
+        }
+
+        // Skenario E: Tactical Fork on Major Pieces (Garpuan Kuda/Pion ke Menteri & Benteng)
+        const isForkTactic = isMajorPieceFork(fenBefore, playedUci);
+        if (
+          isForkTactic &&
+          !isBlunderPunishCapture &&
+          winProbAfter >= 0.70
+        ) {
           return {
             classification: 'Great',
             isSacrifice,

@@ -16,6 +16,7 @@ import {
   detectPieceSacrifice,
   getDirectMaterialBlunderLoss,
   shouldShowBestMoveArrow,
+  isMajorPieceFork,
   MoveClassification,
 } from './chessAnalysisEngine';
 
@@ -27,6 +28,7 @@ export {
   detectPieceSacrifice,
   getDirectMaterialBlunderLoss,
   shouldShowBestMoveArrow,
+  isMajorPieceFork,
 };
 export type { MoveClassification };
 
@@ -1011,19 +1013,19 @@ function classifyCore(
   // tetap bukan Brilliant di Chess.com.)
   // Syarat pengorbanan brilian (Brilliant Move !!) Chess.com:
   // - Pengorbanan harus valid secara taktis (bukan menggantung perwira gratis yang menurunkan evaluasi drastis)
-  // - WAJIB langkah #1 engine ATAU selisih centipawn sangat kecil (cpLoss <= 60 dan winProbLost <= 0.02)
-  // - Di posisi menang telak (winProb >= 92%), membuang perwira yang merugikan (cpLoss > 100) adalah Inaccuracy/Mistake,
-  //   hanya diizinkan jika langkah tersebut adalah #1 engine atau hampir terbaik (cpLoss <= 60) menuju mat.
+  // - Langkah #1 engine, ATAU selisih centipawn wajar (cpLoss <= 80 & winProbLost <= 0.04),
+  //   ATAU pengorbanan serangan mutlak di posisi menang telak (winProbAfter >= 0.75 & cpLoss <= 120 & winProbLost <= 0.06)
   const isSoundSacrifice =
     isEngineTopMove ||
     hasForcedMateAfter ||
-    (cpLoss <= 60 && winProbLost <= 0.02);
+    (cpLoss <= 80 && winProbLost <= 0.04) ||
+    (winProbAfter >= 0.75 && cpLoss <= 120 && winProbLost <= 0.06);
 
   const isDecisiveAttackSacrifice =
     isSacrifice &&
     isSoundSacrifice &&
-    winProbAfter >= 0.90 &&
-    (isEngineTopMove || cpLoss <= 60);
+    winProbAfter >= 0.75 &&
+    (isEngineTopMove || cpLoss <= 120);
 
   const isNotTrivialWinningShowoff =
     winProbBefore < 0.92 ||
@@ -1081,6 +1083,16 @@ function classifyCore(
       (!hadForcedMate && hasForcedMateAfter) ||
       (hasForcedMateAfter && secondLine !== undefined && !secondBestHasForcedMate && winProbSecondBest < 0.90);
     if (foundNewForcedMate && (!secondLine || uniquenessGap >= 0.05 || !secondBestHasForcedMate)) {
+      return { ...base, accuracy: 100, label: 'great' };
+    }
+
+    // Skenario E: Tactical Fork on Major Pieces (Garpuan Kuda/Pion ke Menteri & Benteng)
+    const isForkTactic = isMajorPieceFork(before.fen, playedUci);
+    if (
+      isForkTactic &&
+      !isTrivialCaptureOrRecapture &&
+      winProbAfter >= 0.70
+    ) {
       return { ...base, accuracy: 100, label: 'great' };
     }
 
