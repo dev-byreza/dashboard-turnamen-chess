@@ -504,7 +504,17 @@ export function classifyChessMove(params: ClassifyMoveParams): {
     // - Posisi setelah melangkah tidak kalah (winProbAfter >= 0.40)
     // - Filter anti-showoff: Bukan pengorbanan sia-sia di posisi yang sudah menang telak,
     //   KECUALI langkah tersebut mengarah ke skakmat paksa (hasForcedMateAfter / hadForcedMateBefore)
-    const isDecisiveAttackSacrifice = isSacrifice && winProbAfter >= 0.90 && (evalAfter.cp ?? 0) >= 600;
+    const isSoundSacrifice =
+      isEngineTopMove ||
+      hasForcedMateAfter ||
+      (cpLoss <= 60 && winProbLost <= 0.02);
+
+    const isDecisiveAttackSacrifice =
+      isSacrifice &&
+      isSoundSacrifice &&
+      winProbAfter >= 0.90 &&
+      (isEngineTopMove || cpLoss <= 60);
+
     const isNotTrivialWinningShowoff =
       winProbBefore < 0.92 ||
       hasForcedMateAfter ||
@@ -513,7 +523,7 @@ export function classifyChessMove(params: ClassifyMoveParams): {
 
     if (
       !isUnsoundPieceHangInLostPos &&
-      (isEngineTopMove || winProbLost <= 0.035 || hasForcedMateAfter) &&
+      isSoundSacrifice &&
       isSacrifice &&
       isNotTrivialWinningShowoff &&
       winProbAfter >= 0.40

@@ -1009,8 +1009,22 @@ function classifyCore(
   // dianggap Brilliant (sesuai Chess.com), KECUALI langkah itu mengarah ke / berasal dari mate paksa.
   // (Pengecualian lama "langkah kedua terbaik < 85%" dihapus: mis. Bxf2 di +12.5 dengan alternatif +4.1
   // tetap bukan Brilliant di Chess.com.)
-  // Pengorbanan yang mengarah ke posisi skakmat langsung atau serangan telak (cp >= +600)
-  const isDecisiveAttackSacrifice = isSacrifice && winProbAfter >= 0.90 && cpAfter >= 600;
+  // Syarat pengorbanan brilian (Brilliant Move !!) Chess.com:
+  // - Pengorbanan harus valid secara taktis (bukan menggantung perwira gratis yang menurunkan evaluasi drastis)
+  // - WAJIB langkah #1 engine ATAU selisih centipawn sangat kecil (cpLoss <= 60 dan winProbLost <= 0.02)
+  // - Di posisi menang telak (winProb >= 92%), membuang perwira yang merugikan (cpLoss > 100) adalah Inaccuracy/Mistake,
+  //   hanya diizinkan jika langkah tersebut adalah #1 engine atau hampir terbaik (cpLoss <= 60) menuju mat.
+  const isSoundSacrifice =
+    isEngineTopMove ||
+    hasForcedMateAfter ||
+    (cpLoss <= 60 && winProbLost <= 0.02);
+
+  const isDecisiveAttackSacrifice =
+    isSacrifice &&
+    isSoundSacrifice &&
+    winProbAfter >= 0.90 &&
+    (isEngineTopMove || cpLoss <= 60);
+
   const isNotTrivialWinningShowoff =
     winProbBefore < 0.92 ||
     hasForcedMateAfter ||
@@ -1023,7 +1037,7 @@ function classifyCore(
   if (
     !isUnsoundPieceHangInLostPos &&
     !isKingMove &&
-    (isEngineTopMove || winProbLost <= 0.035 || hasForcedMateAfter) &&
+    isSoundSacrifice &&
     isSacrifice &&
     !isRecapture &&
     isNotTrivialWinningShowoff &&
