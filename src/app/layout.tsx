@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
 
@@ -11,8 +11,25 @@ const coinageFont = localFont({
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL || 'https://chesspoliwako.vercel.app';
 
+export const viewport: Viewport = {
+  themeColor: '#121212',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Chess Poliwako',
+  },
+  icons: {
+    icon: '/images/logo-chess-club-sorowako.png',
+    apple: '/images/logo-chess-club-sorowako.png',
+  },
   title: {
     default: 'Chess Club Poliwako | Dashboard Turnamen Catur Politeknik Sorowako',
     template: '%s | Chess Club Poliwako',

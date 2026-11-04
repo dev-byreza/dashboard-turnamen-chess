@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Chess Poliwako</string>
+    <string name="offline_title">Koneksi Internet Terputus</string>
+    <string name="offline_desc">Aplikasi membutuhkan koneksi internet untuk sinkronisasi turnamen dan evaluasi online.</string>
+    <string name="retry_button">Coba Muat Ulang</string>
+    <string name="press_again_to_exit">Tekan sekali lagi untuk keluar</string>
+</resources>
+

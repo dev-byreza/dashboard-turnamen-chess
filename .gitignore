@@ -38,3 +38,15 @@ yarn-error.log*
 APLIKASI CHESS/
 rea/
 .env*
+
+
+# android build outputs & local config
+.gradle/
+android/.gradle/
+android/local.properties
+android/build/
+android/app/build/
+android/.idea/
+android/*.iml
+android/app/*.iml
+/ChessPoliwako.apk
