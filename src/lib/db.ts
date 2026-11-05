@@ -1,5 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { Player, Tournament, TournamentStore, SwissMatch, SwissPairingOverride } from '../types/chess';
+import { BlogPost } from '../types/blog';
+import { FUNDAMENTAL_CHESS_BLOG_POSTS } from './blogPostsSeed';
 import { ensureUniqueTournamentSlugs } from '../utils/tournamentStore';
 
 /** Get the active connection string from environment */
@@ -118,6 +120,32 @@ export async function ensureTables(sql: any) {
       data JSONB NOT NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS chess_blog_posts (
+      id VARCHAR(64) PRIMARY KEY,
+      slug VARCHAR(255) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      excerpt TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category VARCHAR(64) DEFAULT 'Fundamental',
+      tag VARCHAR(64) DEFAULT 'Fundamental',
+      author VARCHAR(100) DEFAULT 'Pelatih Chess Poliwako',
+      read_time VARCHAR(30) DEFAULT '5 menit baca',
+      cover_image VARCHAR(255) DEFAULT '',
+      cover_tone VARCHAR(32) DEFAULT 'is-gold',
+      views INT DEFAULT 0,
+      is_published BOOLEAN DEFAULT TRUE,
+      published_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS chess_blog_posts_slug_unique_idx
+    ON chess_blog_posts (slug);
   `;
 }
 
@@ -515,3 +543,174 @@ export async function saveStoreToDb(store: TournamentStore): Promise<{ success: 
     return { success: false, error: err?.message || 'Gagal menyimpan ke PostgreSQL' };
   }
 }
+
+/**
+ * Format timestamp to Indonesian date string (e.g. "18 Oktober 2026")
+ */
+export function formatBlogDate(dateInput?: string | Date | null): string {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/**
+ * Seed fundamental chess articles into PostgreSQL if table is empty.
+ */
+export async function seedBlogPostsIfEmpty(sql: any): Promise<void> {
+  try {
+    const existing = await sql`
+      SELECT COUNT(*)::int AS count FROM chess_blog_posts;
+    `;
+    const count = Number(existing?.[0]?.count ?? 0);
+    if (count === 0) {
+      for (const post of FUNDAMENTAL_CHESS_BLOG_POSTS) {
+        await sql`
+          INSERT INTO chess_blog_posts (
+            id, slug, title, excerpt, content, category, tag, author, read_time,
+            cover_image, cover_tone, views, is_published, published_at, created_at, updated_at
+          )
+          VALUES (
+            ${post.id},
+            ${post.slug},
+            ${post.title},
+            ${post.excerpt},
+            ${post.content},
+            ${post.category},
+            ${post.tag},
+            ${post.author},
+            ${post.readTime},
+            ${post.coverImage},
+            ${post.coverTone},
+            ${post.views},
+            ${post.isPublished},
+            ${post.publishedAt}::timestamptz,
+            ${post.publishedAt}::timestamptz,
+            CURRENT_TIMESTAMP
+          )
+          ON CONFLICT (slug) DO NOTHING;
+        `;
+      }
+    }
+  } catch (err) {
+    console.error('Error seeding fundamental blog posts:', err);
+  }
+}
+
+/**
+ * Get all published blog posts from PostgreSQL database.
+ */
+export async function getDbBlogPosts(options?: {
+  publishedOnly?: boolean;
+  limit?: number;
+}): Promise<BlogPost[]> {
+  const sql = getDb();
+  if (!sql) return [];
+  try {
+    await ensureTables(sql);
+    await seedBlogPostsIfEmpty(sql);
+
+    const isPublishedOnly = options?.publishedOnly !== false;
+    const limit = options?.limit && options.limit > 0 ? options.limit : 100;
+
+    const rows = (await sql`
+      SELECT 
+        id, slug, title, excerpt, content, category, tag, author,
+        read_time AS "readTime",
+        cover_image AS "coverImage",
+        cover_tone AS "coverTone",
+        views, is_published AS "isPublished",
+        published_at AS "publishedAt",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM chess_blog_posts
+      WHERE (${isPublishedOnly} = FALSE OR is_published = TRUE)
+      ORDER BY published_at DESC
+      LIMIT ${limit};
+    `) as any[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      slug: r.slug,
+      title: r.title,
+      excerpt: r.excerpt,
+      content: r.content,
+      category: r.category || 'Fundamental',
+      tag: r.tag || 'Catur',
+      author: r.author || 'Pelatih Chess Poliwako',
+      readTime: r.readTime || '5 menit baca',
+      coverImage: r.coverImage || '',
+      coverTone: r.coverTone || 'is-gold',
+      views: Number(r.views || 0),
+      isPublished: Boolean(r.isPublished),
+      publishedAt: r.publishedAt ? new Date(r.publishedAt).toISOString() : new Date().toISOString(),
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+      date: formatBlogDate(r.publishedAt),
+    }));
+  } catch (err) {
+    console.error('Failed to get blog posts from PostgreSQL:', err);
+    return [];
+  }
+}
+
+/**
+ * Get single blog post by slug from PostgreSQL database.
+ */
+export async function getDbBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+  const sql = getDb();
+  if (!sql) return null;
+  try {
+    await ensureTables(sql);
+    await seedBlogPostsIfEmpty(sql);
+
+    const rows = (await sql`
+      SELECT 
+        id, slug, title, excerpt, content, category, tag, author,
+        read_time AS "readTime",
+        cover_image AS "coverImage",
+        cover_tone AS "coverTone",
+        views, is_published AS "isPublished",
+        published_at AS "publishedAt",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM chess_blog_posts
+      WHERE slug = ${slug}
+      LIMIT 1;
+    `) as any[];
+
+    if (!rows || rows.length === 0) return null;
+    const r = rows[0];
+
+    // Asynchronously increment views counter
+    sql`UPDATE chess_blog_posts SET views = views + 1 WHERE slug = ${slug}`.catch(() => {});
+
+    return {
+      id: r.id,
+      slug: r.slug,
+      title: r.title,
+      excerpt: r.excerpt,
+      content: r.content,
+      category: r.category || 'Fundamental',
+      tag: r.tag || 'Catur',
+      author: r.author || 'Pelatih Chess Poliwako',
+      readTime: r.readTime || '5 menit baca',
+      coverImage: r.coverImage || '',
+      coverTone: r.coverTone || 'is-gold',
+      views: Number(r.views || 0) + 1,
+      isPublished: Boolean(r.isPublished),
+      publishedAt: r.publishedAt ? new Date(r.publishedAt).toISOString() : new Date().toISOString(),
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+      date: formatBlogDate(r.publishedAt),
+    };
+  } catch (err) {
+    console.error(`Failed to get blog post for slug ${slug}:`, err);
+    return null;
+  }
+}
+

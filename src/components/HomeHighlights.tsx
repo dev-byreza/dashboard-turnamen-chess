@@ -68,21 +68,24 @@ export function HomeHighlights({ tournamentSlot, posts }: HomeHighlightsProps) {
           <p className="hh-empty">Belum ada tulisan.</p>
         ) : (
           <div className="hh-blog-grid">
-            {posts.slice(0, 3).map((p, i) => (
-              <Link key={p.slug} href={`/blog/${p.slug}`} className="hh-post-card">
-                <div className={`hh-post-cover ${COVER_TONES[i % COVER_TONES.length]}`}>
-                  <span className="hh-post-tag">{p.tag}</span>
-                </div>
-                <div className="hh-post-body">
-                  <h3 className="hh-post-title">{p.title}</h3>
-                  <p className="hh-post-excerpt">{p.excerpt}</p>
-                  <div className="hh-post-foot">
-                    <span className="hh-post-date">{p.date}</span>
-                    <span className="hh-post-read">Baca <ArrowRight size={13} /></span>
+            {posts.slice(0, 3).map((p, i) => {
+              const tone = p.coverTone || COVER_TONES[i % COVER_TONES.length];
+              return (
+                <Link key={p.slug} href={`/blog/${p.slug}`} className="hh-post-card">
+                  <div className={`hh-post-cover ${tone}`}>
+                    <span className="hh-post-tag">{p.tag}</span>
                   </div>
-                </div>
-              </Link>
-            ))}
+                  <div className="hh-post-body">
+                    <h3 className="hh-post-title">{p.title}</h3>
+                    <p className="hh-post-excerpt">{p.excerpt}</p>
+                    <div className="hh-post-foot">
+                      <span className="hh-post-date">{p.date || 'Terbaru'}</span>
+                      <span className="hh-post-read">Baca <ArrowRight size={13} /></span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>

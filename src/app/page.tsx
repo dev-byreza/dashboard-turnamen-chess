@@ -36,7 +36,7 @@ import {
 import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles, Volume2, Newspaper } from 'lucide-react';
 import { ChessSoundSettingsModal } from '../components/ChessSoundSettingsModal';
 import { HomeHighlights } from '../components/HomeHighlights';
-import { latestPosts } from '../data/posts';
+import type { BlogPost } from '../types/blog';
 
 
 export default function SwissTournamentPage() {
@@ -80,11 +80,23 @@ export default function SwissTournamentPage() {
   const [managerTab, setManagerTab] = useState<'tournaments' | 'roster'>('tournaments');
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
-  // Neon is the only source of tournament and roster data.
+  // Neon is the only source of tournament, roster, and blog data.
   useEffect(() => {
     setIsAdmin(checkIsAdmin());
     let cancelled = false;
+
+    // Load blog posts dynamically from database
+    fetch('/api/blog?limit=3')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data.success && Array.isArray(data.posts)) {
+          setBlogPosts(data.posts);
+        }
+      })
+      .catch((err) => console.warn('Blog posts fetch warning:', err));
+
     fetch('/api/tournament')
       .then((res) => res.json())
       .then((data) => {
@@ -745,7 +757,7 @@ export default function SwissTournamentPage() {
           </>
         ) : dbStatus === 'connected' ? (
           <HomeHighlights
-            posts={latestPosts}
+            posts={blogPosts}
             tournamentSlot={
               <TournamentDirectory
                 tournaments={store.tournaments}
