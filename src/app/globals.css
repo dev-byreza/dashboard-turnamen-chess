@@ -7551,3 +7551,200 @@ button, input, select, textarea {
 @media (max-width: 1100px) { .hh-blog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .hh-wide-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .hh-blog-grid { grid-template-columns: 1fr; } .hh-panel { padding: 1rem; } }
+
+
+/* ==========================================================================
+   CUSTOM ROUNDS / PILIHAN BABAK KUSTOM UI (ADMIN TURNAMEN)
+   ========================================================================== */
+.custom-rounds-field {
+  background: var(--bg-card-alt, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  margin-top: 0.25rem;
+}
+
+.custom-rounds-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.btn-round-recommendation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(129, 182, 76, 0.12);
+  border: 1px solid rgba(129, 182, 76, 0.3);
+  color: #81b64c;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-round-recommendation:hover {
+  background: rgba(129, 182, 76, 0.22);
+  border-color: #81b64c;
+  transform: translateY(-1px);
+}
+
+.custom-rounds-picker-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.4rem 0 0.65rem;
+}
+
+.round-choice-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: var(--bg-card, #1a1a1a);
+  border: 1px solid var(--border-card, #2d2d2d);
+  color: var(--text-main, #e0e0e0);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 54px;
+}
+
+.round-choice-pill:hover:not(:disabled) {
+  background: var(--bg-card-hover, #242424);
+  border-color: var(--border-hover, #444);
+  transform: translateY(-1px);
+}
+
+.round-choice-pill.active {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: #f59e0b;
+  color: #fbbf24;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.round-choice-pill.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+
+.round-choice-pill.custom-btn {
+  border-style: dashed;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.round-choice-pill.custom-btn.active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  border-style: solid;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+.round-choice-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.custom-rounds-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.custom-rounds-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--bg-card, #222);
+  border: 1px solid var(--border-card, #333);
+  color: var(--text-main, #fff);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stepper-btn:hover:not(:disabled) {
+  background: var(--bg-card-hover, #2f2f2f);
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.custom-rounds-number-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.custom-rounds-number-input {
+  width: 100px;
+  height: 36px;
+  background: var(--bg-card, #1c1c1c);
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 0 2.2rem 0 0.75rem;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  font-family: var(--font-heading, monospace);
+  outline: none;
+}
+
+.custom-rounds-number-input:focus {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.custom-rounds-unit {
+  position: absolute;
+  right: 0.65rem;
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  pointer-events: none;
+}
+
+.custom-rounds-started-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  color: #f59e0b;
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+}

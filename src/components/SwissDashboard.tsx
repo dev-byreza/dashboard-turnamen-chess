@@ -31,6 +31,7 @@ import {
   Zap,
   ExternalLink,
   Loader2,
+  Sliders,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { fetchRecentGameBetween, fetchChessComProfile, ChessComRecentGame } from '../utils/chessComApi';
@@ -481,6 +482,30 @@ export const SwissDashboard: React.FC<SwissDashboardProps> = ({
               </button>
               <span className="badge-pill-gold">{players.length} pemain terdaftar</span>
               <span className="hero-meta-text">• Format {totalRounds} babak resmi</span>
+              {isAdmin && onEditParticipants && (
+                <button
+                  type="button"
+                  onClick={onEditParticipants}
+                  className="badge-pill-cyan"
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    color: '#fbbf24',
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '999px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    fontWeight: 600,
+                  }}
+                  title="Klik untuk mengubah atau mengatur jumlah babak turnamen"
+                >
+                  <Sliders size={11} />
+                  <span>Kustom Babak</span>
+                </button>
+              )}
               {tournamentDate && (
                 <span className="hero-meta-chip">
                   <Calendar size={13} />

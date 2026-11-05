@@ -22,6 +22,9 @@ import {
   Loader2,
   Zap,
   ExternalLink,
+  Minus,
+  Sliders,
+  Sparkles,
 } from 'lucide-react';
 import {
   createUniqueTournamentSlug,
@@ -93,6 +96,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
   const [formDate, setFormDate] = useState<string>('');
   const [formLocation, setFormLocation] = useState<string>('');
   const [formTotalRounds, setFormTotalRounds] = useState<number>(5);
+  const [isCustomRounds, setIsCustomRounds] = useState<boolean>(false);
+  const [customRoundsInput, setCustomRoundsInput] = useState<string>('5');
   const [formPlayerIds, setFormPlayerIds] = useState<string[]>([]);
   const [pickerSearch, setPickerSearch] = useState<string>('');
 
@@ -118,10 +123,27 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
 
   const activeTournament = tournaments.find((t) => t.id === activeId);
   const activeTournamentStarted = Boolean(activeTournament && hasStarted(activeTournament));
+  const editingTournament = tournaments.find((t) => t.id === editingTournamentId);
   const editingTournamentStarted = Boolean(
     editingTournamentId &&
-      tournaments.find((t) => t.id === editingTournamentId && hasStarted(t))
+      editingTournament && hasStarted(editingTournament)
   );
+  const maxExistingRound = editingTournament?.matches.length
+    ? editingTournament.matches.reduce((max, m) => Math.max(max, m.round), 1)
+    : 1;
+  const minAllowedRounds = editingTournamentStarted ? maxExistingRound : 1;
+
+  const recommendedRounds = useMemo(() => {
+    const count = formPlayerIds.length;
+    if (count <= 2) return 1;
+    if (count <= 4) return 3;
+    if (count <= 8) return 3;
+    if (count <= 16) return 5;
+    if (count <= 32) return 6;
+    if (count <= 64) return 7;
+    return Math.min(11, Math.ceil(Math.log2(count)) + 1);
+  }, [formPlayerIds.length]);
+
   const otherTournaments = tournaments.filter((t) => t.id !== editingTournamentId);
   const suggestedSlug = createUniqueTournamentSlug(formName, formDate, otherTournaments);
   const slugInputValue = formSlugIsCustom ? formSlug : suggestedSlug;
@@ -140,6 +162,8 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setFormDate(today);
     setFormLocation('Kampus Politeknik Sorowako');
     setFormTotalRounds(5);
+    setIsCustomRounds(false);
+    setCustomRoundsInput('5');
     // By default select all roster players if available
     setFormPlayerIds(roster.map((p) => p.id));
     setPickerSearch('');
@@ -154,7 +178,10 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     setFormSlugIsCustom(Boolean(t.slug));
     setFormDate(t.date || '');
     setFormLocation(t.location || '');
-    setFormTotalRounds(t.totalRounds || 5);
+    const rounds = t.totalRounds || 5;
+    setFormTotalRounds(rounds);
+    setCustomRoundsInput(String(rounds));
+    setIsCustomRounds(![3, 4, 5, 6, 7, 8, 9].includes(rounds));
     setFormPlayerIds(t.playerIds);
     setPickerSearch('');
     setIsFormOpen(true);
@@ -214,6 +241,14 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
     }
     if (formPlayerIds.length < 4) {
       alert('Sistem Swiss memerlukan minimal 4 peserta.');
+      return;
+    }
+    if (formTotalRounds < minAllowedRounds) {
+      alert(`Jumlah babak tidak boleh kurang dari babak yang sudah dibuat (minimal ${minAllowedRounds} babak).`);
+      return;
+    }
+    if (formTotalRounds > 50) {
+      alert('Jumlah babak maksimal adalah 50 babak.');
       return;
     }
 
@@ -555,22 +590,146 @@ export const TournamentManager: React.FC<TournamentManagerProps> = ({
                         />
                       </div>
 
-                      <div className="form-field full-col">
-                        <label className="form-label">Jumlah babak (sistem Swiss)</label>
-                        <select
-                          value={formTotalRounds}
-                          onChange={(e) => setFormTotalRounds(parseInt(e.target.value, 10))}
-                          className="form-input-text"
-                          disabled={editingTournamentStarted}
-                        >
-                          {[3, 4, 5, 6, 7, 8, 9].map((r) => (
-                            <option key={r} value={r}>
-                              {r} babak resmi
-                            </option>
-                          ))}
-                        </select>
+                      <div className="form-field full-col custom-rounds-field">
+                        <div className="custom-rounds-header">
+                          <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Layers size={15} style={{ color: 'var(--gold)' }} />
+                            <span>Jumlah babak (sistem Swiss)</span>
+                            <span className="req">*</span>
+                          </label>
+                          {recommendedRounds > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const target = Math.max(minAllowedRounds, recommendedRounds);
+                                setFormTotalRounds(target);
+                                setCustomRoundsInput(String(target));
+                                setIsCustomRounds(![3, 4, 5, 6, 7, 8, 9].includes(target));
+                              }}
+                              className="btn-round-recommendation"
+                              title="Terapkan jumlah babak ideal FIDE berdasarkan jumlah peserta yang dipilih"
+                            >
+                              <Sparkles size={12} />
+                              <span>Saran FIDE: {recommendedRounds} babak</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Presets and Custom button */}
+                        <div className="custom-rounds-picker-row">
+                          {[3, 4, 5, 6, 7, 8, 9].map((r) => {
+                            const isSelected = !isCustomRounds && formTotalRounds === r;
+                            const isBelowMin = editingTournamentStarted && r < minAllowedRounds;
+                            return (
+                              <button
+                                key={r}
+                                type="button"
+                                disabled={isBelowMin}
+                                onClick={() => {
+                                  setFormTotalRounds(r);
+                                  setCustomRoundsInput(String(r));
+                                  setIsCustomRounds(false);
+                                }}
+                                className={`round-choice-pill ${isSelected ? 'active' : ''} ${isBelowMin ? 'disabled' : ''}`}
+                                title={isBelowMin ? `Minimal ${minAllowedRounds} babak karena babak tersebut sudah dibuat` : `${r} babak resmi`}
+                              >
+                                <span>{r}</span>
+                                <span className="round-choice-label">{r === 5 ? 'Standar' : 'Babak'}</span>
+                              </button>
+                            );
+                          })}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCustomRounds(true);
+                              setCustomRoundsInput(String(formTotalRounds));
+                            }}
+                            className={`round-choice-pill custom-btn ${isCustomRounds ? 'active' : ''}`}
+                            title="Tentukan jumlah babak kustom secara bebas (misal: 1, 2, 10, 11, 12 babak)"
+                          >
+                            <Sliders size={13} />
+                            <span>Kustom</span>
+                          </button>
+                        </div>
+
+                        {/* Custom Input Stepper container */}
+                        {isCustomRounds && (
+                          <div className="custom-rounds-input-container">
+                            <div className="custom-rounds-stepper">
+                              <button
+                                type="button"
+                                className="stepper-btn"
+                                disabled={formTotalRounds <= minAllowedRounds}
+                                onClick={() => {
+                                  const nextVal = Math.max(minAllowedRounds, formTotalRounds - 1);
+                                  setFormTotalRounds(nextVal);
+                                  setCustomRoundsInput(String(nextVal));
+                                }}
+                                title="Kurangi 1 babak"
+                              >
+                                <Minus size={15} />
+                              </button>
+
+                              <div className="custom-rounds-number-wrapper">
+                                <input
+                                  type="number"
+                                  min={minAllowedRounds}
+                                  max={50}
+                                  value={customRoundsInput}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setCustomRoundsInput(raw);
+                                    const parsed = parseInt(raw, 10);
+                                    if (!isNaN(parsed) && parsed >= minAllowedRounds && parsed <= 50) {
+                                      setFormTotalRounds(parsed);
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    const parsed = parseInt(customRoundsInput, 10);
+                                    const safe = isNaN(parsed)
+                                      ? Math.max(minAllowedRounds, 5)
+                                      : Math.max(minAllowedRounds, Math.min(50, parsed));
+                                    setFormTotalRounds(safe);
+                                    setCustomRoundsInput(String(safe));
+                                  }}
+                                  className="custom-rounds-number-input"
+                                  placeholder="Contoh: 10"
+                                />
+                                <span className="custom-rounds-unit">Babak</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                className="stepper-btn"
+                                disabled={formTotalRounds >= 50}
+                                onClick={() => {
+                                  const nextVal = Math.min(50, formTotalRounds + 1);
+                                  setFormTotalRounds(nextVal);
+                                  setCustomRoundsInput(String(nextVal));
+                                }}
+                                title="Tambah 1 babak"
+                              >
+                                <Plus size={15} />
+                              </button>
+                            </div>
+                            <span className="field-hint" style={{ margin: 0 }}>
+                              Kustom bebas: Masukkan jumlah babak apa saja ({minAllowedRounds} s/d 50 babak).
+                            </span>
+                          </div>
+                        )}
+
+                        {editingTournamentStarted && (
+                          <div className="custom-rounds-started-notice">
+                            <AlertCircle size={14} />
+                            <span>
+                              Turnamen sedang berjalan. Anda dapat menambah jumlah babak (minimal {minAllowedRounds} babak karena sudah berlangsung).
+                            </span>
+                          </div>
+                        )}
+
                         <span className="field-hint">
-                          Disarankan 5 babak untuk 8-16 pemain, atau 7 babak untuk 16-32 pemain.
+                          Format Swiss terpilih: <strong>{formTotalRounds} babak resmi</strong> untuk {formPlayerIds.length} peserta.
                         </span>
                       </div>
                     </div>

@@ -296,13 +296,16 @@ export default function SwissTournamentPage() {
     if (!requireConnectedAdmin()) return;
     if (editId) {
       const current = store.tournaments.find((t) => t.id === editId);
-      if (
-        current &&
-        hasStarted(current) &&
-        (!sameIds(current.playerIds, data.playerIds) || current.totalRounds !== data.totalRounds)
-      ) {
-        alert('Peserta dan jumlah babak tidak dapat diubah setelah pertandingan dimulai.');
-        return;
+      if (current && hasStarted(current)) {
+        if (!sameIds(current.playerIds, data.playerIds)) {
+          alert('Peserta tidak dapat diubah setelah pertandingan dimulai.');
+          return;
+        }
+        const maxRoundGenerated = current.matches.reduce((max, m) => Math.max(max, m.round), 1);
+        if (data.totalRounds < maxRoundGenerated) {
+          alert(`Jumlah babak tidak boleh kurang dari babak yang sudah dibuat (minimal ${maxRoundGenerated} babak).`);
+          return;
+        }
       }
 
       // Update existing
