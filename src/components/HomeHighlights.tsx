@@ -1,7 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { Sparkles, Newspaper, ArrowRight } from 'lucide-react';
-import type { BlogPost } from '../data/posts';
+import type { BlogPost } from '../types/blog';
+import { FUNDAMENTAL_CHESS_BLOG_POSTS } from '../lib/blogPostsSeed';
 
 interface HomeHighlightsProps {
   /** Isi blok Turnamen (pakai <TournamentDirectory /> yang sudah ada). */
@@ -12,6 +13,11 @@ interface HomeHighlightsProps {
 const COVER_TONES = ['is-gold', 'is-green', 'is-blue'] as const;
 
 export function HomeHighlights({ tournamentSlot, posts }: HomeHighlightsProps) {
+  const displayPosts = (posts && posts.length > 0) ? posts : FUNDAMENTAL_CHESS_BLOG_POSTS.slice(0, 3).map((p) => ({
+    ...p,
+    date: 'Terbaru',
+  }));
+
   return (
     <section className="hh" aria-label="Sorotan Chess Club">
       {/* 1. Turnamen: satu section panjang */}
@@ -64,11 +70,11 @@ export function HomeHighlights({ tournamentSlot, posts }: HomeHighlightsProps) {
           <Link href="/blog" className="hh-more hh-more--sky">Baca semua</Link>
         </div>
 
-        {posts.length === 0 ? (
+        {displayPosts.length === 0 ? (
           <p className="hh-empty">Belum ada tulisan.</p>
         ) : (
           <div className="hh-blog-grid">
-            {posts.slice(0, 3).map((p, i) => {
+            {displayPosts.slice(0, 3).map((p, i) => {
               const tone = p.coverTone || COVER_TONES[i % COVER_TONES.length];
               return (
                 <Link key={p.slug} href={`/blog/${p.slug}`} className="hh-post-card">

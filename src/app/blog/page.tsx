@@ -14,6 +14,8 @@ import {
   Filter,
 } from 'lucide-react';
 import type { BlogPost } from '../../types/blog';
+import { FUNDAMENTAL_CHESS_BLOG_POSTS } from '../../lib/blogPostsSeed';
+import { formatBlogDate } from '../../lib/db';
 
 const CATEGORY_TABS = [
   'Semua',
@@ -28,15 +30,19 @@ const CATEGORY_TABS = [
 const COVER_TONES = ['is-gold', 'is-green', 'is-blue'] as const;
 
 export default function BlogIndexPage() {
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [posts, setPosts] = useState<BlogPost[]>(() =>
+    FUNDAMENTAL_CHESS_BLOG_POSTS.map((p) => ({
+      ...p,
+      date: formatBlogDate(p.publishedAt),
+    }))
+  );
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     fetch('/api/blog')
       .then(async (res) => {
@@ -270,3 +276,4 @@ export default function BlogIndexPage() {
     </main>
   );
 }
+

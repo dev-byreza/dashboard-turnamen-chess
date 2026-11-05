@@ -16,6 +16,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { BlogPost, BlogPostSummary } from '../../../types/blog';
+import { FUNDAMENTAL_CHESS_BLOG_POSTS } from '../../../lib/blogPostsSeed';
+import { formatBlogDate } from '../../../lib/db';
 import { BlogContentRenderer } from '../../../components/BlogContentRenderer';
 
 const COVER_TONES = ['is-gold', 'is-green', 'is-blue'] as const;
@@ -25,16 +27,34 @@ export default function BlogSlugPage() {
   const router = useRouter();
   const slug = (params?.slug || '').trim().toLowerCase();
 
-  const [post, setPost] = useState<BlogPost | null>(null);
-  const [relatedPosts, setRelatedPosts] = useState<BlogPostSummary[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const initialSeed = FUNDAMENTAL_CHESS_BLOG_POSTS.find((p) => p.slug === slug);
+
+  const [post, setPost] = useState<BlogPost | null>(() =>
+    initialSeed
+      ? {
+          ...initialSeed,
+          date: formatBlogDate(initialSeed.publishedAt),
+        }
+      : null
+  );
+  const [relatedPosts, setRelatedPosts] = useState<BlogPostSummary[]>(() =>
+    FUNDAMENTAL_CHESS_BLOG_POSTS.filter((p) => p.slug !== slug)
+      .slice(0, 3)
+      .map(({ content, ...rest }) => ({
+        ...rest,
+        date: formatBlogDate(rest.publishedAt),
+      }))
+  );
+  const [loading, setLoading] = useState<boolean>(!initialSeed);
   const [error, setError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
-    setLoading(true);
+    if (!initialSeed) {
+      setLoading(true);
+    }
 
     fetch(`/api/blog/${slug}`)
       .then(async (res) => {
@@ -255,3 +275,4 @@ export default function BlogSlugPage() {
     </main>
   );
 }
+

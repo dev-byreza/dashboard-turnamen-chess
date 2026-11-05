@@ -48,6 +48,12 @@ Petak pusat adalah jantung dari papan catur. Analoginya sederhana: siapa yang me
 
 > **Aturan Praktis**: Buka permainan dengan memajukan bidak raja (**1. e4**) atau bidak menteri (**1. d4**) dua petak ke depan untuk langsung menancapkan pengaruh di pusat papan.
 
+:::board
+fen: r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R
+caption: Penguasaan 4 Petak Pusat: Pion e4 dan e5 mengklaim wilayah pusat, didukung pergerakan Kuda f3 dan c6.
+highlights: e4,d4,e5,d5,f3,c6
+:::
+
 ---
 
 ### 2. Kembangkan Perwira Ringan: "Kuda Sebelum Gajah"
@@ -70,6 +76,12 @@ Di awal permainan, Raja berada tepat di lajur-e yang rentan terbuka oleh pertuka
 * **Prioritas Rokade Pendek**: Rokade pendek (sayap raja) umumnya dapat dilakukan lebih cepat (hanya perlu memindahkan Gajah dan Kuda sayap raja) dibandingkan rokade panjang.
 
 > **Peringatan Blunder**: Jangan melakukan serangan ofensif sebelum Raja Anda sendiri aman di balik rokade. Serangan tanpa pengamanan raja sering berujung pada kekalahan telak akibat serangan balik lawan!
+
+:::board
+fen: r1bq1rk1/pppp1ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R
+caption: Formasi Ideal Pembukaan: Gajah aktif di c4 menekan f7, Kuda aktif, dan Raja Hitam sudah rokade aman di g8.
+highlights: g8,c4,f7,f3,c6
+:::
 
 ---
 
@@ -131,6 +143,12 @@ Garpu terjadi ketika **satu buah catur menyerang dua atau lebih perwira lawan se
 * **Kuda sebagai Raja Garpu**: Lompatan Kuda yang membentuk pola huruf "L" menjadikannya perwira garpu paling berbahaya karena ia dapat menyerang perwira bernilai lebih tinggi (seperti Raja dan Menteri) tanpa bisa diblok atau diserang balik oleh buah sasaran.
 * **Garpu Bidak**: Bidak yang maju satu petak di baris d4 atau e4 sering kali menggarpu Kuda dan Gajah lawan di baris ke-5. Bidak murah bernilai 1 poin menukar dirinya dengan perwira bernilai 3 poin—keuntungan materi yang sangat masif!
 
+:::board
+fen: r3k2r/pppN1ppp/8/8/8/8/PPPP1PPP/R1B1K2R
+caption: Ilustrasi Garpu Kuda (Fork): Kuda putih di d7 menyerang Raja hitam (e8) dan Benteng hitam (a8 & f8) sekaligus!
+highlights: d7,e8,a8,f8
+:::
+
 ---
 
 ### 2. Semat / Paku (The Pin)
@@ -140,6 +158,12 @@ Pin adalah kondisi di mana suatu perwira tidak dapat bergerak (atau sangat merug
 Terdapat dua jenis Pin:
 1. **Pin Absolut (Absolute Pin)**: Di belakang perwira yang disemat adalah **Sang Raja**. Berdasarkan aturan FIDE, melangkahkan perwira yang berada dalam pin absolut adalah **langkah ilegal**, karena akan membuat raja berada dalam status sekak.
 2. **Pin Relatif (Relative Pin)**: Di belakang perwira yang disemat adalah perwira bernilai tinggi seperti Menteri atau Benteng. Lawan secara hukum boleh melangkahkan perwiranya, tetapi jika ia melakukannya, Menteri di belakangnya akan jatuh dimakan.
+
+:::board
+fen: r1bqk2r/pppp1ppp/8/4n3/1b2P3/2N5/PPPP1PPP/R1BQK2R
+caption: Ilustrasi Pin Absolut: Gajah hitam di b4 memaku Kuda c3 terhadap Raja putih di e1. Kuda c3 dilarang melangkah secara legal!
+highlights: b4,c3,e1
+:::
 
 > **Prinsip Mengupas Pin**: *"Tumpuk tekanan pada buah yang sedang terpaku!"* Jika lawan memiliki Kuda yang terpaku pada Raja oleh Gajah Anda, jangan buru-buru memakannya. Serang Kuda tersebut dengan bidak atau perwira tambahan sampai lawan kehabisan langkah pembela.
 
@@ -152,6 +176,12 @@ Tusuk sate sering disebut sebagai "kebalikan dari pin".
 * Pada **Pin**, perwira bernilai rendah berada di depan, melindungi perwira bernilai tinggi di belakangnya.
 * Pada **Tusuk Sate**, perwira bernilai **tinggi berada di depan**. Ketika perwira bernilai tinggi tersebut diserang (misalnya Raja diskak atau Menteri diancam), ia terpaksa menyingkir, sehingga membuka jalan bagi Anda untuk menangkap perwira di belakangnya.
 * Contoh klasik: Gajah Putih mengancam Raja Hitam di c4. Raja Hitam terpaksa bergeser ke d7, meninggalkan Benteng Hitam di a2 tanpa perlindungan untuk dimakan oleh Gajah.
+
+:::board
+fen: 4k3/8/8/8/2B5/8/8/r3K3
+caption: Ilustrasi Tusuk Sate: Gajah putih di c4 menskak Raja hitam di e8. Raja terpaksa menyingkir dan membiarkan Benteng a1 jatuh!
+highlights: c4,e8,a1
+:::
 
 ---
 
@@ -230,6 +260,12 @@ Oposisi adalah duel psikologis dan geometris antara dua Raja yang berhadapan lan
 * Pemain yang **tidak memiliki giliran melangkah** dikatakan **"memegang oposisi"**.
 * Ketika lawan terpaksa melangkah menyamping (ke kiri atau ke kanan), Raja Anda dapat menerobos maju melalui sisi yang ditinggalkannya (*outflanking*) untuk menguasai petak kunci promosi.
 
+:::board
+fen: 8/8/4k3/8/4K3/4P3/8/8
+caption: Ilustrasi Oposisi Langsung: Raja putih di e4 berhadapan langsung dengan Raja hitam di e6, mengunci langkah lawan untuk meloloskan pion e3.
+highlights: e4,e6,e3
+:::
+
 ---
 
 ### 4. Teknik Skakmat Dasar yang Wajib Dikuasai Tanpa Berpikir
@@ -239,6 +275,12 @@ Sebelum bertanding di turnamen resmi, pastikan Anda bisa menyelesaikan skakmat i
 1. **Raja + Menteri vs Raja**: Gunakan teknik "kotak menciut" (*shrinking the box*). Menteri membatasi ruang gerak raja musuh seperti bayangan kuda, lalu bawa Raja Anda mendekat untuk memberikan pukulan mat terakhir di baris tepi.
 2. **Raja + Benteng vs Raja**: Gunakan teknik memotong baris (*the cutting technique*). Benteng memotong lajur, sementara Raja Anda mengunci raja musuh dengan oposisi untuk mendorongnya ke petak ujung papan.
 3. **Dua Benteng (Teknik Tangga / Ladder Mate)**: Bergantian melangkahkan benteng baris demi baris layaknya menaiki anak tangga hingga raja lawan terpojok di baris ke-8.
+
+:::board
+fen: 4k3/8/4K3/8/8/8/8/R7
+caption: Ilustrasi Skakmat Raja + Benteng: Raja putih di e6 mengunci petak pelarian raja lawan, Benteng a1 siap meluncur ke a8 untuk skakmat mutlak!
+highlights: e6,e8,a8
+:::
 
 ---
 
@@ -294,6 +336,12 @@ Pos terdepan (*outpost*) adalah petak di paruh papan lawan (biasanya baris ke-4,
 2. Tidak dapat diusir oleh bidak lawan (karena bidak lawan di sampingnya sudah maju atau hilang).
 
 Seekor Kuda yang berhasil menduduki pos terdepan di d5 atau e5 disebut sebagai *"Kuda Gurita"* (*Octopus Knight*). Dari petak tersebut, Kuda melumpuhkan koordinasi lawan dan memberikan tekanan radiasi ke seluruh penjuru posisi musuh!
+
+:::board
+fen: r4rk1/ppp2ppp/2n5/3Np3/4P3/3P4/PPP2PPP/R4RK1
+caption: Ilustrasi Pos Terdepan (Outpost): Kuda putih di d5 bercokol kokoh terlindungi pion e4, mustahil diusir bidak lawan!
+highlights: d5,e4
+:::
 
 ---
 
@@ -358,6 +406,12 @@ Anda tidak perlu menunggu sampai raja mati untuk mengakhiri partai. FIDE menetap
    * Raja + Gajah vs Raja
    * Raja + Kuda vs Raja
    * Raja + Gajah vs Raja + Gajah sewarna
+
+:::board
+fen: k7/2Q5/1K6/8/8/8/8/8
+caption: Ilustrasi Remis Pat (Stalemate): Raja hitam di a8 tidak diskak, namun tidak memiliki satu pun langkah legal. Pertandingan berakhir REMIS!
+highlights: a8,c7,b6
+:::
 
 ---
 
@@ -437,3 +491,4 @@ Jika dua pemain memiliki poin dan tiebreak yang berdekatan, wasit akan memeriksa
 * **Pantau Papan Klasemen**: Setiap babak menentukan siapa calon lawan Anda berikutnya. Jaga stamina, hidrasi, dan fokus mental Anda hingga langkah terakhir babak penentuan!`
   }
 ];
+

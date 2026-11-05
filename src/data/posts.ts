@@ -1,9 +1,12 @@
 import type { BlogPost } from '../types/blog';
+import { FUNDAMENTAL_CHESS_BLOG_POSTS } from '../lib/blogPostsSeed';
 
 export type { BlogPost };
 
 /**
- * Data blog kini dimuat secara dinamis dari database PostgreSQL (tabel chess_blog_posts).
- * Array ini dipertahankan sebagai fallback kosong.
+ * Fallback preview artikel catur fundamental untuk beranda jika jaringan database tertunda.
  */
-export const latestPosts: BlogPost[] = [];
+export const latestPosts: BlogPost[] = FUNDAMENTAL_CHESS_BLOG_POSTS.slice(0, 3).map((p) => ({
+  ...p,
+  date: 'Terbaru',
+}));

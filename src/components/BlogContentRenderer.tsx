@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChessBoardDiagram } from './ChessBoardDiagram';
 
 interface BlogContentRendererProps {
   content: string;
@@ -45,6 +46,12 @@ export function BlogContentRenderer({ content }: BlogContentRendererProps) {
 
   let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
   let currentQuote: string[] = [];
+  let inBoardBlock = false;
+  let boardData: { fen: string; caption?: string; highlights: string[] } = {
+    fen: '',
+    caption: '',
+    highlights: [],
+  };
 
   const flushQuote = (keyIdx: number) => {
     if (currentQuote.length > 0) {
@@ -91,6 +98,66 @@ export function BlogContentRenderer({ content }: BlogContentRendererProps) {
 
   rawLines.forEach((line, index) => {
     const trimmed = line.trim();
+
+    // Handle board diagram multi-line block
+    if (inBoardBlock) {
+      if (trimmed === ':::' || trimmed.startsWith(':::')) {
+        if (boardData.fen) {
+          elements.push(
+            <ChessBoardDiagram
+              key={`board-${index}`}
+              fen={boardData.fen}
+              caption={boardData.caption}
+              highlightSquares={boardData.highlights}
+            />
+          );
+        }
+        inBoardBlock = false;
+        boardData = { fen: '', caption: '', highlights: [] };
+        return;
+      }
+      if (trimmed.toLowerCase().startsWith('fen:')) {
+        boardData.fen = trimmed.slice(4).trim();
+      } else if (trimmed.toLowerCase().startsWith('caption:')) {
+        boardData.caption = trimmed.slice(8).trim();
+      } else if (trimmed.toLowerCase().startsWith('highlights:')) {
+        boardData.highlights = trimmed.slice(11).split(',').map((s) => s.trim());
+      }
+      return;
+    }
+
+    // Check for start of board diagram block
+    if (trimmed === ':::board') {
+      flushList(index);
+      flushQuote(index);
+      inBoardBlock = true;
+      boardData = { fen: '', caption: '', highlights: [] };
+      return;
+    }
+
+    // Check for inline single-line board diagram: :::board fen="..." caption="..." highlights="..." :::
+    if (trimmed.startsWith(':::board')) {
+      flushList(index);
+      flushQuote(index);
+      const fenMatch = trimmed.match(/fen=["']([^"']+)["']/i);
+      const capMatch = trimmed.match(/caption=["']([^"']+)["']/i);
+      const hiMatch = trimmed.match(/highlights=["']([^"']+)["']/i);
+
+      if (fenMatch) {
+        const fen = fenMatch[1];
+        const caption = capMatch ? capMatch[1] : undefined;
+        const highlights = hiMatch ? hiMatch[1].split(',').map((s) => s.trim()) : [];
+        elements.push(
+          <ChessBoardDiagram
+            key={`board-${index}`}
+            fen={fen}
+            caption={caption}
+            highlightSquares={highlights}
+          />
+        );
+        return;
+      }
+    }
 
     // Check for blockquote
     if (trimmed.startsWith('>')) {
@@ -188,3 +255,4 @@ export function BlogContentRenderer({ content }: BlogContentRendererProps) {
 
   return <div className="article-content-body">{elements}</div>;
 }
+

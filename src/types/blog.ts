@@ -19,3 +19,4 @@ export interface BlogPost {
 }
 
 export type BlogPostSummary = Omit<BlogPost, 'content'>;
+

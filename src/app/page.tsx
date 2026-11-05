@@ -37,6 +37,7 @@ import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles, V
 import { ChessSoundSettingsModal } from '../components/ChessSoundSettingsModal';
 import { HomeHighlights } from '../components/HomeHighlights';
 import type { BlogPost } from '../types/blog';
+import { FUNDAMENTAL_CHESS_BLOG_POSTS } from '../lib/blogPostsSeed';
 
 
 export default function SwissTournamentPage() {
@@ -80,7 +81,12 @@ export default function SwissTournamentPage() {
   const [managerTab, setManagerTab] = useState<'tournaments' | 'roster'>('tournaments');
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() =>
+    FUNDAMENTAL_CHESS_BLOG_POSTS.slice(0, 3).map((p) => ({
+      ...p,
+      date: 'Terbaru',
+    }))
+  );
 
   // Neon is the only source of tournament, roster, and blog data.
   useEffect(() => {

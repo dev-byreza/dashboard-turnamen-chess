@@ -27,10 +27,17 @@ export function getDb() {
   return neon(url);
 }
 
+// In-memory flags to prevent repeating expensive DDL statements on every query
+let tablesEnsured = false;
+let blogSeeded = false;
+let blogCache: { data: BlogPost[]; at: number } | null = null;
+const blogPostSlugCache = new Map<string, { data: BlogPost; at: number }>();
+
 /**
  * Ensure all required tables exist in PostgreSQL.
  */
 export async function ensureTables(sql: any) {
+  if (tablesEnsured) return;
   await sql`
     CREATE TABLE IF NOT EXISTS chess_roster (
       id VARCHAR(64) PRIMARY KEY,
@@ -147,6 +154,8 @@ export async function ensureTables(sql: any) {
     CREATE UNIQUE INDEX IF NOT EXISTS chess_blog_posts_slug_unique_idx
     ON chess_blog_posts (slug);
   `;
+
+  tablesEnsured = true;
 }
 
 /**
@@ -562,6 +571,7 @@ export function formatBlogDate(dateInput?: string | Date | null): string {
  * Seed fundamental chess articles into PostgreSQL if table is empty.
  */
 export async function seedBlogPostsIfEmpty(sql: any): Promise<void> {
+  if (blogSeeded) return;
   try {
     const existing = await sql`
       SELECT COUNT(*)::int AS count FROM chess_blog_posts;
@@ -596,6 +606,7 @@ export async function seedBlogPostsIfEmpty(sql: any): Promise<void> {
         `;
       }
     }
+    blogSeeded = true;
   } catch (err) {
     console.error('Error seeding fundamental blog posts:', err);
   }
@@ -608,8 +619,14 @@ export async function getDbBlogPosts(options?: {
   publishedOnly?: boolean;
   limit?: number;
 }): Promise<BlogPost[]> {
+  // Fast memory cache check (60s TTL)
+  const now = Date.now();
+  if (blogCache && now - blogCache.at < 60000 && (!options?.limit || options.limit >= blogCache.data.length)) {
+    return options?.limit ? blogCache.data.slice(0, options.limit) : blogCache.data;
+  }
+
   const sql = getDb();
-  if (!sql) return [];
+  if (!sql) return blogCache ? blogCache.data : [];
   try {
     await ensureTables(sql);
     await seedBlogPostsIfEmpty(sql);
@@ -633,7 +650,7 @@ export async function getDbBlogPosts(options?: {
       LIMIT ${limit};
     `) as any[];
 
-    return rows.map((r) => ({
+    const result: BlogPost[] = rows.map((r) => ({
       id: r.id,
       slug: r.slug,
       title: r.title,
@@ -652,9 +669,15 @@ export async function getDbBlogPosts(options?: {
       updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
       date: formatBlogDate(r.publishedAt),
     }));
+
+    if (!options?.limit || options.limit >= 6) {
+      blogCache = { data: result, at: now };
+    }
+
+    return result;
   } catch (err) {
     console.error('Failed to get blog posts from PostgreSQL:', err);
-    return [];
+    return blogCache ? blogCache.data : [];
   }
 }
 
@@ -662,8 +685,14 @@ export async function getDbBlogPosts(options?: {
  * Get single blog post by slug from PostgreSQL database.
  */
 export async function getDbBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+  const now = Date.now();
+  const cached = blogPostSlugCache.get(slug);
+  if (cached && now - cached.at < 60000) {
+    return cached.data;
+  }
+
   const sql = getDb();
-  if (!sql) return null;
+  if (!sql) return cached?.data || null;
   try {
     await ensureTables(sql);
     await seedBlogPostsIfEmpty(sql);
@@ -689,7 +718,7 @@ export async function getDbBlogPostBySlug(slug: string): Promise<BlogPost | null
     // Asynchronously increment views counter
     sql`UPDATE chess_blog_posts SET views = views + 1 WHERE slug = ${slug}`.catch(() => {});
 
-    return {
+    const item: BlogPost = {
       id: r.id,
       slug: r.slug,
       title: r.title,
@@ -708,9 +737,12 @@ export async function getDbBlogPostBySlug(slug: string): Promise<BlogPost | null
       updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
       date: formatBlogDate(r.publishedAt),
     };
+
+    blogPostSlugCache.set(slug, { data: item, at: now });
+    return item;
   } catch (err) {
     console.error(`Failed to get blog post for slug ${slug}:`, err);
-    return null;
+    return cached?.data || null;
   }
 }
 
