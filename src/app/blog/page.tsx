@@ -54,12 +54,14 @@ export default function BlogIndexPage() {
       })
       .then((data) => {
         if (cancelled) return;
-        setPosts(data || []);
+        if (data && data.length > 0) {
+          setPosts(data);
+        }
         setError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Terjadi kesalahan sistem.');
+        console.warn('Blog catalog fetch warning:', err);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

@@ -32,6 +32,16 @@ let tablesEnsured = false;
 let blogSeeded = false;
 let blogCache: { data: BlogPost[]; at: number } | null = null;
 const blogPostSlugCache = new Map<string, { data: BlogPost; at: number }>();
+let storeCache: { data: TournamentStore; at: number } | null = null;
+
+export function invalidateStoreCache() {
+  storeCache = null;
+}
+
+export function invalidateBlogCache() {
+  blogCache = null;
+  blogPostSlugCache.clear();
+}
 
 /**
  * Ensure all required tables exist in PostgreSQL.
@@ -287,8 +297,13 @@ export async function initDb() {
  * Load full tournament store from PostgreSQL.
  */
 export async function getStoreFromDb(): Promise<TournamentStore | null> {
+  const now = Date.now();
+  if (storeCache && now - storeCache.at < 30000) {
+    return storeCache.data;
+  }
+
   const sql = getDb();
-  if (!sql) return null;
+  if (!sql) return storeCache ? storeCache.data : null;
 
   try {
     // 0. Ensure tables exist
@@ -416,14 +431,16 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
       tournaments[0]?.id ||
       null;
 
-    return ensureUniqueTournamentSlugs({
+    const result = ensureUniqueTournamentSlugs({
       roster,
       tournaments,
       activeId,
     });
+    storeCache = { data: result, at: now };
+    return result;
   } catch (err) {
     console.error('Error fetching tournament store from PostgreSQL:', err);
-    return null;
+    return storeCache ? storeCache.data : null;
   }
 }
 
@@ -431,6 +448,7 @@ export async function getStoreFromDb(): Promise<TournamentStore | null> {
  * Persist the entire tournament store into PostgreSQL.
  */
 export async function saveStoreToDb(store: TournamentStore): Promise<{ success: boolean; error?: string }> {
+  invalidateStoreCache();
   const sql = getDb();
   if (!sql) {
     return { success: false, error: 'Variabel POSTGRES_URL atau DATABASE_URL belum dikonfigurasi.' };
@@ -619,21 +637,21 @@ export async function getDbBlogPosts(options?: {
   publishedOnly?: boolean;
   limit?: number;
 }): Promise<BlogPost[]> {
-  // Fast memory cache check (60s TTL)
+  // Fast memory cache check (5-minute TTL)
   const now = Date.now();
-  if (blogCache && now - blogCache.at < 60000 && (!options?.limit || options.limit >= blogCache.data.length)) {
+  if (blogCache && now - blogCache.at < 300000 && blogCache.data.length > 0) {
     return options?.limit ? blogCache.data.slice(0, options.limit) : blogCache.data;
   }
 
   const sql = getDb();
-  if (!sql) return blogCache ? blogCache.data : [];
+  if (!sql) return blogCache ? (options?.limit ? blogCache.data.slice(0, options.limit) : blogCache.data) : [];
   try {
     await ensureTables(sql);
     await seedBlogPostsIfEmpty(sql);
 
     const isPublishedOnly = options?.publishedOnly !== false;
-    const limit = options?.limit && options.limit > 0 ? options.limit : 100;
 
+    // Fetch all published posts so the in-memory cache is fully populated for instant subsequent reads
     const rows = (await sql`
       SELECT 
         id, slug, title, excerpt, content, category, tag, author,
@@ -646,8 +664,7 @@ export async function getDbBlogPosts(options?: {
         updated_at AS "updatedAt"
       FROM chess_blog_posts
       WHERE (${isPublishedOnly} = FALSE OR is_published = TRUE)
-      ORDER BY published_at DESC
-      LIMIT ${limit};
+      ORDER BY published_at DESC;
     `) as any[];
 
     const result: BlogPost[] = rows.map((r) => ({
@@ -670,14 +687,14 @@ export async function getDbBlogPosts(options?: {
       date: formatBlogDate(r.publishedAt),
     }));
 
-    if (!options?.limit || options.limit >= 6) {
+    if (result.length > 0) {
       blogCache = { data: result, at: now };
     }
 
-    return result;
+    return options?.limit ? result.slice(0, options.limit) : result;
   } catch (err) {
     console.error('Failed to get blog posts from PostgreSQL:', err);
-    return blogCache ? blogCache.data : [];
+    return blogCache ? (options?.limit ? blogCache.data.slice(0, options.limit) : blogCache.data) : [];
   }
 }
 

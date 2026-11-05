@@ -37,7 +37,7 @@ import { ArrowLeft, Clock, Settings, Trophy, Lock, LogOut, BookOpen, Sparkles, V
 import { ChessSoundSettingsModal } from '../components/ChessSoundSettingsModal';
 import { HomeHighlights } from '../components/HomeHighlights';
 import type { BlogPost } from '../types/blog';
-import { FUNDAMENTAL_CHESS_BLOG_POSTS } from '../lib/blogPostsSeed';
+import { getCachedBlogPosts, setCachedBlogPosts, areBlogPostsEqual } from '../utils/blogCache';
 
 
 export default function SwissTournamentPage() {
@@ -58,8 +58,8 @@ export default function SwissTournamentPage() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
   const [isAdminViewingTournament, setIsAdminViewingTournament] = useState<boolean>(false);
 
-  // Short loader transition (~300ms) when returning to tournament directory from an opened tournament
-  const [isClosingLoaderActive, setIsClosingLoaderActive] = useState<boolean>(() => isDbAlreadyConnected);
+  // Short loader transition (~300ms) only when explicitly returning from an opened tournament
+  const [isClosingLoaderActive, setIsClosingLoaderActive] = useState<boolean>(false);
   // Short loader transition for admin opening/closing tournament
   const [isAdminTransitioning, setIsAdminTransitioning] = useState<boolean>(false);
 
@@ -81,24 +81,25 @@ export default function SwissTournamentPage() {
   const [managerTab, setManagerTab] = useState<'tournaments' | 'roster'>('tournaments');
   const [managerCreate, setManagerCreate] = useState<boolean>(false);
   const [managerEditId, setManagerEditId] = useState<string | null>(null);
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() =>
-    FUNDAMENTAL_CHESS_BLOG_POSTS.slice(0, 3).map((p) => ({
-      ...p,
-      date: 'Terbaru',
-    }))
-  );
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => getCachedBlogPosts());
 
   // Neon is the only source of tournament, roster, and blog data.
   useEffect(() => {
     setIsAdmin(checkIsAdmin());
     let cancelled = false;
 
-    // Load blog posts dynamically from database
+    // Load blog posts dynamically from database in background with instant cache sync
     fetch('/api/blog?limit=3')
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled && data.success && Array.isArray(data.posts)) {
-          setBlogPosts(data.posts);
+        if (!cancelled && data.success && Array.isArray(data.posts) && data.posts.length > 0) {
+          setCachedBlogPosts(data.posts);
+          setBlogPosts((prev) => {
+            if (areBlogPostsEqual(prev, data.posts)) {
+              return prev; // keep identical reference to avoid unnecessary re-render/flickering
+            }
+            return data.posts;
+          });
         }
       })
       .catch((err) => console.warn('Blog posts fetch warning:', err));
@@ -730,7 +731,7 @@ export default function SwissTournamentPage() {
           </div>
         </header>
 
-        {(dbStatus === 'checking' && !isDbAlreadyConnected) ? null : dbStatus === 'connected' && isAdminConnected && isAdminViewingTournament && activeTournament ? (
+        {isAdminConnected && isAdminViewingTournament && activeTournament ? (
           <>
             <div className="tournament-dashboard-toolbar">
               <button
@@ -761,7 +762,7 @@ export default function SwissTournamentPage() {
               onOpenRules={() => setIsRulesOpen(true)}
             />
           </>
-        ) : dbStatus === 'connected' ? (
+        ) : (
           <HomeHighlights
             posts={blogPosts}
             tournamentSlot={
@@ -773,14 +774,6 @@ export default function SwissTournamentPage() {
               />
             }
           />
-        ) : (
-          <div className="empty-state" style={{ margin: '4rem auto', maxWidth: 540 }} role="status" aria-live="polite">
-            <Trophy size={48} style={{ color: 'var(--gold)', margin: '0 auto 1rem' }} />
-            <h3 className="empty-title">Turnamen belum dapat dimuat</h3>
-            <p className="empty-desc">
-              Data turnamen belum tersedia karena koneksi ke Neon belum aktif.
-            </p>
-          </div>
         )}
 
         {/* Simple White Footer */}
@@ -790,7 +783,7 @@ export default function SwissTournamentPage() {
         </footer>
       </div>
 
-      {((dbStatus === 'checking' && !isDbAlreadyConnected) || isClosingLoaderActive || isAdminTransitioning) && (
+      {(isClosingLoaderActive || isAdminTransitioning) && (
         <section
           className="chess-loading-state"
           role="status"

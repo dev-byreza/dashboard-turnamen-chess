@@ -113,3 +113,4 @@ export function ChessBoardDiagram({
     </figure>
   );
 }
+
